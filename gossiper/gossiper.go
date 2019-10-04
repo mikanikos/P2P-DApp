@@ -73,10 +73,7 @@ func (gossiper *Gossiper) Run() {
 	go getPacket(gossiper.connUI, clientChannel)
 
 	go gossiper.handleConnectionPeers(peersChannel)
-	go getPacket(gossiper.connGossiper, peersChannel)
-
-	for {
-	}
+	getPacket(gossiper.connGossiper, peersChannel)
 
 }
 
