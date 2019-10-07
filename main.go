@@ -26,4 +26,10 @@ func main() {
 
 	gossiper.Run()
 
+	// r := mux.NewRouter()
+
+	// r.HandleFunc("/", backend.MyHandler)
+
+	// log.Fatal(http.ListenAndServe(":8080", r))
+
 }

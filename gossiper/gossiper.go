@@ -13,9 +13,10 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-var maxBufferSize = 1024
+var maxBufferSize = 4096
 var modeTypes = []string{"simple", "rumor", "status", "client"}
 var rumorTimeout = 10
+var antiEntropyTimeout = 10
 
 // MutexPeers struct
 type MutexPeers struct {
@@ -28,11 +29,6 @@ type PacketsStorage struct {
 	OriginPacketsMap map[string]map[uint32]*helpers.ExtendedGossipPacket
 	Mutex            sync.RWMutex
 }
-
-// MutexOriginPackets struct
-// type MutexOriginPackets struct {
-// 	OriginPacketsMap sync.Map //map[string]map[helpers.GossipPacket]struct{}
-// }
 
 // MutexSequenceID struct
 type MutexSequenceID struct {
@@ -96,6 +92,8 @@ func initializeChannels(modeTypes []string) (channels map[string]chan *helpers.E
 // Run function
 func (gossiper *Gossiper) Run() {
 
+	rand.Seed(time.Now().UTC().UnixNano())
+
 	channels := initializeChannels(modeTypes)
 
 	go gossiper.handleConnectionClient(channels["client"])
@@ -106,10 +104,25 @@ func (gossiper *Gossiper) Run() {
 	} else {
 		go gossiper.handleConnectionStatus(channels["status"])
 		go gossiper.handleConnectionRumor(channels["rumor"])
+		go gossiper.startAntiEntropy()
 	}
 
 	gossiper.getPacket(gossiper.gossiperData, channels)
 
+}
+
+func (gossiper *Gossiper) startAntiEntropy() {
+	timer := time.NewTicker(time.Duration(antiEntropyTimeout) * time.Second)
+	for {
+		select {
+		case <-timer.C:
+			peersCopy := gossiper.peers.getPeersAtomic()
+			indexPeer := rand.Intn(len(peersCopy))
+			randomPeer := peersCopy[indexPeer]
+			//fmt.Println("Sending periodic status to " + randomPeer.String())
+			gossiper.sendStatusPacket(randomPeer)
+		}
+	}
 }
 
 func (gossiper *Gossiper) handleConnectionRumor(rumorChannel chan *helpers.ExtendedGossipPacket) {
@@ -154,32 +167,33 @@ func differenceString(a, b []*net.UDPAddr) []*net.UDPAddr {
 }
 
 func (gossiper *Gossiper) startRumorMongering(extPacket *helpers.ExtendedGossipPacket) {
-	peers := gossiper.peers.getPeersAtomic()
 	coin := 1
 
 	peersWithRumor := make([]*net.UDPAddr, 0)
 	peersWithRumor = append(peersWithRumor, extPacket.SenderAddr)
 
 	for coin == 1 {
+		peers := gossiper.peers.getPeersAtomic()
 		availablePeers := differenceString(peers, peersWithRumor)
 		if len(availablePeers) == 0 {
 			return
 		}
-		indexPeer := rand.Int() % len(availablePeers)
+		indexPeer := rand.Intn(len(availablePeers))
 		randomPeer := availablePeers[indexPeer]
 		peersWithRumor = append(peersWithRumor, randomPeer)
 
 		fmt.Println("FLIPPED COIN sending rumor to " + randomPeer.String())
-		statusReceived := gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
+		wasStatusReceived := gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
+		//gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
 
-		if statusReceived {
+		if wasStatusReceived {
 			coin = rand.Int() % 2
 		}
 	}
 }
 
 func (gossiper *Gossiper) sendStatusPacket(addr *net.UDPAddr) {
-	myStatus := gossiper.createStatus(false)
+	myStatus := gossiper.createStatus()
 	statusPacket := &helpers.StatusPacket{Want: myStatus}
 	packet := &helpers.GossipPacket{Status: statusPacket}
 	gossiper.sendPacket(packet, addr)
@@ -187,31 +201,24 @@ func (gossiper *Gossiper) sendStatusPacket(addr *net.UDPAddr) {
 
 func (gossiper *Gossiper) sendRumorWithTimeout(packet *helpers.GossipPacket, peer *net.UDPAddr) bool {
 	gossiper.statusChannels[peer.String()] = make(chan *helpers.ExtendedGossipPacket)
+
 	gossiper.sendPacket(packet, peer)
 	fmt.Println("MONGERING with " + peer.String())
+
 	timer := time.NewTicker(time.Duration(rumorTimeout) * time.Second)
 	defer timer.Stop()
 
-	received := make(chan bool)
-	go func() {
-		channel, _ := gossiper.statusChannels[peer.String()]
-		select {
-		case <-channel:
-			received <- true
-		}
-	}()
 	for {
 		select {
-		case <-received:
+		case <-gossiper.statusChannels[peer.String()]:
 			return true
 		case <-timer.C:
-			close(gossiper.statusChannels[peer.String()])
 			return false
 		}
 	}
 }
 
-func (gossiper *Gossiper) createStatus(includeMyself bool) []helpers.PeerStatus {
+func (gossiper *Gossiper) createStatus() []helpers.PeerStatus {
 	gossiper.originPackets.Mutex.Lock()
 	defer gossiper.originPackets.Mutex.Unlock()
 	myStatus := make([]helpers.PeerStatus, 0)
@@ -231,7 +238,7 @@ func (gossiper *Gossiper) createStatus(includeMyself bool) []helpers.PeerStatus 
 	return myStatus
 }
 
-func (gossiper *Gossiper) getDifferenceStatus(myStatus, otherStatus []helpers.PeerStatus, otherAddr string) []helpers.PeerStatus {
+func (gossiper *Gossiper) getDifferenceStatus(myStatus, otherStatus []helpers.PeerStatus) []helpers.PeerStatus {
 	originIDMap := make(map[string]uint32)
 	for _, elem := range otherStatus {
 		originIDMap[elem.Identifier] = elem.NextID
@@ -255,12 +262,25 @@ func (gossiper *Gossiper) getPacketsFromStatus(ps helpers.PeerStatus) []*helpers
 	gossiper.originPackets.Mutex.Lock()
 	defer gossiper.originPackets.Mutex.Unlock()
 	idMessages, _ := gossiper.originPackets.OriginPacketsMap[ps.Identifier]
-	packets := make([]*helpers.GossipPacket, 0)
-	for id, message := range idMessages {
-		if id >= ps.NextID-1 {
-			packets = append(packets, message.Packet)
+	maxID := ps.NextID
+	for id := range idMessages {
+		if id > maxID {
+			maxID = id
 		}
 	}
+	packets := make([]*helpers.GossipPacket, 0)
+	for i := ps.NextID; i <= maxID; i++ {
+		packets = append(packets, idMessages[i].Packet)
+	}
+
+	// for id := range (ps.NextID, )
+	// idMessagesp[ps.NextID]
+	//
+	// for id, message := range idMessages {
+	// 	if id >= ps.NextID-1 {
+	// 		packets = append(packets, message.Packet)
+	// 	}
+	// }
 	return packets
 }
 
@@ -274,20 +294,24 @@ func printStatusMessage(extPacket *helpers.ExtendedGossipPacket) {
 
 func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *helpers.ExtendedGossipPacket) {
 	for extPacket := range statusChannel {
+
+		_, channelCreated := gossiper.statusChannels[extPacket.SenderAddr.String()]
+		if channelCreated {
+			//gossiper.statusChannels[extPacket.SenderAddr.String()] = make(chan *helpers.ExtendedGossipPacket)
+			go func() {
+				gossiper.statusChannels[extPacket.SenderAddr.String()] <- extPacket
+			}()
+
+		}
+
 		printStatusMessage(extPacket)
 		gossiper.peers.addPeer(extPacket.SenderAddr)
 		printPeers(gossiper.peers.getPeersAtomic())
 
-		_, channelCreated := gossiper.statusChannels[extPacket.SenderAddr.String()]
-		if !channelCreated {
-			gossiper.statusChannels[extPacket.SenderAddr.String()] = make(chan *helpers.ExtendedGossipPacket)
-		}
-		gossiper.statusChannels[extPacket.SenderAddr.String()] <- extPacket
+		myStatus := gossiper.createStatus()
 
-		myStatus := gossiper.createStatus(true)
-
-		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want, extPacket.SenderAddr.String())
-		wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus, gossiper.gossiperData.Addr.String())
+		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
+		wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
 
 		// fmt.Println(len(toSend), len(wanted))
 		// if len(toSend) != 0 {
@@ -302,11 +326,12 @@ func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *helpers.Ext
 			packets := gossiper.getPacketsFromStatus(ps)
 			for _, m := range packets {
 				//		countSent = countSent + 1
+				fmt.Println("MONGERING with " + extPacket.SenderAddr.String())
 				gossiper.sendPacket(m, extPacket.SenderAddr)
-
 			}
 		}
 
+		//if len(toSend) == 0 {
 		if len(wanted) != 0 {
 			go gossiper.sendStatusPacket(extPacket.SenderAddr)
 		} else {
@@ -314,6 +339,7 @@ func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *helpers.Ext
 				fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
 			}
 		}
+		//}
 
 		// for _, ps := range extPacket.Packet.Status.Want {
 		// 	messages, isPeerKnown := gossiper.originPackets.OriginPacketsMap[ps.Identifier]

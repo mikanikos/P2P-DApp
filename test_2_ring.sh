@@ -149,7 +149,6 @@ do
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") && !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
         failed="T"
-        echo -e "${RED} Fail at file: ${outputFiles[$i]}"
     fi
     gossipPort=$(($gossipPort+1))
 done
@@ -218,11 +217,9 @@ do
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") ; then
         failed="T"
-        echo -e "${RED} Fail at file: ${outputFiles[$i]}"
     fi
     if !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
         failed="T"
-        echo -e "${RED} Fail at file: ${outputFiles[$i]}"
     fi
 	gossipPort=$(($gossipPort+1))
 
@@ -250,11 +247,9 @@ do
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") ; then
         failed="T"
-        echo -e "${RED} Fail at file: ${outputFiles[$i]}"
     fi
     if !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
         failed="T"
-        echo -e "${RED} Fail at file: ${outputFiles[$i]}"
     fi
 	gossipPort=$(($gossipPort+1))
 done
@@ -290,3 +285,4 @@ if [[ "$failed" == "T" ]] ; then
 else
     echo -e "${GREEN}***PASSED***${NC}"
 fi
+
