@@ -31,10 +31,10 @@ func (client *Client) sendMessage(msg string) {
 	helpers.ErrorCheck(err)
 	defer conn.Close()
 
-	simpleMsg := &helpers.SimpleMessage{
-		Contents: msg,
-	}
-	packet := &helpers.GossipPacket{Simple: simpleMsg}
+	// simpleMsg := &helpers.Message{
+	// 	Text: msg,
+	// }
+	packet := &helpers.Message{Text: msg}
 	packetBytes, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
 	conn.Write(packetBytes)
