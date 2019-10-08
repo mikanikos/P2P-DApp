@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://code.jquery.com/jquery-3.4.1.js"></script>
+</head>
+
+<body>
+
+    <h1>Peerster</h1>
+    <div class="peerID">
+        <label>myPeerID</label>
+    </div>
+
+    <div class="chatBox" style="width:1000px;border:1px solid #bbb;margin:15px">
+        <div class="titleBox" style="background-color:#fdfdfd;padding:10px;">
+            <label style="margin:0;display:inline-block">
+                Chat Box
+            </label>
+        </div>
+        <div class="actionBox" style="padding:10px;">
+            <ul class="commentList" style="padding:0;list-style:none;max-height:200px;overflow:auto;">
+                <li style="margin:0;margin-top:10px;">
+                    <div class="commentText">
+                        <span class="fromField" style="font-size:12px;">Peer 3</span>
+                        <p class="" style="margin:0;">Hello this is a test comment.</p>
+                    </div>
+                </li>
+            </ul>
+            <form id="sendForm">
+                <div class="form-group" style="width:100%;">
+                    <input type="text" placeholder="Write your message" style="width:80%;" />
+                </div>
+                <div class="form-group" style="width:100%;">
+                    <button type="submit" style="width:20%;">Send</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="nodeBox" style="width:1000px;border:1px solid #bbb;margin:15px">
+        <div class="titleBox" style="background-color:#fdfdfd;padding:10px;">
+            <label style="margin:0;display:inline-block">
+                Node Box
+            </label>
+        </div>
+        <div class="actionBox" style="padding:10px;">
+            <ul class="commentList" style="padding:0;list-style:none;max-height:200px;overflow:auto;">
+                <li style="margin:0;margin-top:10px;">
+                    <div class="commentText">
+                        <p class="" style="margin:0;">Hello this is a test comment.</p>
+                    </div>
+                </li>
+            </ul>
+            <form id="peerForm">
+                <div class="form-group" style="width:100%;">
+                    <input class="form-control" type="text" placeholder="IP:PORT" style="width:80%;" />
+                </div>
+                <div class="form-group" style="width:100%;">
+                    <button class="btn btn-default" style="width:20%;">Add peer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        $("#sendForm").submit(function (event) {
+
+            // Stop form from submitting normally
+            event.preventDefault();
+
+            alert("wowowo");
+            // $.ajax({
+            //     url: '/sendMessage',
+            //     type: 'post',
+            //     data: $('#sendForm').serialize(),
+            // });
+        });
+        $("#peerForm").submit(function (event) {
+
+            // Stop form from submitting normally
+            event.preventDefault();
+
+            alert("wowowo");
+            // $.ajax({
+            //     url: '/addPeer',
+            //     type: 'post',
+            //     data: $('#peerForm').serialize(),
+            // });
+        });
+    </script>
+</body>
+
+</html>
