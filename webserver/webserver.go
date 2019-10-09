@@ -2,9 +2,12 @@ package webserver
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 
+	"github.com/dedis/protobuf"
 	"github.com/gorilla/mux"
 	"github.com/mikanikos/Peerster/gossiper"
 	"github.com/mikanikos/Peerster/helpers"
@@ -12,8 +15,9 @@ import (
 
 var webserverPort = "8080"
 var g *gossiper.Gossiper
+var uiPort string
 
-func WriteJson(w http.ResponseWriter, payload interface{}) {
+func writeJSON(w http.ResponseWriter, payload interface{}) {
 	bytes, err := json.Marshal(payload)
 	helpers.ErrorCheck(err)
 	w.WriteHeader(http.StatusOK)
@@ -21,45 +25,65 @@ func WriteJson(w http.ResponseWriter, payload interface{}) {
 	w.Write(bytes)
 }
 
-func GetMessageHandler(w http.ResponseWriter, r *http.Request) {
-	//
+func sendMessage(msg string) {
+	gossiperAddr, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+":"+uiPort)
+	helpers.ErrorCheck(err)
+	conn, err := net.DialUDP("udp", nil, gossiperAddr)
+	helpers.ErrorCheck(err)
+	defer conn.Close()
+
+	packet := &helpers.Message{Text: msg}
+	packetBytes, err := protobuf.Encode(packet)
+	helpers.ErrorCheck(err)
+	conn.Write(packetBytes)
 }
 
-func PostMessageHandler(w http.ResponseWriter, r *http.Request) {
-	// wg := new(sync.WaitGroup)
-	// bytes, err := ioutil.ReadAll(r.Body)
-	// message := string(bytes)
+func getMessageHandler(w http.ResponseWriter, r *http.Request) {
+	msgList := g.GetMessages()
+	writeJSON(w, msgList)
+}
+
+func postMessageHandler(w http.ResponseWriter, r *http.Request) {
+	bytes, err := ioutil.ReadAll(r.Body)
+	helpers.ErrorCheck(err)
+	message := string(bytes)
+	sendMessage(message)
 	// command := "../client/client -UIPort " + g.UIPort + " -msg " + message
 	// parts := strings.Fields(command)
 	// out, err := exec.Command(parts[0], parts[1]).Output()
 	// helpers.ErrorCheck(err)
 	// wg.Done()
+
 }
 
-func GetNodeHandler(w http.ResponseWriter, r *http.Request) {
-	//WriteJson(w, strings.Split(gossiper.GetPeersAtomic(), ","))
+func getNodeHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, helpers.GetArrayStringFromAddresses(g.GetPeersAtomic()))
 }
 
-func PostNodeHandler(w http.ResponseWriter, r *http.Request) {
-	// bytes, err := ioutil.ReadAll(r.Body)
-	// peer := string(bytes)
-	//g.AddPeer(peer)
+func postNodeHandler(w http.ResponseWriter, r *http.Request) {
+	bytes, err := ioutil.ReadAll(r.Body)
+	peer := string(bytes)
+	peerAddr, err := net.ResolveUDPAddr("udp4", peer)
+	helpers.ErrorCheck(err)
+	g.AddPeer(peerAddr)
 }
 
-func GetIDHandler(w http.ResponseWriter, r *http.Request) {
-	//WriteJson(w, g.Name)
+func getIDHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, g.GetName())
 }
 
-func RunWebServer(gossiper *gossiper.Gossiper) {
+// RunWebServer to handle requests
+func RunWebServer(gossiper *gossiper.Gossiper, port string) {
 	g = gossiper
+	uiPort = port
 
 	r := mux.NewRouter()
 
-	r.HandleFunc("/message", GetMessageHandler).Methods("GET")
-	r.HandleFunc("/message", PostMessageHandler).Methods("POST")
-	r.HandleFunc("/node", GetNodeHandler).Methods("GET")
-	r.HandleFunc("/node", PostNodeHandler).Methods("POST")
-	r.HandleFunc("/id", GetIDHandler).Methods("GET")
+	r.HandleFunc("/message", getMessageHandler).Methods("GET")
+	r.HandleFunc("/message", postMessageHandler).Methods("POST")
+	r.HandleFunc("/node", getNodeHandler).Methods("GET")
+	r.HandleFunc("/node", postNodeHandler).Methods("POST")
+	r.HandleFunc("/id", getIDHandler).Methods("GET")
 
 	log.Fatal(http.ListenAndServe(":"+webserverPort, r))
 }

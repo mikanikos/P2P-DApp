@@ -5,6 +5,7 @@ import (
 	"net"
 )
 
+// BaseAddress of the program
 const BaseAddress = "127.0.0.1"
 
 // Message struct
@@ -12,57 +13,34 @@ type Message struct {
 	Text string
 }
 
-// SimpleMessage struct
-type SimpleMessage struct {
-	OriginalName  string
-	RelayPeerAddr string
-	Contents      string
-}
-
-// GossipPacket struct
-type GossipPacket struct {
-	Simple *SimpleMessage
-	Rumor  *RumorMessage
-	Status *StatusPacket
-}
-
-type NetworkData struct {
-	Conn *net.UDPConn
-	Addr *net.UDPAddr
-}
-
-type ExtendedGossipPacket struct {
-	Packet     *GossipPacket
-	SenderAddr *net.UDPAddr
-}
-
-type RumorMessage struct {
-	Origin string
-	ID     uint32
-	Text   string
-}
-
-type StatusPacket struct {
-	Want []PeerStatus
-}
-
-type PeerStatus struct {
-	Identifier string
-	NextID     uint32
-}
-
+// ErrorCheck to log errors
 func ErrorCheck(err error) {
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
-func GetTypeMode(packet *GossipPacket) string {
-	if packet.Simple != nil {
-		return "simple"
+// DifferenceString to do the difference between two string sets
+func DifferenceString(list1, list2 []*net.UDPAddr) []*net.UDPAddr {
+	mapList2 := make(map[string]struct{}, len(list2))
+	for _, x := range list2 {
+		mapList2[x.String()] = struct{}{}
 	}
-	if packet.Rumor != nil {
-		return "rumor"
+	var difference []*net.UDPAddr
+	for _, x := range list1 {
+		_, check := mapList2[x.String()]
+		if !check {
+			difference = append(difference, x)
+		}
 	}
-	return "status"
+	return difference
+}
+
+// GetArrayStringFromAddresses array conversion from address to string
+func GetArrayStringFromAddresses(peers []*net.UDPAddr) []string {
+	list := make([]string, 0)
+	for _, p := range peers {
+		list = append(list, p.String())
+	}
+	return list
 }
