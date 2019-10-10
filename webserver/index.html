@@ -7,59 +7,29 @@
 
 <body>
 
-    <h1>Peerster</h1>
-    <div id="peerID">
-    </div>
+    <h1 style="text-align: center" id="peerID"></h1>
 
-
-    <div class="chatBox" style="width:1000px;border:1px solid #bbb;margin:15px">
-        <div class="titleBox" style="background-color:#fdfdfd;padding:10px;">
-            <label style="margin:0;display:inline-block">
-                Chat Box
-            </label>
-        </div>
-        <div class="actionBox" style="padding:10px;">
-            <ul id="messageList" style="padding:0;list-style:none;max-height:200px;overflow:auto;">
-                <li style="margin:0;margin-top:10px;">
-                    <div class="commentText">
-                        <span class="fromField" style="font-size:12px;">Peer 3</span>
-                        <p class="" style="margin:0;">Hello this is a test comment.</p>
-                    </div>
-                </li>
-            </ul>
-            <form id="sendForm">
-                <div class="form-group" style="width:100%;">
-                    <input id="messageInput" type="text" placeholder="Write your message" style="width:80%;" />
-                </div>
-                <div class="form-group" style="width:100%;">
-                    <button type="submit" style="width:20%;">Send</button>
-                </div>
-            </form>
-        </div>
+    <div class="chatBox" style="float:left;height:80vh;width:60%;border:1px solid #bbb;margin:10px;">
+        <label style="margin:10px;display:inline-block;">
+            <strong>Chat Box</strong>
+        </label>
+        <ul id="messageList" style="padding:10px;list-style:none;max-height:650px;overflow:auto;">
+        </ul>
+        <form id="sendForm" style="margin:10px;">
+            <input id="messageInput" type="text" placeholder="Write your message" style="width:80%" />
+            <button type="submit" style="width:10%;">Send</button>
+        </form>
     </div>
-    <div class="nodeBox" style="width:1000px;border:1px solid #bbb;margin:15px">
-        <div class="titleBox" style="background-color:#fdfdfd;padding:10px;">
-            <label style="margin:0;display:inline-block">
-                Node Box
-            </label>
-        </div>
-        <div class="actionBox" style="padding:10px;">
-            <ul id="peerList" style="padding:0;list-style:none;max-height:200px;overflow:auto;">
-                <!-- <li style="margin:0;margin-top:10px;">
-                    <div class="commentText">
-                        <p class="" style="margin:0;">Hello this is a test comment.</p>
-                    </div>
-                </li> -->
-            </ul>
-            <form id="peerForm">
-                <div class="form-group" style="width:100%;">
-                    <input id="peerInput" type="text" placeholder="IP:PORT" style="width:80%;" />
-                </div>
-                <div class="form-group" style="width:100%;">
-                    <button class="btn btn-default" style="width:20%;">Add peer</button>
-                </div>
-            </form>
-        </div>
+    <div class="nodeBox" style="float:left;height:65vh;width:25%;border:1px solid #bbb;margin:10px">
+        <label style="margin:10px;display:inline-block">
+            <strong>Node Box</strong>
+        </label>
+        <ul id="peerList" style="padding:10px;list-style:none;max-height:650px;overflow:auto;">
+        </ul>
+        <form id="peerForm" style="margin:10px;">
+            <input id="peerInput" type="text" placeholder="IP:PORT" style="width:80%;" />
+            <button type="submit" style="width:10%;">Add</button>
+        </form>
     </div>
     <script>
         $("#sendForm").submit(function (event) {
@@ -68,6 +38,11 @@
             event.preventDefault();
 
             var message = document.getElementById("messageInput").value;
+            
+            if (message == "") {
+                return
+            }
+
             document.getElementById("messageInput").value = "";
 
             //alert("wowowo");
@@ -85,6 +60,10 @@
             var peer = document.getElementById("peerInput").value;
             document.getElementById("peerInput").value = "";
 
+            if (peer == "") {
+                return
+            }
+
             //alert("wowowo");
             $.ajax({
                 url: '/node',
@@ -96,7 +75,7 @@
         });
         $.get("/id", function (data) {
             data = data.replace("\"", "").replace("\"", "")
-            document.getElementById("peerID").innerHTML = data;
+            document.getElementById("peerID").innerHTML = "Peerster - ID: " + data;
         });
         function updatePeersList() {
             $.get("/node", function (data) {
