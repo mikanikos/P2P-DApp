@@ -8,9 +8,9 @@
 <body>
 
     <h1>Peerster</h1>
-    <div class="peerID">
-        <label>myPeerID</label>
+    <div id="peerID">
     </div>
+
 
     <div class="chatBox" style="width:1000px;border:1px solid #bbb;margin:15px">
         <div class="titleBox" style="background-color:#fdfdfd;padding:10px;">
@@ -19,7 +19,7 @@
             </label>
         </div>
         <div class="actionBox" style="padding:10px;">
-            <ul class="commentList" style="padding:0;list-style:none;max-height:200px;overflow:auto;">
+            <ul id="messageList" style="padding:0;list-style:none;max-height:200px;overflow:auto;">
                 <li style="margin:0;margin-top:10px;">
                     <div class="commentText">
                         <span class="fromField" style="font-size:12px;">Peer 3</span>
@@ -29,7 +29,7 @@
             </ul>
             <form id="sendForm">
                 <div class="form-group" style="width:100%;">
-                    <input type="text" placeholder="Write your message" style="width:80%;" />
+                    <input id="messageInput" type="text" placeholder="Write your message" style="width:80%;" />
                 </div>
                 <div class="form-group" style="width:100%;">
                     <button type="submit" style="width:20%;">Send</button>
@@ -44,16 +44,16 @@
             </label>
         </div>
         <div class="actionBox" style="padding:10px;">
-            <ul class="commentList" style="padding:0;list-style:none;max-height:200px;overflow:auto;">
-                <li style="margin:0;margin-top:10px;">
+            <ul id="peerList" style="padding:0;list-style:none;max-height:200px;overflow:auto;">
+                <!-- <li style="margin:0;margin-top:10px;">
                     <div class="commentText">
                         <p class="" style="margin:0;">Hello this is a test comment.</p>
                     </div>
-                </li>
+                </li> -->
             </ul>
             <form id="peerForm">
                 <div class="form-group" style="width:100%;">
-                    <input class="form-control" type="text" placeholder="IP:PORT" style="width:80%;" />
+                    <input id="peerInput" type="text" placeholder="IP:PORT" style="width:80%;" />
                 </div>
                 <div class="form-group" style="width:100%;">
                     <button class="btn btn-default" style="width:20%;">Add peer</button>
@@ -67,25 +67,72 @@
             // Stop form from submitting normally
             event.preventDefault();
 
-            alert("wowowo");
-            // $.ajax({
-            //     url: '/sendMessage',
-            //     type: 'post',
-            //     data: $('#sendForm').serialize(),
-            // });
+            var message = document.getElementById("messageInput").value;
+            document.getElementById("messageInput").value = "";
+
+            //alert("wowowo");
+            $.ajax({
+                url: '/message',
+                type: 'post',
+                data: message,
+            });
         });
         $("#peerForm").submit(function (event) {
 
             // Stop form from submitting normally
             event.preventDefault();
 
-            alert("wowowo");
-            // $.ajax({
-            //     url: '/addPeer',
-            //     type: 'post',
-            //     data: $('#peerForm').serialize(),
-            // });
+            var peer = document.getElementById("peerInput").value;
+            document.getElementById("peerInput").value = "";
+
+            //alert("wowowo");
+            $.ajax({
+                url: '/node',
+                type: 'post',
+                data: peer,
+            });
+            updatePeersList()
+
         });
+        $.get("/id", function (data) {
+            data = data.replace("\"", "").replace("\"", "")
+            document.getElementById("peerID").innerHTML = data;
+        });
+        function updatePeersList() {
+            $.get("/node", function (data) {
+                var array = JSON.parse(data);
+
+                var list = document.getElementById('peerList');
+                while (list.hasChildNodes()) {
+                    list.removeChild(list.firstChild)
+                }
+
+                for (el of array) {
+                    var entry = document.createElement('li');
+                    entry.appendChild(document.createTextNode(el));
+                    list.appendChild(entry);
+                }
+                //document.getElementById("peerList").innerHTML = data;
+            });
+        }
+        updatePeersList()
+        window.setInterval(function () {
+            $.get("/message", function (data) {
+                var array = JSON.parse(data);
+                var list = document.getElementById('messageList');
+                while (list.hasChildNodes()) {
+                    list.removeChild(list.firstChild)
+                }
+
+                for (el of array) {
+                    var entry = document.createElement('li');
+                    var text = "{" + el["ID"] + "} [" + el["Origin"] + "] " + el["Text"]
+                    entry.appendChild(document.createTextNode(text));
+                    list.appendChild(entry);
+                }
+                //document.getElementById("messageList").innerHTML = data;
+            });
+        }, 100);
     </script>
 </body>
 

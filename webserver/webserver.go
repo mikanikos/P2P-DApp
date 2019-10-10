@@ -13,7 +13,6 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-var webserverPort = "8080"
 var g *gossiper.Gossiper
 var uiPort string
 
@@ -48,12 +47,6 @@ func postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	helpers.ErrorCheck(err)
 	message := string(bytes)
 	sendMessage(message)
-	// command := "../client/client -UIPort " + g.UIPort + " -msg " + message
-	// parts := strings.Fields(command)
-	// out, err := exec.Command(parts[0], parts[1]).Output()
-	// helpers.ErrorCheck(err)
-	// wg.Done()
-
 }
 
 func getNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -79,11 +72,13 @@ func RunWebServer(gossiper *gossiper.Gossiper, port string) {
 
 	r := mux.NewRouter()
 
+	r.Handle("/", http.FileServer(http.Dir("./webserver")))
+
 	r.HandleFunc("/message", getMessageHandler).Methods("GET")
 	r.HandleFunc("/message", postMessageHandler).Methods("POST")
 	r.HandleFunc("/node", getNodeHandler).Methods("GET")
 	r.HandleFunc("/node", postNodeHandler).Methods("POST")
 	r.HandleFunc("/id", getIDHandler).Methods("GET")
 
-	log.Fatal(http.ListenAndServe(":"+webserverPort, r))
+	log.Fatal(http.ListenAndServe(":"+uiPort, r))
 }

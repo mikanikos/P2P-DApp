@@ -59,7 +59,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 // Run function
 func (gossiper *Gossiper) Run() {
 
-	rand.Seed(time.Now().UTC().UnixNano())
+	rand.Seed(time.Now().UnixNano())
 
 	channels := initializeChannels(modeTypes)
 

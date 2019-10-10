@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/mikanikos/Peerster/gossiper"
+	"github.com/mikanikos/Peerster/webserver"
 )
 
 func main() {
@@ -24,6 +25,8 @@ func main() {
 	}
 
 	gossiper := gossiper.NewGossiper(*gossipName, *gossipAddr, peersList, *uiPort, *simpleMode, *antiEntropy)
+
+	go webserver.RunWebServer(gossiper, *uiPort)
 
 	gossiper.Run()
 

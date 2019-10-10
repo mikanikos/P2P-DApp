@@ -3,6 +3,7 @@ package gossiper
 import (
 	"hash/fnv"
 	"sync"
+	"time"
 )
 
 // PacketsStorage struct
@@ -26,7 +27,7 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 
 	if gossiper.simpleMode {
 		origin = extPacket.Packet.Simple.OriginalName
-		id = hash(origin)
+		id = hash(origin + time.Now().String())
 		msg = extPacket.Packet.Simple.Contents
 	} else {
 		origin = extPacket.Packet.Rumor.Origin
