@@ -27,7 +27,6 @@ func (gossiper *Gossiper) receivePackets(data *NetworkData, channels map[string]
 				rumorPacket := &RumorMessage{Text: packetFromClient.Text}
 				channels["client"] <- &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: addr}
 			}
-			//channels["client"] <- &helpers.ExtendedGossipPacket{Packet: *helpers.GossipPacket{}, SenderAddr: addr}
 		} else {
 			protobuf.Decode(packetBytes, packetFromPeer)
 			modeType := getTypeMode(packetFromPeer)
@@ -45,14 +44,10 @@ func (gossiper *Gossiper) sendPacket(packet *GossipPacket, address *net.UDPAddr)
 }
 
 func (gossiper *Gossiper) broadcastToPeers(packet *ExtendedGossipPacket) {
-	//packetToSend, err := protobuf.Encode(packet.Packet)
-	//helpers.ErrorCheck(err)
-
 	// broadcast to peers
 	for _, peer := range gossiper.GetPeersAtomic() {
 		if peer.String() != packet.SenderAddr.String() {
 			go gossiper.sendPacket(packet.Packet, peer)
-			//gossiper.connGossiper.WriteToUDP(packetToSend, peer)
 		}
 	}
 }
@@ -68,7 +63,6 @@ func (gossiper *Gossiper) sendPacketsFromStatus(toSend []PeerStatus, addr *net.U
 	for _, ps := range toSend {
 		packets := gossiper.getPacketsFromStatus(ps)
 		for _, m := range packets {
-			//		countSent = countSent + 1
 			fmt.Println("MONGERING with " + addr.String())
 			gossiper.sendPacket(m, addr)
 		}

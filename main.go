@@ -29,11 +29,4 @@ func main() {
 	go webserver.RunWebServer(gossiper, *uiPort)
 
 	gossiper.Run()
-
-	// r := mux.NewRouter()
-
-	// r.HandleFunc("/", backend.MyHandler)
-
-	// log.Fatal(http.ListenAndServe(":8080", r))
-
 }

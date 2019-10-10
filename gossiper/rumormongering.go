@@ -46,10 +46,9 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 		peersWithRumor = append(peersWithRumor, randomPeer)
 
 		fmt.Println("FLIPPED COIN sending rumor to " + randomPeer.String())
-		wasStatusReceived := gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
-		//gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
+		statusReceived := gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
 
-		if wasStatusReceived {
+		if statusReceived {
 			coin = rand.Int() % 2
 		}
 	}
@@ -79,17 +78,13 @@ func (gossiper *Gossiper) createStatus() []PeerStatus {
 	defer gossiper.originPackets.Mutex.Unlock()
 	myStatus := make([]PeerStatus, 0)
 	for origin, idMessages := range gossiper.originPackets.OriginPacketsMap {
-		//fmt.Println(origin)
-		//if origin != gossiper.name || includeMyself {
 		var maxID uint32 = 0
 		for id := range idMessages {
-			//	fmt.Println(fmt.Sprint(id))
 			if id > maxID {
 				maxID = id
 			}
 		}
 		myStatus = append(myStatus, PeerStatus{Identifier: origin, NextID: maxID + 1})
-		//}
 	}
 	return myStatus
 }
@@ -101,15 +96,12 @@ func (gossiper *Gossiper) getDifferenceStatus(myStatus, otherStatus []PeerStatus
 	}
 	difference := make([]PeerStatus, 0)
 	for _, elem := range myStatus {
-		//message, _ := gossiper.originPackets.OriginPacketsMap[elem.Identifier][elem.NextID-1]
-		//if elem.NextID == 1 || message.SenderAddr.String() != otherAddr {
 		id, isOriginKnown := originIDMap[elem.Identifier]
 		if !isOriginKnown {
 			difference = append(difference, PeerStatus{Identifier: elem.Identifier, NextID: 1})
 		} else if elem.NextID > id {
 			difference = append(difference, PeerStatus{Identifier: elem.Identifier, NextID: id})
 		}
-		//}
 	}
 	return difference
 }
@@ -129,84 +121,5 @@ func (gossiper *Gossiper) getPacketsFromStatus(ps PeerStatus) []*GossipPacket {
 		packets = append(packets, idMessages[i].Packet)
 	}
 
-	// for id := range (ps.NextID, )
-	// idMessagesp[ps.NextID]
-	//
-	// for id, message := range idMessages {
-	// 	if id >= ps.NextID-1 {
-	// 		packets = append(packets, message.Packet)
-	// 	}
-	// }
 	return packets
 }
-
-// func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *helpers.ExtendedGossipPacket) {
-// 	for extPacket := range statusChannel {
-
-// 		_, channelCreated := gossiper.statusChannels[extPacket.SenderAddr.String()]
-// 		if channelCreated {
-// 			//gossiper.statusChannels[extPacket.SenderAddr.String()] = make(chan *helpers.ExtendedGossipPacket)
-// 			go func() {
-// 				gossiper.statusChannels[extPacket.SenderAddr.String()] <- extPacket
-// 			}()
-
-// 		}
-
-// 		printStatusMessage(extPacket)
-// 		gossiper.peers.AddPeer(extPacket.SenderAddr)
-// 		printPeers(gossiper.peers.GetPeersAtomic())
-
-// 		myStatus := gossiper.createStatus()
-
-// 		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
-// 		wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
-
-// 		// fmt.Println(len(toSend), len(wanted))
-// 		// if len(toSend) != 0 {
-// 		// 	fmt.Println(toSend[0].Identifier + " " + fmt.Sprint(toSend[0].NextID))
-// 		// }
-// 		// if len(wanted) != 0 {
-// 		// 	fmt.Println(wanted[0].Identifier + " " + fmt.Sprint(wanted[0].NextID))
-// 		// }
-
-// 		//countSent := 0
-// 		for _, ps := range toSend {
-// 			packets := gossiper.getPacketsFromStatus(ps)
-// 			for _, m := range packets {
-// 				//		countSent = countSent + 1
-// 				fmt.Println("MONGERING with " + extPacket.SenderAddr.String())
-// 				gossiper.sendPacket(m, extPacket.SenderAddr)
-// 			}
-// 		}
-
-// 		//if len(toSend) == 0 {
-// 		if len(wanted) != 0 {
-// 			go gossiper.sendStatusPacket(extPacket.SenderAddr)
-// 		} else {
-// 			if len(toSend) == 0 {
-// 				fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
-// 			}
-// 		}
-// 		//}
-
-// 		// for _, ps := range extPacket.Packet.Status.Want {
-// 		// 	messages, isPeerKnown := gossiper.originPackets.OriginPacketsMap[ps.Identifier]
-// 		// 	if !isPeerKnown {
-// 		// 		gossiper.sendStatusPacket(extPacket.SenderAddr)
-// 		// 		continue
-// 		// 	} else {
-// 		// 		for k, v := range messages {
-// 		// 			if k.Rumor.ID >= ps.NextID {
-// 		// 				gossiper.sendPacket(k, extPacket.SenderAddr)
-// 		// 			}
-// 		// 		}
-// 		// 		for k, v := range messages {
-// 		// 			if k.Rumor.ID+1 < ps.NextID {
-// 		// 				gossiper.sendStatusPacket(extPacket.SenderAddr)
-// 		// 				continue
-// 		// 			}
-// 		// 		}
-// 		// 	}
-// 		// }
-// 	}
-// }

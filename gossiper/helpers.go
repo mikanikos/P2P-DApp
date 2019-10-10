@@ -86,7 +86,6 @@ func (gossiper *Gossiper) printClientMessage(extPacket *ExtendedGossipPacket) {
 func (gossiper *Gossiper) modifyPacket(extPacket *ExtendedGossipPacket, isClient bool) *ExtendedGossipPacket {
 
 	newPacket := &ExtendedGossipPacket{SenderAddr: extPacket.SenderAddr, Packet: extPacket.Packet}
-	//fmt.Println(newPacket.SenderAddr.String())
 
 	if gossiper.simpleMode {
 		simplePacket := &SimpleMessage{OriginalName: extPacket.Packet.Simple.OriginalName, RelayPeerAddr: extPacket.Packet.Simple.RelayPeerAddr, Contents: extPacket.Packet.Simple.Contents}
@@ -110,15 +109,8 @@ func (gossiper *Gossiper) modifyPacket(extPacket *ExtendedGossipPacket, isClient
 func (gossiper *Gossiper) notifyStatusChannel(extPacket *ExtendedGossipPacket) {
 	_, channelCreated := gossiper.statusChannels[extPacket.SenderAddr.String()]
 	if channelCreated {
-		//gossiper.statusChannels[extPacket.SenderAddr.String()] = make(chan *helpers.ExtendedGossipPacket)
 		go func() {
 			gossiper.statusChannels[extPacket.SenderAddr.String()] <- extPacket
 		}()
 	}
 }
-
-//func (gossiper *Gossiper) GetRumorMessages() {
-// packets := &gossiper.originPackets
-// packets.Mutex.Lock()
-// defer packets.Mutex.Unlock()
-//}

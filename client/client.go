@@ -7,16 +7,13 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-//const basePort = "5000"
-
+// Client struct
 type Client struct {
-	//address         *net.UDPAddr
 	gossiperAddr *net.UDPAddr
 }
 
+// NewClient init
 func NewClient(uiPort string) *Client {
-	//address, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+basePort)
-	//helpers.ErrorCheck(err)
 	gossiperAddr, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+":"+uiPort)
 	helpers.ErrorCheck(err)
 
@@ -31,9 +28,6 @@ func (client *Client) sendMessage(msg string) {
 	helpers.ErrorCheck(err)
 	defer conn.Close()
 
-	// simpleMsg := &helpers.Message{
-	// 	Text: msg,
-	// }
 	packet := &helpers.Message{Text: msg}
 	packetBytes, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)

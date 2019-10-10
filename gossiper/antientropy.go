@@ -13,7 +13,6 @@ func (gossiper *Gossiper) startAntiEntropy() {
 			peersCopy := gossiper.GetPeersAtomic()
 			indexPeer := rand.Intn(len(peersCopy))
 			randomPeer := peersCopy[indexPeer]
-			//fmt.Println("Sending periodic status to " + randomPeer.String())
 			gossiper.sendStatusPacket(randomPeer)
 		}
 	}
