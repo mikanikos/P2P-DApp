@@ -38,8 +38,7 @@ func sendMessage(msg string) {
 }
 
 func getMessageHandler(w http.ResponseWriter, r *http.Request) {
-	msgList := g.GetMessages()
-	writeJSON(w, msgList)
+	writeJSON(w, g.GetMessages())
 }
 
 func postMessageHandler(w http.ResponseWriter, r *http.Request) {

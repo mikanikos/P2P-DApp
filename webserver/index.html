@@ -27,8 +27,8 @@
         <ul id="peerList" style="padding:10px;list-style:none;max-height:650px;overflow:auto;">
         </ul>
         <form id="peerForm" style="margin:10px;">
-            <input id="peerInput" type="text" placeholder="IP:PORT" style="width:80%;" />
-            <button type="submit" style="width:10%;">Add</button>
+            <input id="peerInput" type="text" placeholder="IP:PORT" style="width:70%;" />
+            <button type="submit" style="width:20%;">Add</button>
         </form>
     </div>
     <script>
@@ -38,7 +38,7 @@
             event.preventDefault();
 
             var message = document.getElementById("messageInput").value;
-            
+
             if (message == "") {
                 return
             }
@@ -77,31 +77,31 @@
             data = data.replace("\"", "").replace("\"", "")
             document.getElementById("peerID").innerHTML = "Peerster - ID: " + data;
         });
-        function updatePeersList() {
-            $.get("/node", function (data) {
-                var array = JSON.parse(data);
-
-                var list = document.getElementById('peerList');
-                while (list.hasChildNodes()) {
-                    list.removeChild(list.firstChild)
-                }
-
-                for (el of array) {
-                    var entry = document.createElement('li');
-                    entry.appendChild(document.createTextNode(el));
-                    list.appendChild(entry);
-                }
-                //document.getElementById("peerList").innerHTML = data;
-            });
-        }
-        updatePeersList()
         window.setInterval(function () {
+            function updateNodeBox() {
+                $.get("/node", function (data) {
+                    var array = JSON.parse(data);
+
+                    var list = document.getElementById('peerList');
+                    while (list.hasChildNodes()) {
+                        list.removeChild(list.firstChild)
+                    }
+
+                    for (el of array) {
+                        var entry = document.createElement('li');
+                        entry.appendChild(document.createTextNode(el));
+                        list.appendChild(entry);
+                    }
+                });
+            }
+            updateNodeBox()
             $.get("/message", function (data) {
                 var array = JSON.parse(data);
                 var list = document.getElementById('messageList');
-                while (list.hasChildNodes()) {
-                    list.removeChild(list.firstChild)
-                }
+
+                // while (list.hasChildNodes()) {
+                //     list.removeChild(list.firstChild)
+                // }
 
                 for (el of array) {
                     var entry = document.createElement('li');
@@ -109,7 +109,6 @@
                     entry.appendChild(document.createTextNode(text));
                     list.appendChild(entry);
                 }
-                //document.getElementById("messageList").innerHTML = data;
             });
         }, 100);
     </script>

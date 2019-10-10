@@ -58,5 +58,6 @@ func (gossiper *Gossiper) GetMessages() []RumorMessage {
 	defer gossiper.originPackets.Mutex.Unlock()
 	messagesCopy := make([]RumorMessage, len(gossiper.originPackets.Messages))
 	copy(messagesCopy, gossiper.originPackets.Messages)
+	gossiper.originPackets.Messages = make([]RumorMessage, 0)
 	return messagesCopy
 }
