@@ -36,8 +36,9 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 	peers := make([]*net.UDPAddr, 0)
 	for _, peer := range peersList {
 		addressPeer, err := net.ResolveUDPAddr("udp4", peer)
-		helpers.ErrorCheck(err)
-		peers = append(peers, addressPeer)
+		if err == nil {
+			peers = append(peers, addressPeer)
+		}
 	}
 
 	originPackets := make(map[string]map[uint32]*ExtendedGossipPacket)

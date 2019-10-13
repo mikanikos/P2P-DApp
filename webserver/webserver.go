@@ -38,7 +38,12 @@ func sendMessage(msg string) {
 }
 
 func getMessageHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, g.GetMessages())
+	//payload := []interface{}{g.GetMessages(), false}
+	var payload = map[string]interface{}{
+		"messages":     g.GetMessages(),
+		"isSimpleMode": g.IsSimpleMode(),
+	}
+	writeJSON(w, payload)
 }
 
 func postMessageHandler(w http.ResponseWriter, r *http.Request) {
@@ -56,8 +61,9 @@ func postNodeHandler(w http.ResponseWriter, r *http.Request) {
 	bytes, err := ioutil.ReadAll(r.Body)
 	peer := string(bytes)
 	peerAddr, err := net.ResolveUDPAddr("udp4", peer)
-	helpers.ErrorCheck(err)
-	g.AddPeer(peerAddr)
+	if err == nil {
+		g.AddPeer(peerAddr)
+	}
 }
 
 func getIDHandler(w http.ResponseWriter, r *http.Request) {

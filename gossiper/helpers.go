@@ -56,6 +56,11 @@ func (gossiper *Gossiper) GetName() string {
 	return gossiper.name
 }
 
+// IsSimpleMode true or false
+func (gossiper *Gossiper) IsSimpleMode() bool {
+	return gossiper.simpleMode
+}
+
 func (gossiper *Gossiper) printStatusMessage(extPacket *ExtendedGossipPacket) {
 	message := "STATUS from " + extPacket.SenderAddr.String() + " "
 	for _, value := range extPacket.Packet.Status.Want {
