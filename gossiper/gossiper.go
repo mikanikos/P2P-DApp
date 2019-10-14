@@ -1,7 +1,6 @@
 package gossiper
 
 import (
-	"fmt"
 	"math/rand"
 	"net"
 	"time"
@@ -19,6 +18,8 @@ type Gossiper struct {
 	originPackets      PacketsStorage
 	seqID              MutexSequenceID
 	statusChannels     MutexStatusChannels //map[string]chan *ExtendedGossipPacket
+	mongeringChannels  MutexStatusChannels
+	syncChannels       MutexStatusChannels
 	antiEntropyTimeout int
 }
 
@@ -41,7 +42,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		}
 	}
 
-	originPackets := make(map[string]map[uint32]*ExtendedGossipPacket)
+	//originPackets :=
 	// statusChannels := make(map[string]chan *ExtendedGossipPacket)
 	// ok := MutexStatusChannels{Channels: }
 
@@ -50,10 +51,12 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		clientData:         &NetworkData{Conn: connUI, Addr: addressUI},
 		gossiperData:       &NetworkData{Conn: connGossiper, Addr: addressGossiper},
 		peers:              MutexPeers{Peers: peers},
-		originPackets:      PacketsStorage{OriginPacketsMap: originPackets, Messages: make([]RumorMessage, 0)},
+		originPackets:      PacketsStorage{OriginPacketsMap: make(map[string]map[uint32]*ExtendedGossipPacket), Messages: make([]RumorMessage, 0)},
 		simpleMode:         simple,
 		seqID:              MutexSequenceID{ID: 1},
 		statusChannels:     MutexStatusChannels{Channels: make(map[string]chan *ExtendedGossipPacket)},
+		mongeringChannels:  MutexStatusChannels{Channels: make(map[string]chan *ExtendedGossipPacket)},
+		syncChannels:       MutexStatusChannels{Channels: make(map[string]chan *ExtendedGossipPacket)},
 		antiEntropyTimeout: antiEntropyTimeout,
 	}
 }
@@ -132,24 +135,26 @@ func (gossiper *Gossiper) handleConnectionRumor(rumorChannel chan *ExtendedGossi
 func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGossipPacket) {
 	for extPacket := range statusChannel {
 
-		gossiper.notifyStatusChannel(extPacket)
+		//gossiper.notifyStatusChannel(extPacket)
 
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printStatusMessage(extPacket)
 
-		myStatus := gossiper.createStatus()
+		gossiper.sendToPeerStatusChannel(extPacket)
 
-		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
-		wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
+		// myStatus := gossiper.createStatus()
 
-		gossiper.sendPacketsFromStatus(toSend, extPacket.SenderAddr)
+		// toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
+		// wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
 
-		if len(wanted) != 0 {
-			go gossiper.sendStatusPacket(extPacket.SenderAddr)
-		} else {
-			if len(toSend) == 0 {
-				fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
-			}
-		}
+		// if len(toSend) != 0 {
+		// 	gossiper.sendPacketFromStatus(toSend, extPacket.SenderAddr)
+		// } else {
+		// 	if len(wanted) != 0 {
+		// 		go gossiper.sendStatusPacket(extPacket.SenderAddr)
+		// 	} else {
+		// 		fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
+		// 	}
+		// }
 	}
 }

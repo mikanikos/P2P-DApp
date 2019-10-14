@@ -1,7 +1,6 @@
 package gossiper
 
 import (
-	"math/rand"
 	"time"
 )
 
@@ -13,8 +12,7 @@ func (gossiper *Gossiper) startAntiEntropy() {
 			case <-timer.C:
 				peersCopy := gossiper.GetPeersAtomic()
 				if len(peersCopy) != 0 {
-					indexPeer := rand.Intn(len(peersCopy))
-					randomPeer := peersCopy[indexPeer]
+					randomPeer := gossiper.getRandomPeer(peersCopy)
 					gossiper.sendStatusPacket(randomPeer)
 				}
 			}

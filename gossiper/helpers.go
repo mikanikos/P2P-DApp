@@ -2,8 +2,8 @@ package gossiper
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
-	"sync"
 )
 
 var modeTypes = []string{"simple", "rumor", "status", "client"}
@@ -32,20 +32,6 @@ type NetworkData struct {
 type ExtendedGossipPacket struct {
 	Packet     *GossipPacket
 	SenderAddr *net.UDPAddr
-}
-
-// MutexStatusChannels struct
-type MutexStatusChannels struct {
-	Channels map[string]chan *ExtendedGossipPacket
-	Mutex    sync.RWMutex
-}
-
-func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedGossipPacket) {
-	channels = make(map[string]chan *ExtendedGossipPacket)
-	for _, t := range modeTypes {
-		channels[t] = make(chan *ExtendedGossipPacket)
-	}
-	return channels
 }
 
 func getTypeMode(packet *GossipPacket) string {
@@ -118,13 +104,8 @@ func (gossiper *Gossiper) modifyPacket(extPacket *ExtendedGossipPacket, isClient
 	return newPacket
 }
 
-func (gossiper *Gossiper) notifyStatusChannel(extPacket *ExtendedGossipPacket) {
-	gossiper.statusChannels.Mutex.Lock()
-	defer gossiper.statusChannels.Mutex.Unlock()
-	_, channelCreated := gossiper.statusChannels.Channels[extPacket.SenderAddr.String()]
-	if channelCreated {
-		go func() {
-			gossiper.statusChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
-		}()
-	}
+func (gossiper *Gossiper) getRandomPeer(availablePeers []*net.UDPAddr) *net.UDPAddr {
+	indexPeer := rand.Intn(len(availablePeers))
+	return availablePeers[indexPeer]
+
 }

@@ -59,12 +59,20 @@ func (gossiper *Gossiper) sendStatusPacket(addr *net.UDPAddr) {
 	gossiper.sendPacket(packet, addr)
 }
 
-func (gossiper *Gossiper) sendPacketsFromStatus(toSend []PeerStatus, addr *net.UDPAddr) {
+func (gossiper *Gossiper) sendPacketFromStatus(toSend []PeerStatus, addr *net.UDPAddr) {
+	// for _, ps := range toSend {
+	// 	packets := gossiper.getPacketsFromStatus(ps)
+	// 	for _, m := range packets {
+	// 		fmt.Println("MONGERING with " + addr.String())
+	// 		gossiper.sendPacket(m, addr)
+	// 	}
+	// }
 	for _, ps := range toSend {
 		packets := gossiper.getPacketsFromStatus(ps)
-		for _, m := range packets {
+		if len(packets) != 0 {
 			fmt.Println("MONGERING with " + addr.String())
-			gossiper.sendPacket(m, addr)
+			gossiper.sendPacket(packets[0], addr)
+			break
 		}
 	}
 }
