@@ -15,7 +15,7 @@ func main() {
 	gossipName := flag.String("name", "", "name of the gossiper")
 	peers := flag.String("peers", "", "comma separated list of peers of the form ip:port")
 	simpleMode := flag.Bool("simple", false, "run gossiper in simple broadcast mode")
-	antiEntropy := flag.Int("antiEntropy", 100, "timeout in seconds for anti-entropy")
+	antiEntropy := flag.Int("antiEntropy", 10, "timeout in seconds for anti-entropy")
 
 	flag.Parse()
 
