@@ -18,7 +18,7 @@ type Gossiper struct {
 	simpleMode         bool
 	originPackets      PacketsStorage
 	seqID              MutexSequenceID
-	statusChannels     map[string]chan *ExtendedGossipPacket
+	statusChannels     MutexStatusChannels //map[string]chan *ExtendedGossipPacket
 	antiEntropyTimeout int
 }
 
@@ -42,6 +42,8 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 	}
 
 	originPackets := make(map[string]map[uint32]*ExtendedGossipPacket)
+	// statusChannels := make(map[string]chan *ExtendedGossipPacket)
+	// ok := MutexStatusChannels{Channels: }
 
 	return &Gossiper{
 		name:               name,
@@ -51,7 +53,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		originPackets:      PacketsStorage{OriginPacketsMap: originPackets, Messages: make([]RumorMessage, 0)},
 		simpleMode:         simple,
 		seqID:              MutexSequenceID{ID: 1},
-		statusChannels:     make(map[string]chan *ExtendedGossipPacket),
+		statusChannels:     MutexStatusChannels{Channels: make(map[string]chan *ExtendedGossipPacket)},
 		antiEntropyTimeout: antiEntropyTimeout,
 	}
 }

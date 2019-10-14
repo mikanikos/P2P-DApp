@@ -3,6 +3,7 @@ package gossiper
 import (
 	"fmt"
 	"net"
+	"sync"
 )
 
 var modeTypes = []string{"simple", "rumor", "status", "client"}
@@ -31,6 +32,12 @@ type NetworkData struct {
 type ExtendedGossipPacket struct {
 	Packet     *GossipPacket
 	SenderAddr *net.UDPAddr
+}
+
+// MutexStatusChannels struct
+type MutexStatusChannels struct {
+	Channels map[string]chan *ExtendedGossipPacket
+	Mutex    sync.RWMutex
 }
 
 func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedGossipPacket) {
@@ -112,10 +119,12 @@ func (gossiper *Gossiper) modifyPacket(extPacket *ExtendedGossipPacket, isClient
 }
 
 func (gossiper *Gossiper) notifyStatusChannel(extPacket *ExtendedGossipPacket) {
-	_, channelCreated := gossiper.statusChannels[extPacket.SenderAddr.String()]
+	gossiper.statusChannels.Mutex.Lock()
+	defer gossiper.statusChannels.Mutex.Unlock()
+	_, channelCreated := gossiper.statusChannels.Channels[extPacket.SenderAddr.String()]
 	if channelCreated {
 		go func() {
-			gossiper.statusChannels[extPacket.SenderAddr.String()] <- extPacket
+			gossiper.statusChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
 		}()
 	}
 }

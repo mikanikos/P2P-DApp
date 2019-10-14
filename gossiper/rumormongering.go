@@ -32,8 +32,9 @@ type PeerStatus struct {
 func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 	coin := 1
 
-	peersWithRumor := make([]*net.UDPAddr, 0)
-	peersWithRumor = append(peersWithRumor, extPacket.SenderAddr)
+	//peersWithRumor := make([]*net.UDPAddr, 0)
+	//peersWithRumor = append(peersWithRumor, extPacket.SenderAddr)
+	peersWithRumor := []*net.UDPAddr{extPacket.SenderAddr}
 
 	for coin == 1 {
 		peers := gossiper.GetPeersAtomic()
@@ -43,7 +44,8 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 		}
 		indexPeer := rand.Intn(len(availablePeers))
 		randomPeer := availablePeers[indexPeer]
-		peersWithRumor = append(peersWithRumor, randomPeer)
+		//peersWithRumor = append(peersWithRumor, randomPeer)
+		peersWithRumor = []*net.UDPAddr{randomPeer}
 
 		fmt.Println("FLIPPED COIN sending rumor to " + randomPeer.String())
 		statusReceived := gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
@@ -55,7 +57,10 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 }
 
 func (gossiper *Gossiper) sendRumorWithTimeout(packet *GossipPacket, peer *net.UDPAddr) bool {
-	gossiper.statusChannels[peer.String()] = make(chan *ExtendedGossipPacket)
+
+	gossiper.statusChannels.Mutex.Lock()
+	gossiper.statusChannels.Channels[peer.String()] = make(chan *ExtendedGossipPacket)
+	gossiper.statusChannels.Mutex.Unlock()
 
 	gossiper.sendPacket(packet, peer)
 	fmt.Println("MONGERING with " + peer.String())
@@ -65,7 +70,7 @@ func (gossiper *Gossiper) sendRumorWithTimeout(packet *GossipPacket, peer *net.U
 
 	for {
 		select {
-		case <-gossiper.statusChannels[peer.String()]:
+		case <-gossiper.statusChannels.Channels[peer.String()]:
 			return true
 		case <-timer.C:
 			return false
