@@ -1,6 +1,7 @@
 package gossiper
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
 	"time"
@@ -140,7 +141,7 @@ func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGos
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printStatusMessage(extPacket)
 
-		gossiper.sendToPeerStatusChannel(extPacket)
+		//gossiper.sendToPeerStatusChannel(extPacket)
 
 		// myStatus := gossiper.createStatus()
 
@@ -156,5 +157,24 @@ func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGos
 		// 		fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
 		// 	}
 		// }
+
+		gossiper.notifyMongeringChannel(extPacket)
+
+		myStatus := gossiper.createStatus()
+
+		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
+		wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
+
+		if len(toSend) != 0 {
+			gossiper.sendPacketFromStatus(toSend, extPacket.SenderAddr)
+		} else {
+			if len(wanted) != 0 {
+				go gossiper.sendStatusPacket(extPacket.SenderAddr)
+			} else {
+				fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
+				gossiper.notifySyncChannel(extPacket)
+				//gossiper.syncChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
+			}
+		}
 	}
 }

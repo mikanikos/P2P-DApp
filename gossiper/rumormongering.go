@@ -30,42 +30,69 @@ type PeerStatus struct {
 }
 
 func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
+	// //peersWithRumor := make([]*net.UDPAddr, 0)
+	// //peersWithRumor = append(peersWithRumor, extPacket.SenderAddr)
+	// peersWithRumor := []*net.UDPAddr{extPacket.SenderAddr}
+	// peers := gossiper.GetPeersAtomic()
+	// availablePeers := helpers.DifferenceString(peers, peersWithRumor)
+	// //flipped := false
+
+	// if len(availablePeers) != 0 {
+	// 	randomPeer := gossiper.getRandomPeer(availablePeers)
+	// 	coin := 0
+	// 	for coin == 0 {
+
+	// 		statusReceived := gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
+	// 		if statusReceived {
+	// 			coin = rand.Int() % 2
+	// 			//flipped = true
+	// 		}
+
+	// 		fmt.Println(statusReceived)
+
+	// 		if coin == 0 {
+	// 			peers := gossiper.GetPeersAtomic()
+	// 			peersWithRumor = []*net.UDPAddr{randomPeer}
+	// 			availablePeers := helpers.DifferenceString(peers, peersWithRumor)
+	// 			if len(availablePeers) == 0 {
+	// 				return
+	// 			}
+	// 			randomPeer = gossiper.getRandomPeer(availablePeers)
+	// 			//peersWithRumor = append(peersWithRumor, randomPeer)
+	// 			//peersWithRumor = []*net.UDPAddr{randomPeer}
+
+	// 			//if flipped {
+	// 			fmt.Println("FLIPPED COIN sending rumor to " + randomPeer.String())
+	// 			//flipped = false
+	// 			//}
+	// 		}
+	// 	}
+	// }
+
+	// WORKING VERSION
+
+	coin := 1
+
 	//peersWithRumor := make([]*net.UDPAddr, 0)
 	//peersWithRumor = append(peersWithRumor, extPacket.SenderAddr)
 	peersWithRumor := []*net.UDPAddr{extPacket.SenderAddr}
-	peers := gossiper.GetPeersAtomic()
-	availablePeers := helpers.DifferenceString(peers, peersWithRumor)
-	//flipped := false
 
-	if len(availablePeers) != 0 {
-		randomPeer := gossiper.getRandomPeer(availablePeers)
-		coin := 0
-		for coin == 0 {
+	for coin == 1 {
+		peers := gossiper.GetPeersAtomic()
+		availablePeers := helpers.DifferenceString(peers, peersWithRumor)
+		if len(availablePeers) == 0 {
+			return
+		}
+		indexPeer := rand.Intn(len(availablePeers))
+		randomPeer := availablePeers[indexPeer]
+		//peersWithRumor = append(peersWithRumor, randomPeer)
+		peersWithRumor = []*net.UDPAddr{randomPeer}
 
-			statusReceived := gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
-			if statusReceived {
-				coin = rand.Int() % 2
-				//flipped = true
-			}
+		fmt.Println("FLIPPED COIN sending rumor to " + randomPeer.String())
+		statusReceived := gossiper.sendRumorWithTimeout(extPacket.Packet, randomPeer)
 
-			fmt.Println(statusReceived)
-
-			if coin == 0 {
-				peers := gossiper.GetPeersAtomic()
-				peersWithRumor = []*net.UDPAddr{randomPeer}
-				availablePeers := helpers.DifferenceString(peers, peersWithRumor)
-				if len(availablePeers) == 0 {
-					return
-				}
-				randomPeer = gossiper.getRandomPeer(availablePeers)
-				//peersWithRumor = append(peersWithRumor, randomPeer)
-				//peersWithRumor = []*net.UDPAddr{randomPeer}
-
-				//if flipped {
-				fmt.Println("FLIPPED COIN sending rumor to " + randomPeer.String())
-				//flipped = false
-				//}
-			}
+		if statusReceived {
+			coin = rand.Int() % 2
 		}
 	}
 }
@@ -157,26 +184,26 @@ func (gossiper *Gossiper) getPacketsFromStatus(ps PeerStatus) []*GossipPacket {
 	return packets
 }
 
-func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPacket) {
-	for extPacket := range statusChannel {
+// func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPacket) {
+// 	for extPacket := range statusChannel {
 
-		gossiper.notifyMongeringChannel(extPacket)
+// 		gossiper.notifyMongeringChannel(extPacket)
 
-		myStatus := gossiper.createStatus()
+// 		myStatus := gossiper.createStatus()
 
-		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
-		wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
+// 		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
+// 		wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
 
-		if len(toSend) != 0 {
-			gossiper.sendPacketFromStatus(toSend, extPacket.SenderAddr)
-		} else {
-			if len(wanted) != 0 {
-				go gossiper.sendStatusPacket(extPacket.SenderAddr)
-			} else {
-				fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
-				gossiper.notifySyncChannel(extPacket)
-				//gossiper.syncChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
-			}
-		}
-	}
-}
+// 		if len(toSend) != 0 {
+// 			gossiper.sendPacketFromStatus(toSend, extPacket.SenderAddr)
+// 		} else {
+// 			if len(wanted) != 0 {
+// 				go gossiper.sendStatusPacket(extPacket.SenderAddr)
+// 			} else {
+// 				fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
+// 				gossiper.notifySyncChannel(extPacket)
+// 				//gossiper.syncChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
+// 			}
+// 		}
+// 	}
+// }

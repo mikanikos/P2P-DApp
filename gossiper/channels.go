@@ -45,15 +45,15 @@ func (gossiper *Gossiper) notifySyncChannel(extPacket *ExtendedGossipPacket) {
 	}
 }
 
-func (gossiper *Gossiper) sendToPeerStatusChannel(extPacket *ExtendedGossipPacket) {
-	gossiper.statusChannels.Mutex.Lock()
-	defer gossiper.statusChannels.Mutex.Unlock()
+// func (gossiper *Gossiper) sendToPeerStatusChannel(extPacket *ExtendedGossipPacket) {
+// 	gossiper.statusChannels.Mutex.Lock()
+// 	defer gossiper.statusChannels.Mutex.Unlock()
 
-	_, exists := gossiper.statusChannels.Channels[extPacket.SenderAddr.String()]
-	if !exists {
-		gossiper.statusChannels.Channels[extPacket.SenderAddr.String()] = make(chan *ExtendedGossipPacket)
-		go gossiper.handlePeerStatus(gossiper.statusChannels.Channels[extPacket.SenderAddr.String()])
-	}
-	gossiper.statusChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
+// 	_, exists := gossiper.statusChannels.Channels[extPacket.SenderAddr.String()]
+// 	if !exists {
+// 		gossiper.statusChannels.Channels[extPacket.SenderAddr.String()] = make(chan *ExtendedGossipPacket)
+// 		go gossiper.handlePeerStatus(gossiper.statusChannels.Channels[extPacket.SenderAddr.String()])
+// 	}
+// 	gossiper.statusChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
 
-}
+// }
