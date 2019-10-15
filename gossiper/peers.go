@@ -12,7 +12,7 @@ import (
 // MutexPeers struct
 type MutexPeers struct {
 	Peers []*net.UDPAddr
-	Mutex sync.RWMutex
+	Mutex sync.Mutex
 }
 
 // AddPeer to peers list

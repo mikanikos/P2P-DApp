@@ -38,7 +38,6 @@
     <script>
         $("#sendForm").submit(function (event) {
 
-            // Stop form from submitting normally
             event.preventDefault();
 
             var message = document.getElementById("messageInput").value;
@@ -49,7 +48,6 @@
 
             document.getElementById("messageInput").value = "";
 
-            //alert("wowowo");
             $.ajax({
                 url: '/message',
                 type: 'post',
@@ -58,7 +56,6 @@
         });
         $("#peerForm").submit(function (event) {
 
-            // Stop form from submitting normally
             event.preventDefault();
 
             var peer = document.getElementById("peerInput").value;
@@ -68,7 +65,6 @@
                 return
             }
 
-            //alert("wowowo");
             $.ajax({
                 url: '/node',
                 type: 'post',
@@ -102,10 +98,6 @@
             $.get("/message", function (data) {              
                 var jsonData = JSON.parse(data);
                 var list = document.getElementById('messageList');
-
-                // while (list.hasChildNodes()) {
-                //     list.removeChild(list.firstChild)
-                // }
 
                 var isSimpleMode = jsonData["isSimpleMode"];
                 var array = jsonData["messages"];

@@ -17,9 +17,9 @@ type Gossiper struct {
 	simpleMode         bool
 	originPackets      PacketsStorage
 	seqID              MutexSequenceID
-	statusChannels     MutexStatusChannels //map[string]chan *ExtendedGossipPacket
-	mongeringChannels  MutexStatusChannels
-	syncChannels       MutexStatusChannels
+	statusChannels     MutexStatusChannel //map[string]chan *ExtendedGossipPacket
+	mongeringChannels  MutexDummyChannel
+	syncChannels       MutexDummyChannel
 	antiEntropyTimeout int
 }
 
@@ -42,10 +42,6 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		}
 	}
 
-	//originPackets :=
-	// statusChannels := make(map[string]chan *ExtendedGossipPacket)
-	// ok := MutexStatusChannels{Channels: }
-
 	return &Gossiper{
 		name:               name,
 		clientData:         &NetworkData{Conn: connUI, Addr: addressUI},
@@ -54,9 +50,9 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		originPackets:      PacketsStorage{OriginPacketsMap: make(map[string]map[uint32]*ExtendedGossipPacket), Messages: make([]RumorMessage, 0)},
 		simpleMode:         simple,
 		seqID:              MutexSequenceID{ID: 1},
-		statusChannels:     MutexStatusChannels{Channels: make(map[string]chan *ExtendedGossipPacket)},
-		mongeringChannels:  MutexStatusChannels{Channels: make(map[string]chan *ExtendedGossipPacket)},
-		syncChannels:       MutexStatusChannels{Channels: make(map[string]chan *ExtendedGossipPacket)},
+		statusChannels:     MutexStatusChannel{Channels: make(map[string]chan *ExtendedGossipPacket)},
+		mongeringChannels:  MutexDummyChannel{Channels: make(map[string]chan bool)},
+		syncChannels:       MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
 	}
 }
@@ -84,7 +80,6 @@ func (gossiper *Gossiper) Run() {
 }
 
 func (gossiper *Gossiper) handleConnectionClient(channelClient chan *ExtendedGossipPacket) {
-
 	for extPacket := range channelClient {
 
 		gossiper.printClientMessage(extPacket)
@@ -111,7 +106,6 @@ func (gossiper *Gossiper) handleConnectionSimple(channelPeers chan *ExtendedGoss
 
 		gossiper.addMessage(extPacket)
 
-		// broadcast
 		go gossiper.broadcastToPeers(extPacket)
 	}
 }

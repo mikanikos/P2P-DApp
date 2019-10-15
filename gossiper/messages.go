@@ -10,7 +10,7 @@ import (
 type PacketsStorage struct {
 	OriginPacketsMap map[string]map[uint32]*ExtendedGossipPacket
 	Messages         []RumorMessage
-	Mutex            sync.RWMutex
+	Mutex            sync.Mutex
 }
 
 func hash(s string) uint32 {

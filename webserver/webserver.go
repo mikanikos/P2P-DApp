@@ -38,7 +38,6 @@ func sendMessage(msg string) {
 }
 
 func getMessageHandler(w http.ResponseWriter, r *http.Request) {
-	//payload := []interface{}{g.GetMessages(), false}
 	var payload = map[string]interface{}{
 		"messages":     g.GetMessages(),
 		"isSimpleMode": g.IsSimpleMode(),
@@ -70,7 +69,7 @@ func getIDHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, g.GetName())
 }
 
-// RunWebServer to handle requests
+// RunWebServer to handle get and post requests
 func RunWebServer(gossiper *gossiper.Gossiper, port string) {
 	g = gossiper
 	uiPort = port

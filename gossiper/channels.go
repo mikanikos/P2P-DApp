@@ -4,10 +4,16 @@ import (
 	"sync"
 )
 
-// MutexStatusChannels struct
-type MutexStatusChannels struct {
+// MutexStatusChannel struct
+type MutexStatusChannel struct {
 	Channels map[string]chan *ExtendedGossipPacket
-	Mutex    sync.RWMutex
+	Mutex    sync.Mutex
+}
+
+// MutexDummyChannel struct
+type MutexDummyChannel struct {
+	Channels map[string]chan bool
+	Mutex    sync.Mutex
 }
 
 func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedGossipPacket) {
@@ -18,28 +24,28 @@ func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedG
 	return channels
 }
 
-func (gossiper *Gossiper) notifyMongeringChannel(extPacket *ExtendedGossipPacket) {
+func (gossiper *Gossiper) notifyMongeringChannel(peer string) {
 	gossiper.mongeringChannels.Mutex.Lock()
 	defer gossiper.mongeringChannels.Mutex.Unlock()
 
-	_, channelCreated := gossiper.mongeringChannels.Channels[extPacket.SenderAddr.String()]
+	_, channelCreated := gossiper.mongeringChannels.Channels[peer]
 	if channelCreated {
 		//fmt.Println("Sending on channel monger for " + extPacket.SenderAddr.String())
 		go func() {
-			gossiper.mongeringChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
+			gossiper.mongeringChannels.Channels[peer] <- true
 		}()
 	}
 }
 
-func (gossiper *Gossiper) notifySyncChannel(extPacket *ExtendedGossipPacket) {
+func (gossiper *Gossiper) notifySyncChannel(peer string) {
 	gossiper.syncChannels.Mutex.Lock()
 	defer gossiper.syncChannels.Mutex.Unlock()
 
-	_, channelCreated := gossiper.syncChannels.Channels[extPacket.SenderAddr.String()]
+	_, channelCreated := gossiper.syncChannels.Channels[peer]
 	if channelCreated {
 		//fmt.Println("Sending on channel sync for " + extPacket.SenderAddr.String())
 		go func() {
-			gossiper.syncChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
+			gossiper.syncChannels.Channels[peer] <- true
 		}()
 	}
 }
@@ -84,13 +90,13 @@ func (gossiper *Gossiper) creatingRumorSyncChannels(peer string) {
 	_, mongerChanPresent := gossiper.mongeringChannels.Channels[peer]
 	if !mongerChanPresent {
 		// mongering channel
-		gossiper.mongeringChannels.Channels[peer] = make(chan *ExtendedGossipPacket)
+		gossiper.mongeringChannels.Channels[peer] = make(chan bool)
 	}
 
 	_, syncChanPresent := gossiper.syncChannels.Channels[peer]
 	if !syncChanPresent {
 		// sync channel
-		gossiper.syncChannels.Channels[peer] = make(chan *ExtendedGossipPacket)
+		gossiper.syncChannels.Channels[peer] = make(chan bool)
 	}
 }
 
