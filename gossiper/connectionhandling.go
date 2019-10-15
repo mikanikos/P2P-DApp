@@ -17,8 +17,6 @@ func (gossiper *Gossiper) receivePackets(data *NetworkData, channels map[string]
 		packetBytes := make([]byte, maxBufferSize)
 		_, addr, err := data.Conn.ReadFromUDP(packetBytes)
 
-		//fmt.Println(addr.String())
-
 		helpers.ErrorCheck(err)
 
 		if data.Addr.String() == gossiper.clientData.Addr.String() {
@@ -47,7 +45,6 @@ func (gossiper *Gossiper) sendPacket(packet *GossipPacket, address *net.UDPAddr)
 }
 
 func (gossiper *Gossiper) broadcastToPeers(packet *ExtendedGossipPacket) {
-	// broadcast to peers
 	for _, peer := range gossiper.GetPeersAtomic() {
 		if peer.String() != packet.SenderAddr.String() {
 			go gossiper.sendPacket(packet.Packet, peer)
@@ -71,13 +68,4 @@ func (gossiper *Gossiper) sendPacketFromStatus(toSend []PeerStatus, addr *net.UD
 			return
 		}
 	}
-	// for _, ps := range toSend {
-	// 	packets := gossiper.getPacketsFromStatus(ps)
-	// 	if len(packets) != 0 {
-	// 		//fmt.Println("Sending to " + addr.String())
-	// 		fmt.Println("MONGERING with " + addr.String())
-	// 		gossiper.sendPacket(packets[0], addr)
-	// 		break
-	// 	}
-	// }
 }

@@ -5,7 +5,7 @@ import "sync"
 // MutexSequenceID struct
 type MutexSequenceID struct {
 	ID    uint32
-	Mutex sync.RWMutex
+	Mutex sync.Mutex
 }
 
 func (gossiper *Gossiper) incerementID() {

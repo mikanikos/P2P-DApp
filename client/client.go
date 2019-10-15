@@ -18,7 +18,6 @@ func NewClient(uiPort string) *Client {
 	helpers.ErrorCheck(err)
 
 	return &Client{
-		//	address:            address,
 		gossiperAddr: gossiperAddr,
 	}
 }

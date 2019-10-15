@@ -21,6 +21,7 @@ type Gossiper struct {
 	mongeringChannels  MutexDummyChannel
 	syncChannels       MutexDummyChannel
 	antiEntropyTimeout int
+	isMongering        map[string]bool
 }
 
 // NewGossiper function
@@ -54,10 +55,11 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		mongeringChannels:  MutexDummyChannel{Channels: make(map[string]chan bool)},
 		syncChannels:       MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
+		isMongering:        make(map[string]bool),
 	}
 }
 
-// Run function
+// Run method
 func (gossiper *Gossiper) Run() {
 
 	rand.Seed(time.Now().UnixNano())
@@ -129,51 +131,13 @@ func (gossiper *Gossiper) handleConnectionRumor(rumorChannel chan *ExtendedGossi
 func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGossipPacket) {
 	for extPacket := range statusChannel {
 
-		//gossiper.notifyStatusChannel(extPacket)
-
-		//fmt.Println("Got status from " + extPacket.SenderAddr.String())
-
-		//go gossiper.notifyMongeringChannel(extPacket)
-
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printStatusMessage(extPacket)
 
+		if gossiper.isMongering[extPacket.SenderAddr.String()] {
+			go gossiper.notifyMongeringChannel(extPacket.SenderAddr.String())
+		}
+
 		gossiper.sendToPeerStatusChannel(extPacket)
-
-		// myStatus := gossiper.createStatus()
-
-		// toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
-		// wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
-
-		// if len(toSend) != 0 {
-		// 	gossiper.sendPacketFromStatus(toSend, extPacket.SenderAddr)
-		// } else {
-		// 	if len(wanted) != 0 {
-		// 		go gossiper.sendStatusPacket(extPacket.SenderAddr)
-		// 	} else {
-		// 		fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
-		// 	}
-		// }
-
-		// myStatus := gossiper.createStatus()
-
-		// toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
-		// //wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
-
-		// //fmt.Println(len(toSend))
-
-		// if len(toSend) != 0 {
-		// 	gossiper.sendPacketFromStatus(toSend, extPacket.SenderAddr)
-		// } else {
-		// 	go gossiper.notifySyncChannel(extPacket)
-		// 	wanted := gossiper.getDifferenceStatus(extPacket.Packet.Status.Want, myStatus)
-		// 	if len(wanted) != 0 {
-		// 		gossiper.sendStatusPacket(extPacket.SenderAddr)
-		// 	} else {
-		// 		fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
-		// 		//gossiper.notifySyncChannel(extPacket)
-		// 		//gossiper.syncChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
-		// 	}
-		// }
 	}
 }
