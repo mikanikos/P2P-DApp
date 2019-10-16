@@ -70,9 +70,9 @@ func getIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // RunWebServer to handle get and post requests
-func RunWebServer(gossiper *gossiper.Gossiper, port string) {
+func RunWebServer(gossiper *gossiper.Gossiper, portUI string, portGUI string) {
 	g = gossiper
-	uiPort = port
+	uiPort = portUI
 
 	r := mux.NewRouter()
 
@@ -84,5 +84,9 @@ func RunWebServer(gossiper *gossiper.Gossiper, port string) {
 	r.HandleFunc("/node", postNodeHandler).Methods("POST")
 	r.HandleFunc("/id", getIDHandler).Methods("GET")
 
-	log.Fatal(http.ListenAndServe(":"+uiPort, r))
+	if portGUI == "" {
+		portGUI = portUI
+	}
+
+	log.Fatal(http.ListenAndServe(":"+portGUI, r))
 }

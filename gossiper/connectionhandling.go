@@ -47,7 +47,7 @@ func (gossiper *Gossiper) sendPacket(packet *GossipPacket, address *net.UDPAddr)
 func (gossiper *Gossiper) broadcastToPeers(packet *ExtendedGossipPacket) {
 	for _, peer := range gossiper.GetPeersAtomic() {
 		if peer.String() != packet.SenderAddr.String() {
-			go gossiper.sendPacket(packet.Packet, peer)
+			gossiper.sendPacket(packet.Packet, peer)
 		}
 	}
 }

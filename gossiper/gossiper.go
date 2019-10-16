@@ -17,7 +17,7 @@ type Gossiper struct {
 	simpleMode         bool
 	originPackets      PacketsStorage
 	seqID              MutexSequenceID
-	statusChannels     MutexStatusChannel //map[string]chan *ExtendedGossipPacket
+	statusChannels     MutexStatusChannel
 	mongeringChannels  MutexDummyChannel
 	syncChannels       MutexDummyChannel
 	antiEntropyTimeout int
@@ -91,7 +91,7 @@ func (gossiper *Gossiper) handleConnectionClient(channelClient chan *ExtendedGos
 		gossiper.addMessage(extPacket)
 
 		if gossiper.simpleMode {
-			go gossiper.broadcastToPeers(extPacket)
+			gossiper.broadcastToPeers(extPacket)
 		} else {
 			go gossiper.startRumorMongering(extPacket)
 		}
@@ -108,7 +108,7 @@ func (gossiper *Gossiper) handleConnectionSimple(channelPeers chan *ExtendedGoss
 
 		gossiper.addMessage(extPacket)
 
-		go gossiper.broadcastToPeers(extPacket)
+		gossiper.broadcastToPeers(extPacket)
 	}
 }
 
@@ -135,7 +135,7 @@ func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGos
 		gossiper.printStatusMessage(extPacket)
 
 		if gossiper.isMongering[extPacket.SenderAddr.String()] {
-			go gossiper.notifyMongeringChannel(extPacket.SenderAddr.String())
+			gossiper.notifyMongeringChannel(extPacket.SenderAddr.String())
 		}
 
 		gossiper.sendToPeerStatusChannel(extPacket)
