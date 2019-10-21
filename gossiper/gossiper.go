@@ -91,7 +91,7 @@ func (gossiper *Gossiper) handleConnectionClient(channelClient chan *ExtendedGos
 		gossiper.addMessage(extPacket)
 
 		if gossiper.simpleMode {
-			gossiper.broadcastToPeers(extPacket)
+			go gossiper.broadcastToPeers(extPacket)
 		} else {
 			go gossiper.startRumorMongering(extPacket)
 		}
@@ -108,7 +108,7 @@ func (gossiper *Gossiper) handleConnectionSimple(channelPeers chan *ExtendedGoss
 
 		gossiper.addMessage(extPacket)
 
-		gossiper.broadcastToPeers(extPacket)
+		go gossiper.broadcastToPeers(extPacket)
 	}
 }
 
