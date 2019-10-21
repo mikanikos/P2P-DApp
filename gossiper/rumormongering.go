@@ -65,31 +65,48 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 
 func (gossiper *Gossiper) sendRumorWithTimeout(packet *GossipPacket, peer *net.UDPAddr) bool {
 
-	if gossiper.isMongering[peer.String()] {
-		return false
-	}
+	// if gossiper.isMongering[peer.String()] {
+	// 	return false
+	// }
 
-	gossiper.isMongering[peer.String()] = true
+	// gossiper.isMongering[peer.String()] = true
 
-	gossiper.creatingRumorSyncChannels(peer.String())
+	//gossiper.creatingRumorSyncChannels(peer.String())
+
+	condRumor := gossiper.createOrGetMongerCond(peer.String())
+	condSync := gossiper.createOrGetSyncCond(peer.String())
 
 	gossiper.sendPacket(packet, peer)
 	fmt.Println("MONGERING with " + peer.String())
 
 	timer := time.NewTicker(time.Duration(rumorTimeout) * time.Second)
+	returnChannel := make(chan bool, 1)
+
+	go func() {
+		condRumor.L.Lock()
+		fmt.Println("Waiting for status")
+		condRumor.Wait()
+		fmt.Println("Got status")
+		timer.Stop()
+		condRumor.L.Unlock()
+
+		condSync.L.Lock()
+		fmt.Println("Waiting for sync")
+		condSync.WWait()
+		condSync.L.Unlock()
+		fmt.Println("Got sync, return")
+		returnChannel <- true
+		close(returnChannel)
+	}()
 
 	for {
 		select {
-		case <-gossiper.mongeringChannels.Channels[peer.String()]:
-			timer.Stop()
-			select {
-			case <-gossiper.syncChannels.Channels[peer.String()]:
-				gossiper.isMongering[peer.String()] = false
-				return true
-			}
+		case <-returnChannel:
+			return true
+
 		case <-timer.C:
 			timer.Stop()
-			gossiper.isMongering[peer.String()] = false
+			//gossiper.isMongering[peer.String()] = false
 			return false
 		}
 	}
@@ -149,8 +166,9 @@ func (gossiper *Gossiper) getPacketsFromStatus(ps PeerStatus) []*GossipPacket {
 func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPacket) {
 	for extPacket := range statusChannel {
 
-		myStatus := gossiper.createStatus()
+		syncCond := gossiper.createOrGetSyncCond(extPacket.SenderAddr.String())
 
+		myStatus := gossiper.createStatus()
 		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)
 
 		if len(toSend) != 0 {
@@ -161,9 +179,10 @@ func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPac
 				gossiper.sendStatusPacket(extPacket.SenderAddr)
 			} else {
 				fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
-				if gossiper.isMongering[extPacket.SenderAddr.String()] {
-					gossiper.notifySyncChannel(extPacket.SenderAddr.String())
-				}
+				syncCond.Broadcast()
+				// if gossiper.isMongering[extPacket.SenderAddr.String()] {
+				// 	gossiper.notifySyncChannel(extPacket.SenderAddr.String())
+				// }
 			}
 		}
 	}

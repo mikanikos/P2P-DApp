@@ -94,8 +94,8 @@ func (gossiper *Gossiper) modifyPacket(extPacket *ExtendedGossipPacket, isClient
 		newPacket.Packet = &GossipPacket{Simple: simplePacket}
 	} else {
 		rumorPacket := &RumorMessage{ID: extPacket.Packet.Rumor.ID, Origin: extPacket.Packet.Rumor.Origin, Text: extPacket.Packet.Rumor.Text}
-		id := gossiper.getIDAtomic()
-		gossiper.incerementID()
+		id := gossiper.seqID
+		gossiper.seqID = id + 1
 		rumorPacket.ID = id
 		rumorPacket.Origin = gossiper.name
 		newPacket.Packet = &GossipPacket{Rumor: rumorPacket}

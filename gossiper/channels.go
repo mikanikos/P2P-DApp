@@ -24,83 +24,82 @@ func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedG
 	return channels
 }
 
-func (gossiper *Gossiper) notifyMongeringChannel(peer string) {
-	gossiper.mongeringChannels.Mutex.Lock()
-	defer gossiper.mongeringChannels.Mutex.Unlock()
+// func (gossiper *Gossiper) notifyMongeringChannel(peer string) {
+// 	gossiper.mongeringChannels.Mutex.Lock()
+// 	defer gossiper.mongeringChannels.Mutex.Unlock()
 
-	_, channelCreated := gossiper.mongeringChannels.Channels[peer]
-	if channelCreated {
-		go func() {
-			gossiper.mongeringChannels.Channels[peer] <- true
-		}()
-	}
-}
+// 	_, channelCreated := gossiper.mongeringChannels.Channels[peer]
+// 	if channelCreated {
+// 		go func() {
+// 			gossiper.mongeringChannels.Channels[peer] <- true
+// 		}()
+// 	}
+// }
 
-func (gossiper *Gossiper) notifySyncChannel(peer string) {
-	gossiper.syncChannels.Mutex.Lock()
-	defer gossiper.syncChannels.Mutex.Unlock()
+// func (gossiper *Gossiper) notifySyncChannel(peer string) {
+// 	gossiper.syncChannels.Mutex.Lock()
+// 	defer gossiper.syncChannels.Mutex.Unlock()
 
-	_, channelCreated := gossiper.syncChannels.Channels[peer]
-	if channelCreated {
-		go func() {
-			gossiper.syncChannels.Channels[peer] <- true
-		}()
-	}
-}
+// 	_, channelCreated := gossiper.syncChannels.Channels[peer]
+// 	if channelCreated {
+// 		go func() {
+// 			gossiper.syncChannels.Channels[peer] <- true
+// 		}()
+// 	}
+// }
 
-func (gossiper *Gossiper) closeChannels(peer string) {
-	gossiper.mongeringChannels.Mutex.Lock()
-	gossiper.syncChannels.Mutex.Lock()
+// func (gossiper *Gossiper) closeChannels(peer string) {
+// 	gossiper.mongeringChannels.Mutex.Lock()
+// 	gossiper.syncChannels.Mutex.Lock()
 
-	defer gossiper.syncChannels.Mutex.Unlock()
-	defer gossiper.mongeringChannels.Mutex.Unlock()
+// 	defer gossiper.syncChannels.Mutex.Unlock()
+// 	defer gossiper.mongeringChannels.Mutex.Unlock()
 
-	close(gossiper.mongeringChannels.Channels[peer])
-	close(gossiper.syncChannels.Channels[peer])
-}
+// 	close(gossiper.mongeringChannels.Channels[peer])
+// 	close(gossiper.syncChannels.Channels[peer])
+// }
 
-func (gossiper *Gossiper) checkMongeringForPeer(peer string) bool {
-	gossiper.syncChannels.Mutex.Lock()
-	gossiper.mongeringChannels.Mutex.Lock()
+// func (gossiper *Gossiper) checkMongeringForPeer(peer string) bool {
+// 	gossiper.syncChannels.Mutex.Lock()
+// 	gossiper.mongeringChannels.Mutex.Lock()
 
-	defer gossiper.syncChannels.Mutex.Unlock()
-	defer gossiper.mongeringChannels.Mutex.Unlock()
+// 	defer gossiper.syncChannels.Mutex.Unlock()
+// 	defer gossiper.mongeringChannels.Mutex.Unlock()
 
-	_, mongerChanPresent := gossiper.mongeringChannels.Channels[peer]
+// 	_, mongerChanPresent := gossiper.mongeringChannels.Channels[peer]
 
-	_, syncChanPresent := gossiper.syncChannels.Channels[peer]
-	if mongerChanPresent || syncChanPresent {
-		return true
-	}
-	return false
-}
+// 	_, syncChanPresent := gossiper.syncChannels.Channels[peer]
+// 	if mongerChanPresent || syncChanPresent {
+// 		return true
+// 	}
+// 	return false
+// }
 
-func (gossiper *Gossiper) creatingRumorSyncChannels(peer string) {
-	gossiper.mongeringChannels.Mutex.Lock()
-	gossiper.syncChannels.Mutex.Lock()
+// func (gossiper *Gossiper) creatingRumorSyncChannels(peer string) {
+// 	gossiper.mongeringChannels.Mutex.Lock()
+// 	gossiper.syncChannels.Mutex.Lock()
 
-	defer gossiper.mongeringChannels.Mutex.Unlock()
-	defer gossiper.syncChannels.Mutex.Unlock()
+// 	defer gossiper.mongeringChannels.Mutex.Unlock()
+// 	defer gossiper.syncChannels.Mutex.Unlock()
 
-	_, mongerChanPresent := gossiper.mongeringChannels.Channels[peer]
-	if !mongerChanPresent {
-		gossiper.mongeringChannels.Channels[peer] = make(chan bool)
-	}
+// 	_, mongerChanPresent := gossiper.mongeringChannels.Channels[peer]
+// 	if !mongerChanPresent {
+// 		gossiper.mongeringChannels.Channels[peer] = make(chan bool)
+// 	}
 
-	_, syncChanPresent := gossiper.syncChannels.Channels[peer]
-	if !syncChanPresent {
-		gossiper.syncChannels.Channels[peer] = make(chan bool)
-	}
-}
+// 	_, syncChanPresent := gossiper.syncChannels.Channels[peer]
+// 	if !syncChanPresent {
+// 		gossiper.syncChannels.Channels[peer] = make(chan bool)
+// 	}
+// }
 
 func (gossiper *Gossiper) sendToPeerStatusChannel(extPacket *ExtendedGossipPacket) {
-	gossiper.statusChannels.Mutex.Lock()
-	defer gossiper.statusChannels.Mutex.Unlock()
+	// gossiper.statusChannels.Mutex.Lock()
+	// defer gossiper.statusChannels.Mutex.Unlock()
 
-	_, exists := gossiper.statusChannels.Channels[extPacket.SenderAddr.String()]
+	channelPeer, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket))
 	if !exists {
-		gossiper.statusChannels.Channels[extPacket.SenderAddr.String()] = make(chan *ExtendedGossipPacket)
-		go gossiper.handlePeerStatus(gossiper.statusChannels.Channels[extPacket.SenderAddr.String()])
+		go gossiper.handlePeerStatus(channelPeer.(chan *ExtendedGossipPacket))
 	}
-	gossiper.statusChannels.Channels[extPacket.SenderAddr.String()] <- extPacket
+	channelPeer.(chan *ExtendedGossipPacket) <- extPacket
 }
