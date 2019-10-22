@@ -74,7 +74,8 @@ func (gossiper *Gossiper) sendRumorWithTimeout(packet *GossipPacket, peer *net.U
 
 	//gossiper.creatingRumorSyncChannels(peer.String())
 
-	rumorChan, _ := gossiper.mongeringChannels.LoadOrStore(peer.String(), make(chan bool, 0))
+	//rumorChan, _ := gossiper.mongeringChannels.LoadOrStore(peer.String(), make(chan bool, 0))
+	rumorChan := gossiper.createOrGetMongerChannel(peer.String())
 
 	go gossiper.sendPacket(packet, peer)
 	fmt.Println("MONGERING with " + peer.String())
@@ -85,7 +86,7 @@ func (gossiper *Gossiper) sendRumorWithTimeout(packet *GossipPacket, peer *net.U
 
 	for {
 		select {
-		case <-rumorChan.(chan bool):
+		case <-rumorChan:
 			timer.Stop()
 			fmt.Println("Got status")
 			//gossiper.isMongering[peer.String()] = false
@@ -188,6 +189,8 @@ func (gossiper *Gossiper) getPacketsFromStatus(ps PeerStatus) []*GossipPacket {
 
 func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPacket) {
 	for extPacket := range statusChannel {
+
+		go gossiper.notifyMongerChannel(extPacket.SenderAddr.String())
 
 		myStatus := gossiper.createStatus()
 		toSend := gossiper.getDifferenceStatus(myStatus, extPacket.Packet.Status.Want)

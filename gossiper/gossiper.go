@@ -19,7 +19,7 @@ type Gossiper struct {
 	originPackets     PacketsStorage
 	seqID             uint32
 	statusChannels    sync.Map //MutexStatusChannel
-	mongeringChannels sync.Map //MutexDummyChannel
+	mongeringChannels MutexDummyChannel
 	//syncChannels       MutexDummyChannel
 	antiEntropyTimeout int
 	//isMongering        map[string]bool
@@ -53,7 +53,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		simpleMode:        simple,
 		seqID:             1,
 		statusChannels:    sync.Map{}, //MutexStatusChannel{Channels: make(map[string]chan *ExtendedGossipPacket)},
-		mongeringChannels: sync.Map{}, //MutexDummyChannel{Channels: make(map[string]chan bool)},
+		mongeringChannels: MutexDummyChannel{Channels: make(map[string]chan bool)},
 		//syncChannels:       MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
 		//isMongering:        make(map[string]bool),
@@ -140,8 +140,6 @@ func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGos
 		gossiper.printStatusMessage(extPacket)
 
 		// if gossiper.isMongering[extPacket.SenderAddr.String()] {
-
-		go gossiper.notifyMongerChannel(extPacket.SenderAddr.String())
 
 		//time.Sleep(time.Duration(15) * time.Second)
 
