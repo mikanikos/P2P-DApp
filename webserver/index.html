@@ -99,22 +99,14 @@
                 var jsonData = JSON.parse(data);
                 var list = document.getElementById('messageList');
 
-                var isSimpleMode = jsonData["isSimpleMode"];
-                var array = jsonData["messages"];
-                for (el of array) {
+                for (el of jsonData) {
                     var entry = document.createElement('li');
-                    var text
-                    if (isSimpleMode == true) {
-                        text = "[" + el["Origin"] + "] " + el["Text"]
-                    }
-                    else {
-                        text = "[" + el["Origin"] + "] {" + el["ID"] + "} " + el["Text"]
-                    }
+                    var text = "[" + el["Origin"] + "] {" + el["ID"] + "} " + el["Text"]
                     entry.appendChild(document.createTextNode(text));
                     list.appendChild(entry);
                 }
             });
-        }, 100);
+        }, 1000);
     </script>
 </body>
 

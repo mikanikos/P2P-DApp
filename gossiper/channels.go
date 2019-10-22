@@ -24,16 +24,35 @@ func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedG
 	return channels
 }
 
-// func (gossiper *Gossiper) notifyMongeringChannel(peer string) {
+func (gossiper *Gossiper) notifyMongerChannel(peer string) {
+	rumorChan, found := gossiper.mongeringChannels.Load(peer)
+	if found {
+		close(rumorChan.(chan bool))
+	}
+	gossiper.mongeringChannels.Store(peer, make(chan bool, 0))
+}
+
+// func (gossiper *Gossiper) notifyMongerChannel(peer string) {
 // 	gossiper.mongeringChannels.Mutex.Lock()
 // 	defer gossiper.mongeringChannels.Mutex.Unlock()
 
-// 	_, channelCreated := gossiper.mongeringChannels.Channels[peer]
+// 	rumorChan, channelCreated := gossiper.mongeringChannels.Channels[peer]
 // 	if channelCreated {
-// 		go func() {
-// 			gossiper.mongeringChannels.Channels[peer] <- true
-// 		}()
+// 		close(rumorChan)
 // 	}
+// 	gossiper.mongeringChannels.Channels[peer] = make(chan bool, 0)
+// }
+
+// func (gossiper *Gossiper) createOrGetMongerChannel(peer string) chan bool {
+// 	gossiper.mongeringChannels.Mutex.Lock()
+// 	defer gossiper.mongeringChannels.Mutex.Unlock()
+
+// 	_, mongerChanPresent := gossiper.mongeringChannels.Channels[peer]
+// 	if !mongerChanPresent {
+// 		gossiper.mongeringChannels.Channels[peer] = make(chan bool, 0)
+// 	}
+
+// 	return gossiper.mongeringChannels.Channels[peer]
 // }
 
 // func (gossiper *Gossiper) notifySyncChannel(peer string) {
@@ -48,14 +67,15 @@ func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedG
 // 	}
 // }
 
-// func (gossiper *Gossiper) closeChannels(peer string) {
+// func (gossiper *Gossiper) closeRumorChannel(peer string) {
 // 	gossiper.mongeringChannels.Mutex.Lock()
-// 	gossiper.syncChannels.Mutex.Lock()
-
-// 	defer gossiper.syncChannels.Mutex.Unlock()
 // 	defer gossiper.mongeringChannels.Mutex.Unlock()
-
 // 	close(gossiper.mongeringChannels.Channels[peer])
+// }
+
+// func (gossiper *Gossiper) closeSyncChannel(peer string) {
+// 	gossiper.syncChannels.Mutex.Lock()
+// 	defer gossiper.syncChannels.Mutex.Unlock()
 // 	close(gossiper.syncChannels.Channels[peer])
 // }
 

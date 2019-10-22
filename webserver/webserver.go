@@ -38,10 +38,7 @@ func sendMessage(msg string) {
 }
 
 func getMessageHandler(w http.ResponseWriter, r *http.Request) {
-	var payload = map[string]interface{}{
-		"messages":     g.GetMessages(),
-		"isSimpleMode": g.IsSimpleMode(),
-	}
+	var payload = g.GetMessages()
 	writeJSON(w, payload)
 }
 

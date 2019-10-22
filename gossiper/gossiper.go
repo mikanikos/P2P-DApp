@@ -11,18 +11,16 @@ import (
 
 // Gossiper struct
 type Gossiper struct {
-	name           string
-	clientData     *NetworkData
-	gossiperData   *NetworkData
-	peers          MutexPeers
-	simpleMode     bool
-	originPackets  PacketsStorage
-	seqID          uint32
-	statusChannels sync.Map //MutexStatusChannel
-	//mongeringChannels  MutexDummyChannel
+	name              string
+	clientData        *NetworkData
+	gossiperData      *NetworkData
+	peers             MutexPeers
+	simpleMode        bool
+	originPackets     PacketsStorage
+	seqID             uint32
+	statusChannels    sync.Map //MutexStatusChannel
+	mongeringChannels sync.Map //MutexDummyChannel
 	//syncChannels       MutexDummyChannel
-	mongerCond         map[string]*sync.Cond
-	syncCond           map[string]*sync.Cond
 	antiEntropyTimeout int
 	//isMongering        map[string]bool
 }
@@ -47,18 +45,16 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 	}
 
 	return &Gossiper{
-		name:           name,
-		clientData:     &NetworkData{Conn: connUI, Addr: addressUI},
-		gossiperData:   &NetworkData{Conn: connGossiper, Addr: addressGossiper},
-		peers:          MutexPeers{Peers: peers},
-		originPackets:  PacketsStorage{OriginPacketsMap: make(map[string]map[uint32]*ExtendedGossipPacket), Messages: make([]RumorMessage, 0)},
-		simpleMode:     simple,
-		seqID:          1,
-		statusChannels: sync.Map{}, //MutexStatusChannel{Channels: make(map[string]chan *ExtendedGossipPacket)},
-		//mongeringChannels:  MutexDummyChannel{Channels: make(map[string]chan bool)},
+		name:              name,
+		clientData:        &NetworkData{Conn: connUI, Addr: addressUI},
+		gossiperData:      &NetworkData{Conn: connGossiper, Addr: addressGossiper},
+		peers:             MutexPeers{Peers: peers},
+		originPackets:     PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, 30)}, //PacketsStorage{OriginPacketsMap: make(map[string]map[uint32]*ExtendedGossipPacket), Messages: make([]RumorMessage, 0)},
+		simpleMode:        simple,
+		seqID:             1,
+		statusChannels:    sync.Map{}, //MutexStatusChannel{Channels: make(map[string]chan *ExtendedGossipPacket)},
+		mongeringChannels: sync.Map{}, //MutexDummyChannel{Channels: make(map[string]chan bool)},
 		//syncChannels:       MutexDummyChannel{Channels: make(map[string]chan bool)},
-		mongerCond:         make(map[string]*sync.Cond),
-		syncCond:           make(map[string]*sync.Cond),
 		antiEntropyTimeout: antiEntropyTimeout,
 		//isMongering:        make(map[string]bool),
 	}
@@ -111,7 +107,7 @@ func (gossiper *Gossiper) handleConnectionSimple(channelPeers chan *ExtendedGoss
 
 		extPacket = gossiper.modifyPacket(extPacket, false)
 
-		gossiper.addMessage(extPacket)
+		//gossiper.addMessage(extPacket)
 
 		go gossiper.broadcastToPeers(extPacket)
 	}
@@ -136,15 +132,19 @@ func (gossiper *Gossiper) handleConnectionRumor(rumorChannel chan *ExtendedGossi
 func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGossipPacket) {
 	for extPacket := range statusChannel {
 
+		//time.Sleep(time.Duration(3) * time.Second)
+
+		//gossiper.createOrGetMongerCond(extPacket.SenderAddr.String()).Broadcast()
+
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printStatusMessage(extPacket)
 
 		// if gossiper.isMongering[extPacket.SenderAddr.String()] {
-		// 	gossiper.notifyMongeringChannel(extPacket.SenderAddr.String())
-		// }
 
-		gossiper.createOrGetMongerCond(extPacket.SenderAddr.String()).Broadcast()
+		go gossiper.notifyMongerChannel(extPacket.SenderAddr.String())
 
-		gossiper.sendToPeerStatusChannel(extPacket)
+		//time.Sleep(time.Duration(15) * time.Second)
+
+		go gossiper.sendToPeerStatusChannel(extPacket)
 	}
 }
