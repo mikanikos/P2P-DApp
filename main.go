@@ -27,7 +27,9 @@ func main() {
 
 	gossiper := gossiper.NewGossiper(*gossipName, *gossipAddr, peersList, *uiPort, *simpleMode, *antiEntropy)
 
-	go webserver.RunWebServer(gossiper, *uiPort, *guiPort)
+	if *guiPort != "" {
+		go webserver.RunWebServer(gossiper, *uiPort, *guiPort)
+	}
 
 	gossiper.Run()
 }

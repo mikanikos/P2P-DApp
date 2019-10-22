@@ -66,15 +66,6 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 
 func (gossiper *Gossiper) sendRumorWithTimeout(packet *GossipPacket, peer *net.UDPAddr) bool {
 
-	// if gossiper.isMongering[peer.String()] {
-	// 	return false
-	// }
-
-	// gossiper.isMongering[peer.String()] = true
-
-	//gossiper.creatingRumorSyncChannels(peer.String())
-
-	//rumorChan, _ := gossiper.mongeringChannels.LoadOrStore(peer.String(), make(chan bool, 0))
 	rumorChan := gossiper.createOrGetMongerChannel(peer.String())
 
 	go gossiper.sendPacket(packet, peer)
@@ -82,37 +73,20 @@ func (gossiper *Gossiper) sendRumorWithTimeout(packet *GossipPacket, peer *net.U
 
 	timer := time.NewTicker(time.Duration(rumorTimeout) * time.Second)
 
-	fmt.Println("Waiting for status")
-
 	for {
 		select {
 		case <-rumorChan:
 			timer.Stop()
-			fmt.Println("Got status")
-			//gossiper.isMongering[peer.String()] = false
 			return true
 
 		case <-timer.C:
-			fmt.Println("Timeout")
-			//gossiper.isMongering[peer.String()] = false
 			return false
 		}
 	}
 }
 
 func (gossiper *Gossiper) createStatus() []PeerStatus {
-	//gossiper.originPackets.Mutex.Lock()
-	//defer gossiper.originPackets.Mutex.Unlock()
 	myStatus := make([]PeerStatus, 0)
-	// for origin, idMessages := range gossiper.originPackets.OriginPacketsMap {
-	// 	var maxID uint32 = 0
-	// 	for id := range idMessages {
-	// 		if id > maxID {
-	// 			maxID = id
-	// 		}
-	// 	}
-	// 	myStatus = append(myStatus, PeerStatus{Identifier: origin, NextID: maxID + 1})
-	// }
 
 	gossiper.originPackets.OriginPacketsMap.Range(func(key interface{}, value interface{}) bool {
 		origin := key.(string)
@@ -152,19 +126,6 @@ func (gossiper *Gossiper) getDifferenceStatus(myStatus, otherStatus []PeerStatus
 }
 
 func (gossiper *Gossiper) getPacketsFromStatus(ps PeerStatus) []*GossipPacket {
-	// gossiper.originPackets.Mutex.Lock()
-	// defer gossiper.originPackets.Mutex.Unlock()
-	// idMessages, _ := gossiper.originPackets.OriginPacketsMap[ps.Identifier]
-	// maxID := ps.NextID
-	// for id := range idMessages {
-	// 	if id > maxID {
-	// 		maxID = id
-	// 	}
-	// }
-	// packets := make([]*GossipPacket, 0)
-	// for i := ps.NextID; i <= maxID; i++ {
-	// 	packets = append(packets, idMessages[i].Packet)
-	// }
 
 	value, _ := gossiper.originPackets.OriginPacketsMap.Load(ps.Identifier)
 	idMessages := value.(*sync.Map)
@@ -203,10 +164,6 @@ func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPac
 				gossiper.sendStatusPacket(extPacket.SenderAddr)
 			} else {
 				fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())
-				//gossiper.createOrGetSyncCond(extPacket.SenderAddr.String()).Broadcast()
-				// if gossiper.isMongering[extPacket.SenderAddr.String()] {
-				//go gossiper.closeSyncChannel(extPacket.SenderAddr.String())
-				// }
 			}
 		}
 	}

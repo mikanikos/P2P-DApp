@@ -9,20 +9,20 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
+var latestMessagesBuffer = 30
+
 // Gossiper struct
 type Gossiper struct {
-	name              string
-	clientData        *NetworkData
-	gossiperData      *NetworkData
-	peers             MutexPeers
-	simpleMode        bool
-	originPackets     PacketsStorage
-	seqID             uint32
-	statusChannels    sync.Map //MutexStatusChannel
-	mongeringChannels MutexDummyChannel
-	//syncChannels       MutexDummyChannel
+	name               string
+	clientData         *NetworkData
+	gossiperData       *NetworkData
+	peers              MutexPeers
+	simpleMode         bool
+	originPackets      PacketsStorage
+	seqID              uint32
+	statusChannels     sync.Map
+	mongeringChannels  MutexDummyChannel
 	antiEntropyTimeout int
-	//isMongering        map[string]bool
 }
 
 // NewGossiper function
@@ -45,18 +45,16 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 	}
 
 	return &Gossiper{
-		name:              name,
-		clientData:        &NetworkData{Conn: connUI, Addr: addressUI},
-		gossiperData:      &NetworkData{Conn: connGossiper, Addr: addressGossiper},
-		peers:             MutexPeers{Peers: peers},
-		originPackets:     PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, 30)}, //PacketsStorage{OriginPacketsMap: make(map[string]map[uint32]*ExtendedGossipPacket), Messages: make([]RumorMessage, 0)},
-		simpleMode:        simple,
-		seqID:             1,
-		statusChannels:    sync.Map{}, //MutexStatusChannel{Channels: make(map[string]chan *ExtendedGossipPacket)},
-		mongeringChannels: MutexDummyChannel{Channels: make(map[string]chan bool)},
-		//syncChannels:       MutexDummyChannel{Channels: make(map[string]chan bool)},
+		name:               name,
+		clientData:         &NetworkData{Conn: connUI, Addr: addressUI},
+		gossiperData:       &NetworkData{Conn: connGossiper, Addr: addressGossiper},
+		peers:              MutexPeers{Peers: peers},
+		originPackets:      PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, latestMessagesBuffer)},
+		simpleMode:         simple,
+		seqID:              1,
+		statusChannels:     sync.Map{},
+		mongeringChannels:  MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
-		//isMongering:        make(map[string]bool),
 	}
 }
 
@@ -89,11 +87,10 @@ func (gossiper *Gossiper) handleConnectionClient(channelClient chan *ExtendedGos
 
 		extPacket = gossiper.modifyPacket(extPacket, true)
 
-		gossiper.addMessage(extPacket)
-
 		if gossiper.simpleMode {
 			go gossiper.broadcastToPeers(extPacket)
 		} else {
+			gossiper.addMessage(extPacket)
 			go gossiper.startRumorMongering(extPacket)
 		}
 	}
@@ -107,8 +104,6 @@ func (gossiper *Gossiper) handleConnectionSimple(channelPeers chan *ExtendedGoss
 
 		extPacket = gossiper.modifyPacket(extPacket, false)
 
-		//gossiper.addMessage(extPacket)
-
 		go gossiper.broadcastToPeers(extPacket)
 	}
 }
@@ -119,9 +114,9 @@ func (gossiper *Gossiper) handleConnectionRumor(rumorChannel chan *ExtendedGossi
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printPeerMessage(extPacket)
 
-		isMessageKnown := gossiper.addMessage(extPacket)
+		go gossiper.sendStatusPacket(extPacket.SenderAddr)
 
-		gossiper.sendStatusPacket(extPacket.SenderAddr)
+		isMessageKnown := gossiper.addMessage(extPacket)
 
 		if !isMessageKnown {
 			go gossiper.startRumorMongering(extPacket)
@@ -132,16 +127,8 @@ func (gossiper *Gossiper) handleConnectionRumor(rumorChannel chan *ExtendedGossi
 func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGossipPacket) {
 	for extPacket := range statusChannel {
 
-		//time.Sleep(time.Duration(3) * time.Second)
-
-		//gossiper.createOrGetMongerCond(extPacket.SenderAddr.String()).Broadcast()
-
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printStatusMessage(extPacket)
-
-		// if gossiper.isMongering[extPacket.SenderAddr.String()] {
-
-		//time.Sleep(time.Duration(15) * time.Second)
 
 		go gossiper.sendToPeerStatusChannel(extPacket)
 	}

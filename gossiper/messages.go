@@ -6,16 +6,9 @@ import (
 
 // PacketsStorage struct
 type PacketsStorage struct {
-	OriginPacketsMap sync.Map //map[string]map[uint32]*ExtendedGossipPacket
+	OriginPacketsMap sync.Map
 	LatestMessages   chan *RumorMessage
-	//Mutex            sync.Mutex
 }
-
-// func hash(s string) uint32 {
-// 	h := fnv.New32a()
-// 	h.Write([]byte(s))
-// 	return h.Sum32()
-// }
 
 func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 
@@ -25,9 +18,6 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 	origin = extPacket.Packet.Rumor.Origin
 	id = extPacket.Packet.Rumor.ID
 
-	// gossiper.originPackets.Mutex.Lock()
-	// defer gossiper.originPackets.Mutex.Unlock()
-
 	value, _ := gossiper.originPackets.OriginPacketsMap.LoadOrStore(origin, &sync.Map{})
 	mapValue := value.(*sync.Map)
 
@@ -35,16 +25,6 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 	if !loaded {
 		gossiper.originPackets.LatestMessages <- extPacket.Packet.Rumor
 	}
-
-	// _, isPeerKnown := gossiper.originPackets.OriginPacketsMap[origin]
-	// if !isPeerKnown {
-	// 	gossiper.originPackets.OriginPacketsMap[origin] = make(map[uint32]*ExtendedGossipPacket)
-	// }
-	// _, isMessageKnown := gossiper.originPackets.OriginPacketsMap[origin][id]
-	// if !isMessageKnown {
-	// 	gossiper.originPackets.OriginPacketsMap[origin][id] = extPacket
-	// 	gossiper.originPackets.Messages = append(gossiper.originPackets.Messages, RumorMessage{ID: id, Origin: origin, Text: msg})
-	// }
 
 	return loaded
 }
@@ -61,11 +41,4 @@ func (gossiper *Gossiper) GetMessages() []RumorMessage {
 	}
 
 	return messages
-
-	// gossiper.originPackets.Mutex.Lock()
-	// defer gossiper.originPackets.Mutex.Unlock()
-	// messagesCopy := make([]RumorMessage, len(gossiper.originPackets.Messages))
-	// copy(messagesCopy, gossiper.originPackets.Messages)
-	// gossiper.originPackets.Messages = make([]RumorMessage, 0)
-	// return messagesCopy
 }
