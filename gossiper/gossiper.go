@@ -1,6 +1,7 @@
 package gossiper
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
 	"sync"
@@ -10,6 +11,7 @@ import (
 )
 
 var latestMessagesBuffer = 30
+var hopLimit = 10
 
 // Gossiper struct
 type Gossiper struct {
@@ -23,10 +25,12 @@ type Gossiper struct {
 	statusChannels     sync.Map
 	mongeringChannels  MutexDummyChannel
 	antiEntropyTimeout int
+	routingTable       MutexRoutingTable
+	routeTimer         int
 }
 
 // NewGossiper function
-func NewGossiper(name string, address string, peersList []string, uiPort string, simple bool, antiEntropyTimeout int) *Gossiper {
+func NewGossiper(name string, address string, peersList []string, uiPort string, simple bool, antiEntropyTimeout int, rtimer int) *Gossiper {
 	addressGossiper, err := net.ResolveUDPAddr("udp4", address)
 	helpers.ErrorCheck(err)
 	connGossiper, err := net.ListenUDP("udp4", addressGossiper)
@@ -55,6 +59,8 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		statusChannels:     sync.Map{},
 		mongeringChannels:  MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
+		routingTable:       MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
+		routeTimer:         rtimer,
 	}
 }
 
@@ -74,10 +80,23 @@ func (gossiper *Gossiper) Run() {
 		go gossiper.handleConnectionStatus(channels["status"])
 		go gossiper.handleConnectionRumor(channels["rumor"])
 		go gossiper.startAntiEntropy()
+		go gossiper.startRouteRumor()
+		go gossiper.handleConnectionPrivate(channels["private"])
 	}
 
 	gossiper.receivePackets(gossiper.gossiperData, channels)
 
+}
+
+func (gossiper *Gossiper) handleConnectionPrivate(channelPrivate chan *ExtendedGossipPacket) {
+	for extPacket := range channelPrivate {
+
+		if extPacket.Packet.Private.Destination == gossiper.name {
+			fmt.Println("PRIVATE origin " + extPacket.Packet.Private.Origin + " hop-limit " + fmt.Sprint(extPacket.Packet.Private.HopLimit) + " contents " + extPacket.Packet.Private.Text)
+		} else {
+			go gossiper.processPrivateMessage(extPacket)
+		}
+	}
 }
 
 func (gossiper *Gossiper) handleConnectionClient(channelClient chan *ExtendedGossipPacket) {
@@ -90,8 +109,12 @@ func (gossiper *Gossiper) handleConnectionClient(channelClient chan *ExtendedGos
 		if gossiper.simpleMode {
 			go gossiper.broadcastToPeers(extPacket)
 		} else {
-			gossiper.addMessage(extPacket)
-			go gossiper.startRumorMongering(extPacket)
+			if extPacket.Packet.Private != nil {
+				go gossiper.processPrivateMessage(extPacket)
+			} else {
+				gossiper.addMessage(extPacket)
+				go gossiper.startRumorMongering(extPacket)
+			}
 		}
 	}
 }
@@ -119,6 +142,8 @@ func (gossiper *Gossiper) handleConnectionRumor(rumorChannel chan *ExtendedGossi
 		isMessageKnown := gossiper.addMessage(extPacket)
 
 		if !isMessageKnown {
+			gossiper.updateRoutingTable(extPacket)
+			//fmt.Println(gossiper.routingTable.RoutingTable)
 			go gossiper.startRumorMongering(extPacket)
 		}
 	}

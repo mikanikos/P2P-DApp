@@ -9,7 +9,7 @@
 
     <h1 style="text-align: center" id="peerID">Peerster</h1>
 
-    <div class="chatBox" style="float:left;height:80vh;width:60%;border:1px solid #bbb;margin:10px;position: relative;">
+    <div class="chatBox" style="float:left;height:80vh;width:35%;border:1px solid #bbb;margin:10px;position: relative;">
         <label style="margin:10px;display:inline-block;">
             <strong>Chat Box</strong>
         </label>
@@ -22,18 +22,32 @@
             </form>
         </div>
     </div>
-    <div class="nodeBox" style="float:left;height:65vh;width:35%;border:1px solid #bbb;margin:10px;position:relative;">
+    <div class="nodeBox" style="float:left;height:65vh;width:15%;border:1px solid #bbb;margin:10px;position:relative;">
         <label style="margin:10px;display:inline-block">
             <strong>Node Box</strong>
         </label>
         <ul id="peerList" style="padding:10px;list-style:none;max-height:650px;overflow:auto;">
         </ul>
         <div style="position:absolute;bottom:0;width:100%">
-        <form id="peerForm" style="margin:10px;">
-            <input id="peerInput" type="text" placeholder="IP:PORT" style="width:65%;" />
-            <button type="submit" style="width:25%;">Add</button>
-        </form>
+            <form id="peerForm" style="margin:10px;">
+                <input id="peerInput" type="text" placeholder="IP:PORT" style="width:65%;" />
+                <button type="submit" style="width:25%;">Add</button>
+            </form>
+        </div>
     </div>
+    <div class="originBox" style="float:left;height:65vh;width:15%;border:1px solid #bbb;margin:10px;position:relative;">
+        <label style="margin:10px;display:inline-block">
+            <strong>Origin Box</strong>
+        </label>
+        <ul id="originList" style="padding:10px;list-style:none;max-height:650px;overflow:auto;">
+        </ul>
+        <div id="privateMesDialog">
+            <form id="peerForm" style="margin:10px;">
+                <label>Send private message to this peer</label>
+                <input id="originInput" type="text" placeholder="Write your message" style="width:65%;" />
+                <button type="submit" style="width:25%;">Send</button>
+            </form>
+        </div>
     </div>
     <script>
         $("#sendForm").submit(function (event) {
@@ -73,6 +87,43 @@
             updatePeersList()
 
         });
+
+        $("#sendForm").submit(function (event) {
+
+            event.preventDefault();
+
+            var message = document.getElementById("messageInput").value;
+
+            if (message == "") {
+                return
+            }
+
+            document.getElementById("messageInput").value = "";
+
+            $.ajax({
+                url: '/message',
+                type: 'post',
+                data: message,
+            });
+        });
+
+
+
+        $('#originList').dblclick(function (e) {
+            $currentTarget = $(e.target);
+
+            $('#privateMesDialog').dialog({
+                modal: true,
+                height: 600,
+                width: 500,
+                position: 'center'
+            });
+            return false;
+
+        });
+
+
+
         $.get("/id", function (data) {
             data = data.replace("\"", "").replace("\"", "")
             document.getElementById("peerID").innerHTML = "Peerster - ID: " + data;
@@ -95,15 +146,36 @@
                 });
             }
             updateNodeBox()
-            $.get("/message", function (data) {              
+
+            function updateOriginBox() {
+                $.get("/origin", function (data) {
+                    var array = JSON.parse(data);
+
+                    var list = document.getElementById('originList');
+                    while (list.hasChildNodes()) {
+                        list.removeChild(list.firstChild)
+                    }
+
+                    for (el of array) {
+                        var entry = document.createElement('li');
+                        entry.appendChild(document.createTextNode(el));
+                        list.appendChild(entry);
+                    }
+                });
+            }
+            updateOriginBox()
+
+            $.get("/message", function (data) {
                 var jsonData = JSON.parse(data);
                 var list = document.getElementById('messageList');
 
                 for (el of jsonData) {
-                    var entry = document.createElement('li');
-                    var text = "[" + el["Origin"] + "] {" + el["ID"] + "} " + el["Text"]
-                    entry.appendChild(document.createTextNode(text));
-                    list.appendChild(entry);
+                    if (el["Text"] != "") {
+                        var entry = document.createElement('li');
+                        var text = "[" + el["Origin"] + "] " + el["Text"]
+                        entry.appendChild(document.createTextNode(text));
+                        list.appendChild(entry);
+                    }
                 }
             });
         }, 1000);

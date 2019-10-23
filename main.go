@@ -17,6 +17,7 @@ func main() {
 	peers := flag.String("peers", "", "comma separated list of peers of the form ip:port")
 	simpleMode := flag.Bool("simple", false, "run gossiper in simple broadcast mode")
 	antiEntropy := flag.Int("antiEntropy", 10, "timeout in seconds for anti-entropy")
+	rtimer := flag.Int("rtimer", 0, "timeout in seconds to send route rumors")
 
 	flag.Parse()
 
@@ -25,7 +26,7 @@ func main() {
 		peersList = strings.Split(*peers, ",")
 	}
 
-	gossiper := gossiper.NewGossiper(*gossipName, *gossipAddr, peersList, *uiPort, *simpleMode, *antiEntropy)
+	gossiper := gossiper.NewGossiper(*gossipName, *gossipAddr, peersList, *uiPort, *simpleMode, *antiEntropy, *rtimer)
 
 	if *guiPort != "" {
 		go webserver.RunWebServer(gossiper, *uiPort, *guiPort)

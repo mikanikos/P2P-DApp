@@ -25,8 +25,13 @@ func (gossiper *Gossiper) receivePackets(data *NetworkData, channels map[string]
 				simplePacket := &SimpleMessage{Contents: packetFromClient.Text}
 				channels["client"] <- &ExtendedGossipPacket{Packet: &GossipPacket{Simple: simplePacket}, SenderAddr: addr}
 			} else {
-				rumorPacket := &RumorMessage{Text: packetFromClient.Text}
-				channels["client"] <- &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: addr}
+				if *packetFromClient.Destination != "" {
+					privatePacket := &PrivateMessage{Text: packetFromClient.Text, Destination: *packetFromClient.Destination}
+					channels["client"] <- &ExtendedGossipPacket{Packet: &GossipPacket{Private: privatePacket}, SenderAddr: addr}
+				} else {
+					rumorPacket := &RumorMessage{Text: packetFromClient.Text}
+					channels["client"] <- &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: addr}
+				}
 			}
 		} else {
 			protobuf.Decode(packetBytes, packetFromPeer)

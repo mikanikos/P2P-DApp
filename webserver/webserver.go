@@ -24,14 +24,14 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 	w.Write(bytes)
 }
 
-func sendMessage(msg string) {
+func sendMessage(msg string, dest string) {
 	gossiperAddr, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+":"+uiPort)
 	helpers.ErrorCheck(err)
 	conn, err := net.DialUDP("udp", nil, gossiperAddr)
 	helpers.ErrorCheck(err)
 	defer conn.Close()
 
-	packet := &helpers.Message{Text: msg}
+	packet := &helpers.Message{Text: msg, Destination: &dest}
 	packetBytes, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
 	conn.Write(packetBytes)
@@ -46,7 +46,7 @@ func postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	bytes, err := ioutil.ReadAll(r.Body)
 	helpers.ErrorCheck(err)
 	message := string(bytes)
-	sendMessage(message)
+	sendMessage(message, "")
 }
 
 func getNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +66,14 @@ func getIDHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, g.GetName())
 }
 
+func getOriginHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, g.GetOriginsFromRoutingTable())
+}
+
+// func postPrivateHandler(w http.ResponseWriter, r *http.Request) {
+
+// }
+
 // RunWebServer to handle get and post requests
 func RunWebServer(gossiper *gossiper.Gossiper, portUI string, portGUI string) {
 	g = gossiper
@@ -80,6 +88,8 @@ func RunWebServer(gossiper *gossiper.Gossiper, portUI string, portGUI string) {
 	r.HandleFunc("/node", getNodeHandler).Methods("GET")
 	r.HandleFunc("/node", postNodeHandler).Methods("POST")
 	r.HandleFunc("/id", getIDHandler).Methods("GET")
+	r.HandleFunc("/origin", getOriginHandler).Methods("GET")
+	//r.HandleFunc("/private", postPrivateHandler).Methods("POST")
 
 	if portGUI == "" {
 		portGUI = portUI

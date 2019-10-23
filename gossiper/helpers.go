@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"sync/atomic"
 )
 
-var modeTypes = []string{"simple", "rumor", "status", "client"}
+var modeTypes = []string{"simple", "rumor", "status", "client", "private"}
 
 // SimpleMessage struct
 type SimpleMessage struct {
@@ -17,9 +18,10 @@ type SimpleMessage struct {
 
 // GossipPacket struct
 type GossipPacket struct {
-	Simple *SimpleMessage
-	Rumor  *RumorMessage
-	Status *StatusPacket
+	Simple  *SimpleMessage
+	Rumor   *RumorMessage
+	Status  *StatusPacket
+	Private *PrivateMessage
 }
 
 // NetworkData struct
@@ -34,12 +36,24 @@ type ExtendedGossipPacket struct {
 	SenderAddr *net.UDPAddr
 }
 
+// PrivateMessage struct
+type PrivateMessage struct {
+	Origin      string
+	ID          uint32
+	Text        string
+	Destination string
+	HopLimit    uint32
+}
+
 func getTypeMode(packet *GossipPacket) string {
 	if packet.Simple != nil {
 		return "simple"
 	}
 	if packet.Rumor != nil {
 		return "rumor"
+	}
+	if packet.Private != nil {
+		return "private"
 	}
 	return "status"
 }
@@ -71,7 +85,11 @@ func (gossiper *Gossiper) printClientMessage(extPacket *ExtendedGossipPacket) {
 	if gossiper.simpleMode {
 		fmt.Println("CLIENT MESSAGE " + extPacket.Packet.Simple.Contents)
 	} else {
-		fmt.Println("CLIENT MESSAGE " + extPacket.Packet.Rumor.Text)
+		if extPacket.Packet.Private != nil {
+			fmt.Println("CLIENT MESSAGE " + extPacket.Packet.Private.Text)
+		} else {
+			fmt.Println("CLIENT MESSAGE " + extPacket.Packet.Rumor.Text)
+		}
 	}
 	gossiper.printPeers()
 }
@@ -88,12 +106,17 @@ func (gossiper *Gossiper) modifyPacket(extPacket *ExtendedGossipPacket, isClient
 		simplePacket.RelayPeerAddr = gossiper.gossiperData.Addr.String()
 		newPacket.Packet = &GossipPacket{Simple: simplePacket}
 	} else {
-		rumorPacket := &RumorMessage{ID: extPacket.Packet.Rumor.ID, Origin: extPacket.Packet.Rumor.Origin, Text: extPacket.Packet.Rumor.Text}
-		id := gossiper.seqID
-		gossiper.seqID = id + 1
-		rumorPacket.ID = id
-		rumorPacket.Origin = gossiper.name
-		newPacket.Packet = &GossipPacket{Rumor: rumorPacket}
+		if extPacket.Packet.Private != nil {
+			privatePacket := &PrivateMessage{Origin: gossiper.name, ID: 0, Text: extPacket.Packet.Private.Text, Destination: extPacket.Packet.Private.Destination, HopLimit: uint32(hopLimit)}
+			newPacket.Packet = &GossipPacket{Private: privatePacket}
+		} else {
+			rumorPacket := &RumorMessage{ID: extPacket.Packet.Rumor.ID, Origin: extPacket.Packet.Rumor.Origin, Text: extPacket.Packet.Rumor.Text}
+			id := atomic.LoadUint32(&gossiper.seqID)
+			atomic.AddUint32(&gossiper.seqID, uint32(1))
+			rumorPacket.ID = id
+			rumorPacket.Origin = gossiper.name
+			newPacket.Packet = &GossipPacket{Rumor: rumorPacket}
+		}
 	}
 
 	return newPacket

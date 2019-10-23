@@ -22,12 +22,12 @@ func NewClient(uiPort string) *Client {
 	}
 }
 
-func (client *Client) sendMessage(msg string) {
+func (client *Client) sendMessage(msg string, dest *string) {
 	conn, err := net.DialUDP("udp", nil, client.gossiperAddr)
 	helpers.ErrorCheck(err)
 	defer conn.Close()
 
-	packet := &helpers.Message{Text: msg}
+	packet := &helpers.Message{Text: msg, Destination: dest}
 	packetBytes, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
 	conn.Write(packetBytes)

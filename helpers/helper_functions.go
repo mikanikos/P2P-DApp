@@ -10,7 +10,10 @@ const BaseAddress = "127.0.0.1"
 
 // Message struct
 type Message struct {
-	Text string
+	Text        string
+	Destination *string
+	File        *string
+	Request     *[]byte
 }
 
 // ErrorCheck to log errors
