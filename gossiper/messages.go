@@ -22,7 +22,7 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 	mapValue := value.(*sync.Map)
 
 	_, loaded := mapValue.LoadOrStore(id, extPacket.Packet)
-	if !loaded {
+	if !loaded && extPacket.Packet.Rumor.Text != "" {
 		gossiper.originPackets.LatestMessages <- extPacket.Packet.Rumor
 	}
 
