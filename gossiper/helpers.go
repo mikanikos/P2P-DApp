@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"sync/atomic"
+
+	"github.com/mikanikos/Peerster/helpers"
 )
 
-var modeTypes = []string{"simple", "rumor", "status", "client", "private"}
+var modeTypes = []string{"simple", "rumor", "status", "private"}
 
 // SimpleMessage struct
 type SimpleMessage struct {
@@ -45,7 +46,7 @@ type PrivateMessage struct {
 	HopLimit    uint32
 }
 
-func getTypeMode(packet *GossipPacket) string {
+func getTypeFromGossip(packet *GossipPacket) string {
 	if packet.Simple != nil {
 		return "simple"
 	}
@@ -55,7 +56,24 @@ func getTypeMode(packet *GossipPacket) string {
 	if packet.Private != nil {
 		return "private"
 	}
-	return "status"
+
+	if packet.Status != nil {
+		return "status"
+	}
+
+	return "unknown"
+}
+
+func (gossiper *Gossiper) getTypeFromMessage(message *helpers.Message) string {
+	if gossiper.simpleMode {
+		return "simple"
+	}
+
+	if *message.Destination != "" {
+		return "private"
+	}
+
+	return "rumor"
 }
 
 // GetName of the gossiper
@@ -81,45 +99,9 @@ func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket) {
 	gossiper.printPeers()
 }
 
-func (gossiper *Gossiper) printClientMessage(extPacket *ExtendedGossipPacket) {
-	if gossiper.simpleMode {
-		fmt.Println("CLIENT MESSAGE " + extPacket.Packet.Simple.Contents)
-	} else {
-		if extPacket.Packet.Private != nil {
-			fmt.Println("CLIENT MESSAGE " + extPacket.Packet.Private.Text)
-		} else {
-			fmt.Println("CLIENT MESSAGE " + extPacket.Packet.Rumor.Text)
-		}
-	}
+func (gossiper *Gossiper) printClientMessage(message *helpers.Message) {
+	fmt.Println("CLIENT MESSAGE " + message.Text)
 	gossiper.printPeers()
-}
-
-func (gossiper *Gossiper) modifyPacket(extPacket *ExtendedGossipPacket, isClient bool) *ExtendedGossipPacket {
-
-	newPacket := &ExtendedGossipPacket{SenderAddr: extPacket.SenderAddr, Packet: extPacket.Packet}
-
-	if gossiper.simpleMode {
-		simplePacket := &SimpleMessage{OriginalName: extPacket.Packet.Simple.OriginalName, RelayPeerAddr: extPacket.Packet.Simple.RelayPeerAddr, Contents: extPacket.Packet.Simple.Contents}
-		if isClient {
-			simplePacket.OriginalName = gossiper.GetName()
-		}
-		simplePacket.RelayPeerAddr = gossiper.gossiperData.Addr.String()
-		newPacket.Packet = &GossipPacket{Simple: simplePacket}
-	} else {
-		if extPacket.Packet.Private != nil {
-			privatePacket := &PrivateMessage{Origin: gossiper.name, ID: 0, Text: extPacket.Packet.Private.Text, Destination: extPacket.Packet.Private.Destination, HopLimit: uint32(hopLimit)}
-			newPacket.Packet = &GossipPacket{Private: privatePacket}
-		} else {
-			rumorPacket := &RumorMessage{ID: extPacket.Packet.Rumor.ID, Origin: extPacket.Packet.Rumor.Origin, Text: extPacket.Packet.Rumor.Text}
-			id := atomic.LoadUint32(&gossiper.seqID)
-			atomic.AddUint32(&gossiper.seqID, uint32(1))
-			rumorPacket.ID = id
-			rumorPacket.Origin = gossiper.name
-			newPacket.Packet = &GossipPacket{Rumor: rumorPacket}
-		}
-	}
-
-	return newPacket
 }
 
 func (gossiper *Gossiper) getRandomPeer(availablePeers []*net.UDPAddr) *net.UDPAddr {

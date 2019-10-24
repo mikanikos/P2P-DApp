@@ -10,10 +10,12 @@ type MutexDummyChannel struct {
 	Mutex    sync.Mutex
 }
 
-func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedGossipPacket) {
+func initializeChannels(modeTypes []string, simpleMode bool) (channels map[string]chan *ExtendedGossipPacket) {
 	channels = make(map[string]chan *ExtendedGossipPacket)
 	for _, t := range modeTypes {
-		channels[t] = make(chan *ExtendedGossipPacket)
+		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
+			channels[t] = make(chan *ExtendedGossipPacket)
+		}
 	}
 	return channels
 }
@@ -39,13 +41,4 @@ func (gossiper *Gossiper) createOrGetMongerChannel(peer string) chan bool {
 	}
 
 	return gossiper.mongeringChannels.Channels[peer]
-}
-
-func (gossiper *Gossiper) sendToPeerStatusChannel(extPacket *ExtendedGossipPacket) {
-
-	channelPeer, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket))
-	if !exists {
-		go gossiper.handlePeerStatus(channelPeer.(chan *ExtendedGossipPacket))
-	}
-	channelPeer.(chan *ExtendedGossipPacket) <- extPacket
 }

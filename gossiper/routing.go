@@ -14,7 +14,7 @@ type MutexRoutingTable struct {
 	Mutex        sync.Mutex
 }
 
-func (gossiper *Gossiper) startRouteRumor() {
+func (gossiper *Gossiper) startRouteRumormongering() {
 
 	if gossiper.routeTimer > 0 {
 
@@ -32,12 +32,18 @@ func (gossiper *Gossiper) startRouteRumor() {
 }
 
 func (gossiper *Gossiper) mongerRouteRumor() {
-	id := atomic.LoadUint32(&gossiper.seqID)
-	atomic.AddUint32(&gossiper.seqID, uint32(1))
-	rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
-	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
-	gossiper.addMessage(extPacket)
-	go gossiper.startRumorMongering(extPacket)
+	peersCopy := gossiper.GetPeersAtomic()
+	if len(peersCopy) != 0 {
+
+		id := atomic.LoadUint32(&gossiper.seqID)
+		atomic.AddUint32(&gossiper.seqID, uint32(1))
+		rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
+		extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
+		gossiper.addMessage(extPacket)
+
+		randomPeer := gossiper.getRandomPeer(peersCopy)
+		gossiper.sendPacket(extPacket.Packet, randomPeer)
+	}
 }
 
 func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
@@ -45,20 +51,21 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 	origin := extPacket.Packet.Rumor.Origin
 	address := extPacket.SenderAddr
 
-	val, _ := gossiper.originPackets.OriginPacketsMap.Load(origin)
+	idMessages, isMessageKnown := gossiper.originPackets.OriginPacketsMap.Load(origin)
 
 	var maxID uint32 = 0
-	idMessages := val.(*sync.Map)
+	if isMessageKnown {
 
-	idMessages.Range(func(key interface{}, value interface{}) bool {
-		id := key.(uint32)
-		if id > maxID {
-			maxID = id
-		}
-		return true
-	})
+		idMessages.(*sync.Map).Range(func(key interface{}, value interface{}) bool {
+			id := key.(uint32)
+			if id > maxID {
+				maxID = id
+			}
+			return true
+		})
+	}
 
-	if extPacket.Packet.Rumor.ID >= maxID {
+	if extPacket.Packet.Rumor.ID > maxID {
 
 		if extPacket.Packet.Rumor.Text != "" {
 			fmt.Println("DSDV " + origin + " " + address.String())

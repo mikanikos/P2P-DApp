@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
@@ -16,11 +17,13 @@ var hopLimit = 10
 // Gossiper struct
 type Gossiper struct {
 	name               string
+	channels           map[string]chan *ExtendedGossipPacket
 	clientData         *NetworkData
 	gossiperData       *NetworkData
 	peers              MutexPeers
 	simpleMode         bool
 	originPackets      PacketsStorage
+	myStatus           MutexStatus
 	seqID              uint32
 	statusChannels     sync.Map
 	mongeringChannels  MutexDummyChannel
@@ -50,10 +53,12 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 
 	return &Gossiper{
 		name:               name,
+		channels:           initializeChannels(modeTypes, simple),
 		clientData:         &NetworkData{Conn: connUI, Addr: addressUI},
 		gossiperData:       &NetworkData{Conn: connGossiper, Addr: addressGossiper},
 		peers:              MutexPeers{Peers: peers},
 		originPackets:      PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, latestMessagesBuffer)},
+		myStatus:           MutexStatus{Status: make(map[string]uint32)},
 		simpleMode:         simple,
 		seqID:              1,
 		statusChannels:     sync.Map{},
@@ -69,27 +74,26 @@ func (gossiper *Gossiper) Run() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	channels := initializeChannels(modeTypes)
-
-	go gossiper.handleConnectionClient(channels["client"])
-	go gossiper.receivePackets(gossiper.clientData, channels)
+	clientChannel := make(chan *helpers.Message)
+	go gossiper.processClientMessages(clientChannel)
 
 	if gossiper.simpleMode {
-		go gossiper.handleConnectionSimple(channels["simple"])
+		go gossiper.processSimpleMessages()
 	} else {
-		go gossiper.handleConnectionStatus(channels["status"])
-		go gossiper.handleConnectionRumor(channels["rumor"])
+		go gossiper.processStatusMessages()
+		go gossiper.processRumorMessages()
+		go gossiper.processPrivateMessages()
 		go gossiper.startAntiEntropy()
-		go gossiper.startRouteRumor()
-		go gossiper.handleConnectionPrivate(channels["private"])
+		go gossiper.startRouteRumormongering()
 	}
 
-	gossiper.receivePackets(gossiper.gossiperData, channels)
+	go gossiper.receivePacketsFromClient(clientChannel)
+	gossiper.receivePacketsFromPeers()
 
 }
 
-func (gossiper *Gossiper) handleConnectionPrivate(channelPrivate chan *ExtendedGossipPacket) {
-	for extPacket := range channelPrivate {
+func (gossiper *Gossiper) processPrivateMessages() {
+	for extPacket := range gossiper.channels["private"] {
 
 		if extPacket.Packet.Private.Destination == gossiper.name {
 			fmt.Println("PRIVATE origin " + extPacket.Packet.Private.Origin + " hop-limit " + fmt.Sprint(extPacket.Packet.Private.HopLimit) + " contents " + extPacket.Packet.Private.Text)
@@ -99,62 +103,80 @@ func (gossiper *Gossiper) handleConnectionPrivate(channelPrivate chan *ExtendedG
 	}
 }
 
-func (gossiper *Gossiper) handleConnectionClient(channelClient chan *ExtendedGossipPacket) {
-	for extPacket := range channelClient {
+func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Message) {
+	for message := range clientChannel {
 
-		gossiper.printClientMessage(extPacket)
+		gossiper.printClientMessage(message)
 
-		extPacket = gossiper.modifyPacket(extPacket, true)
+		packet := &ExtendedGossipPacket{SenderAddr: gossiper.gossiperData.Addr}
 
-		if gossiper.simpleMode {
-			go gossiper.broadcastToPeers(extPacket)
-		} else {
-			if extPacket.Packet.Private != nil {
-				go gossiper.processPrivateMessage(extPacket)
-			} else {
-				gossiper.addMessage(extPacket)
-				go gossiper.startRumorMongering(extPacket)
-			}
+		switch typeMessage := gossiper.getTypeFromMessage(message); typeMessage {
+		case "simple":
+			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.name, RelayPeerAddr: gossiper.gossiperData.Addr.String()}
+			packet.Packet = &GossipPacket{Simple: simplePacket}
+
+			go gossiper.broadcastToPeers(packet)
+		case "private":
+			privatePacket := &PrivateMessage{Origin: gossiper.name, ID: 0, Text: message.Text, Destination: *message.Destination, HopLimit: uint32(hopLimit)}
+			packet.Packet = &GossipPacket{Private: privatePacket}
+
+			go gossiper.processPrivateMessage(packet)
+		case "rumor":
+			id := atomic.LoadUint32(&gossiper.seqID)
+			atomic.AddUint32(&gossiper.seqID, uint32(1))
+			rumorPacket := &RumorMessage{ID: id, Origin: gossiper.name, Text: message.Text}
+			packet.Packet = &GossipPacket{Rumor: rumorPacket}
+
+			gossiper.addMessage(packet)
+			go gossiper.startRumorMongering(packet)
+		default:
+			fmt.Println("Unkown packet!")
 		}
 	}
 }
 
-func (gossiper *Gossiper) handleConnectionSimple(channelPeers chan *ExtendedGossipPacket) {
-	for extPacket := range channelPeers {
+func (gossiper *Gossiper) processSimpleMessages() {
+	for extPacket := range gossiper.channels["simple"] {
 
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printPeerMessage(extPacket)
 
-		extPacket = gossiper.modifyPacket(extPacket, false)
+		extPacket.Packet.Simple.RelayPeerAddr = gossiper.gossiperData.Addr.String()
 
 		go gossiper.broadcastToPeers(extPacket)
 	}
 }
 
-func (gossiper *Gossiper) handleConnectionRumor(rumorChannel chan *ExtendedGossipPacket) {
-	for extPacket := range rumorChannel {
+func (gossiper *Gossiper) processRumorMessages() {
+	for extPacket := range gossiper.channels["rumor"] {
 
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printPeerMessage(extPacket)
 
-		go gossiper.sendStatusPacket(extPacket.SenderAddr)
+		statusToSend := gossiper.getStatusToSend()
+		gossiper.sendPacket(statusToSend, extPacket.SenderAddr)
+
+		gossiper.updateRoutingTable(extPacket)
 
 		isMessageKnown := gossiper.addMessage(extPacket)
 
 		if !isMessageKnown {
-			gossiper.updateRoutingTable(extPacket)
 			//fmt.Println(gossiper.routingTable.RoutingTable)
 			go gossiper.startRumorMongering(extPacket)
 		}
 	}
 }
 
-func (gossiper *Gossiper) handleConnectionStatus(statusChannel chan *ExtendedGossipPacket) {
-	for extPacket := range statusChannel {
+func (gossiper *Gossiper) processStatusMessages() {
+	for extPacket := range gossiper.channels["status"] {
 
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printStatusMessage(extPacket)
 
-		go gossiper.sendToPeerStatusChannel(extPacket)
+		channelPeer, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket))
+		if !exists {
+			go gossiper.handlePeerStatus(channelPeer.(chan *ExtendedGossipPacket))
+		}
+		channelPeer.(chan *ExtendedGossipPacket) <- extPacket
 	}
 }

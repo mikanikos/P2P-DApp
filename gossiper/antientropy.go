@@ -13,7 +13,8 @@ func (gossiper *Gossiper) startAntiEntropy() {
 				peersCopy := gossiper.GetPeersAtomic()
 				if len(peersCopy) != 0 {
 					randomPeer := gossiper.getRandomPeer(peersCopy)
-					gossiper.sendStatusPacket(randomPeer)
+					statusToSend := gossiper.getStatusToSend()
+					gossiper.sendPacket(statusToSend, randomPeer)
 				}
 			}
 		}
