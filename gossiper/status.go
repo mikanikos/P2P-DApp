@@ -45,7 +45,7 @@ func (gossiper *Gossiper) getPeerStatusOtherNeeds(otherStatus []PeerStatus) *Pee
 	return nil
 }
 
-func (gossiper *Gossiper) getPeerStatusINeed(otherStatus []PeerStatus) *PeerStatus {
+func (gossiper *Gossiper) doINeedSomething(otherStatus []PeerStatus) bool {
 
 	gossiper.myStatus.Mutex.Lock()
 	defer gossiper.myStatus.Mutex.Unlock()
@@ -53,11 +53,11 @@ func (gossiper *Gossiper) getPeerStatusINeed(otherStatus []PeerStatus) *PeerStat
 	for _, elem := range otherStatus {
 		id, isOriginKnown := gossiper.myStatus.Status[elem.Identifier]
 		if !isOriginKnown {
-			return &PeerStatus{Identifier: elem.Identifier, NextID: 1}
+			return true
 		} else if elem.NextID > id {
-			return &PeerStatus{Identifier: elem.Identifier, NextID: id}
+			return true
 		}
 	}
 
-	return nil
+	return false
 }

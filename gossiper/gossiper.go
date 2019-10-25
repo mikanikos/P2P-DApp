@@ -26,7 +26,8 @@ type Gossiper struct {
 	myStatus           MutexStatus
 	seqID              uint32
 	statusChannels     sync.Map
-	mongeringChannels  MutexDummyChannel
+	mongeringChannels  sync.Map //MutexDummyChannel
+	currentMonger      map[string]*ExtendedGossipPacket
 	antiEntropyTimeout int
 	routingTable       MutexRoutingTable
 	routeTimer         int
@@ -62,7 +63,8 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		simpleMode:         simple,
 		seqID:              1,
 		statusChannels:     sync.Map{},
-		mongeringChannels:  MutexDummyChannel{Channels: make(map[string]chan bool)},
+		mongeringChannels:  sync.Map{}, //MutexDummyChannel{Channels: make(map[string]chan bool), Mutexes: make(map[string]sync.Mutex)},
+		currentMonger:      make(map[string]*ExtendedGossipPacket),
 		antiEntropyTimeout: antiEntropyTimeout,
 		routingTable:       MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		routeTimer:         rtimer,
@@ -128,7 +130,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			packet.Packet = &GossipPacket{Rumor: rumorPacket}
 
 			gossiper.addMessage(packet)
-			go gossiper.startRumorMongering(packet)
+			go gossiper.startRumorMongering(packet, false)
 		default:
 			fmt.Println("Unkown packet!")
 		}
@@ -162,7 +164,7 @@ func (gossiper *Gossiper) processRumorMessages() {
 
 		if !isMessageKnown {
 			//fmt.Println(gossiper.routingTable.RoutingTable)
-			go gossiper.startRumorMongering(extPacket)
+			go gossiper.startRumorMongering(extPacket, false)
 		}
 	}
 }

@@ -70,33 +70,27 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 		if extPacket.Packet.Rumor.Text != "" {
 			fmt.Println("DSDV " + origin + " " + address.String())
 		}
-		gossiper.addEntryRoutingTable(origin, address)
-	}
-}
 
-func (gossiper *Gossiper) addEntryRoutingTable(origin string, address *net.UDPAddr) {
-	addressInTable, isPresent := gossiper.routingTable.RoutingTable[origin]
+		addressInTable, isPresent := gossiper.routingTable.RoutingTable[origin]
 
-	if !isPresent || addressInTable.String() != address.String() {
+		// add or update entry
+		if !isPresent || addressInTable.String() != address.String() {
 
-		gossiper.routingTable.Mutex.Lock()
-		gossiper.routingTable.RoutingTable[origin] = address
-		gossiper.routingTable.Mutex.Unlock()
-	}
-}
-
-func (gossiper *Gossiper) forwardPrivateMessage(extPacket *ExtendedGossipPacket) {
-	//fmt.Println(gossiper.routingTable.RoutingTable)
-	addressInTable, isPresent := gossiper.routingTable.RoutingTable[extPacket.Packet.Private.Destination]
-	if isPresent {
-		gossiper.sendPacket(extPacket.Packet, addressInTable)
+			gossiper.routingTable.Mutex.Lock()
+			gossiper.routingTable.RoutingTable[origin] = address
+			gossiper.routingTable.Mutex.Unlock()
+		}
 	}
 }
 
 func (gossiper *Gossiper) processPrivateMessage(extPacket *ExtendedGossipPacket) {
 	if extPacket.Packet.Private.HopLimit > 0 {
 		extPacket.Packet.Private.HopLimit = extPacket.Packet.Private.HopLimit - 1
-		go gossiper.forwardPrivateMessage(extPacket)
+
+		addressInTable, isPresent := gossiper.routingTable.RoutingTable[extPacket.Packet.Private.Destination]
+		if isPresent {
+			gossiper.sendPacket(extPacket.Packet, addressInTable)
+		}
 	}
 }
 
