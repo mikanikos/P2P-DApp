@@ -26,8 +26,7 @@ type Gossiper struct {
 	myStatus           MutexStatus
 	seqID              uint32
 	statusChannels     sync.Map
-	mongeringChannels  sync.Map //MutexDummyChannel
-	currentMonger      map[string]*ExtendedGossipPacket
+	mongeringChannels  MutexDummyChannel
 	antiEntropyTimeout int
 	routingTable       MutexRoutingTable
 	routeTimer         int
@@ -63,8 +62,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		simpleMode:         simple,
 		seqID:              1,
 		statusChannels:     sync.Map{},
-		mongeringChannels:  sync.Map{}, //MutexDummyChannel{Channels: make(map[string]chan bool), Mutexes: make(map[string]sync.Mutex)},
-		currentMonger:      make(map[string]*ExtendedGossipPacket),
+		mongeringChannels:  MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
 		routingTable:       MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		routeTimer:         rtimer,
@@ -118,11 +116,13 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			packet.Packet = &GossipPacket{Simple: simplePacket}
 
 			go gossiper.broadcastToPeers(packet)
+
 		case "private":
 			privatePacket := &PrivateMessage{Origin: gossiper.name, ID: 0, Text: message.Text, Destination: *message.Destination, HopLimit: uint32(hopLimit)}
 			packet.Packet = &GossipPacket{Private: privatePacket}
 
 			go gossiper.processPrivateMessage(packet)
+
 		case "rumor":
 			id := atomic.LoadUint32(&gossiper.seqID)
 			atomic.AddUint32(&gossiper.seqID, uint32(1))
@@ -130,7 +130,8 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			packet.Packet = &GossipPacket{Rumor: rumorPacket}
 
 			gossiper.addMessage(packet)
-			go gossiper.startRumorMongering(packet, false)
+			go gossiper.startRumorMongering(packet)
+
 		default:
 			fmt.Println("Unkown packet!")
 		}
@@ -155,16 +156,17 @@ func (gossiper *Gossiper) processRumorMessages() {
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printPeerMessage(extPacket)
 
-		statusToSend := gossiper.getStatusToSend()
-		gossiper.sendPacket(statusToSend, extPacket.SenderAddr)
-
 		gossiper.updateRoutingTable(extPacket)
 
 		isMessageKnown := gossiper.addMessage(extPacket)
 
+		// send status
+		statusToSend := gossiper.getStatusToSend()
+		gossiper.sendPacket(statusToSend, extPacket.SenderAddr)
+
 		if !isMessageKnown {
 			//fmt.Println(gossiper.routingTable.RoutingTable)
-			go gossiper.startRumorMongering(extPacket, false)
+			go gossiper.startRumorMongering(extPacket)
 		}
 	}
 }
