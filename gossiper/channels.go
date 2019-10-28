@@ -1,6 +1,8 @@
 package gossiper
 
-import "sync"
+import (
+	"sync"
+)
 
 // MutexDummyChannel struct
 type MutexDummyChannel struct {

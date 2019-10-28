@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"fmt"
 	"net"
 )
 
@@ -19,7 +18,7 @@ type Message struct {
 // ErrorCheck to log errors
 func ErrorCheck(err error) {
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 }
 

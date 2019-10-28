@@ -68,7 +68,7 @@ sleep 1
 
 
 # let gossipers work for some time
-sleep 5
+sleep 10
 echo "Kill all the peerster processes..."
 kill $(ps aux | grep '\.\/[P]eerster' | awk '{print $2}')
 sleep 1

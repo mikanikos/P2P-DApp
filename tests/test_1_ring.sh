@@ -40,7 +40,7 @@ done
 
 ./client/client -UIPort=12349 -msg=$message
 ./client/client -UIPort=12346 -msg=$message2
-sleep 3
+sleep 5
 pkill -f Peerster
 
 #testing

@@ -83,13 +83,36 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 	}
 }
 
-func (gossiper *Gossiper) processPrivateMessage(extPacket *ExtendedGossipPacket) {
-	if extPacket.Packet.Private.HopLimit > 0 {
-		extPacket.Packet.Private.HopLimit = extPacket.Packet.Private.HopLimit - 1
+func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket) {
+	if packet.Private.HopLimit > 0 {
+		packet.Private.HopLimit = packet.Private.HopLimit - 1
 
-		addressInTable, isPresent := gossiper.routingTable.RoutingTable[extPacket.Packet.Private.Destination]
+		addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.Private.Destination]
 		if isPresent {
-			gossiper.sendPacket(extPacket.Packet, addressInTable)
+			gossiper.sendPacket(packet, addressInTable)
+		}
+	}
+}
+
+func (gossiper *Gossiper) forwardDataRequest(packet *GossipPacket) {
+	if packet.DataRequest.HopLimit > 0 {
+		packet.DataRequest.HopLimit = packet.DataRequest.HopLimit - 1
+
+		addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.DataRequest.Destination]
+		if isPresent {
+			gossiper.sendPacket(packet, addressInTable)
+		}
+	}
+}
+
+func (gossiper *Gossiper) forwardDataReply(packet *GossipPacket) {
+
+	if packet.DataReply.HopLimit > 0 {
+		packet.DataReply.HopLimit = packet.DataReply.HopLimit - 1
+
+		addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.DataReply.Destination]
+		if isPresent {
+			gossiper.sendPacket(packet, addressInTable)
 		}
 	}
 }

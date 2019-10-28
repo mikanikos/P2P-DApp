@@ -8,7 +8,7 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-var modeTypes = []string{"simple", "rumor", "status", "private"}
+var modeTypes = []string{"simple", "rumor", "status", "private", "request", "reply"}
 
 // SimpleMessage struct
 type SimpleMessage struct {
@@ -19,10 +19,12 @@ type SimpleMessage struct {
 
 // GossipPacket struct
 type GossipPacket struct {
-	Simple  *SimpleMessage
-	Rumor   *RumorMessage
-	Status  *StatusPacket
-	Private *PrivateMessage
+	Simple      *SimpleMessage
+	Rumor       *RumorMessage
+	Status      *StatusPacket
+	Private     *PrivateMessage
+	DataRequest *DataRequest
+	DataReply   *DataReply
 }
 
 // NetworkData struct
@@ -61,6 +63,14 @@ func getTypeFromGossip(packet *GossipPacket) string {
 		return "status"
 	}
 
+	if packet.DataRequest != nil {
+		return "request"
+	}
+
+	if packet.DataReply != nil {
+		return "reply"
+	}
+
 	return "unknown"
 }
 
@@ -69,8 +79,16 @@ func (gossiper *Gossiper) getTypeFromMessage(message *helpers.Message) string {
 		return "simple"
 	}
 
-	if *message.Destination != "" {
+	if *message.Destination != "" && message.Text != "" {
 		return "private"
+	}
+
+	if *message.File != "" && *message.Destination != "" {
+		return "request"
+	}
+
+	if *message.File != "" {
+		return "file"
 	}
 
 	return "rumor"
@@ -100,7 +118,11 @@ func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket) {
 }
 
 func (gossiper *Gossiper) printClientMessage(message *helpers.Message) {
-	fmt.Println("CLIENT MESSAGE " + message.Text)
+	if *message.Destination != "" {
+		fmt.Println("CLIENT MESSAGE " + message.Text + " dest " + *message.Destination)
+	} else {
+		fmt.Println("CLIENT MESSAGE " + message.Text)
+	}
 	gossiper.printPeers()
 }
 

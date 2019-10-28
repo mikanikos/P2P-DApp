@@ -1,0 +1,253 @@
+RUMOR origin J from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+MONGERING with 127.0.0.1:5001
+STATUS from 127.0.0.1:5009 peer J nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer B nextID 2 peer C nextID 2 peer J nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+Got status
+STATUS from 127.0.0.1:5009 peer J nextID 2 peer A nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer B nextID 2 peer C nextID 2 peer J nextID 2 peer A nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+RUMOR origin J from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin B from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer B nextID 2 peer J nextID 2 peer A nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin B from 127.0.0.1:5001 ID 1 contents 
+IN SYNC WITH 127.0.0.1:5009
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+Got status
+RUMOR origin J from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin C from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+RUMOR origin C from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin J from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin E from 127.0.0.1:5009 ID 2 contents Weather_is_clear
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+DSDV E 127.0.0.1:5009
+RUMOR origin D from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+MONGERING with 127.0.0.1:5001
+RUMOR origin C from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin D from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin D from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin D from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer J nextID 2 peer A nextID 2 peer D nextID 2 peer B nextID 2 peer C nextID 2
+RUMOR origin D from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+RUMOR origin E from 127.0.0.1:5001 ID 2 contents Weather_is_clear
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin H from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin I from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+MONGERING with 127.0.0.1:5001
+MONGERING with 127.0.0.1:5001
+RUMOR origin E from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin E from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin E from 127.0.0.1:5001 ID 2 contents Weather_is_clear
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin B from 127.0.0.1:5001 ID 2 contents Winter_is_coming
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+DSDV B 127.0.0.1:5001
+MONGERING with 127.0.0.1:5009
+MONGERING with 127.0.0.1:5001
+RUMOR origin B from 127.0.0.1:5001 ID 2 contents Winter_is_coming
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin B from 127.0.0.1:5001 ID 2 contents Winter_is_coming
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin F from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer F nextID 2 peer H nextID 2 peer B nextID 3 peer C nextID 2 peer J nextID 2 peer A nextID 2 peer D nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer H nextID 2 peer I nextID 2 peer B nextID 3 peer C nextID 2 peer J nextID 2 peer A nextID 2 peer D nextID 2 peer F nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin F from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin F from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+Got status
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+RUMOR origin F from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin F from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer I nextID 2 peer J nextID 2 peer D nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 3 peer B nextID 3 peer C nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+STATUS from 127.0.0.1:5001 peer J nextID 2 peer D nextID 2 peer I nextID 2 peer E nextID 3 peer B nextID 3 peer C nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+STATUS from 127.0.0.1:5001 peer B nextID 3 peer C nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 3 peer J nextID 2 peer D nextID 2 peer I nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+STATUS from 127.0.0.1:5009 peer A nextID 2 peer B nextID 2 peer H nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2 peer J nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer B nextID 2 peer H nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2 peer D nextID 2 peer J nextID 2 peer A nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin E from 127.0.0.1:5001 ID 2 contents Weather_is_clear
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin G from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+MONGERING with 127.0.0.1:5001
+Got status
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5001
+MONGERING with 127.0.0.1:5001
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5001
+MONGERING with 127.0.0.1:5001
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5001
+MONGERING with 127.0.0.1:5001
+Got status
+Got status
+Got status
+RUMOR origin F from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin H from 127.0.0.1:5001 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 3 peer G nextID 2 peer B nextID 3 peer C nextID 2 peer I nextID 2 peer J nextID 2 peer D nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+Got status
+Got status
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+RUMOR origin G from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer C nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 3 peer G nextID 2 peer B nextID 3 peer D nextID 2 peer I nextID 2 peer J nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+STATUS from 127.0.0.1:5001 peer J nextID 2 peer D nextID 2 peer I nextID 2 peer H nextID 2 peer E nextID 3 peer G nextID 2 peer B nextID 3 peer C nextID 2 peer A nextID 2 peer F nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+STATUS from 127.0.0.1:5009 peer J nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 2 peer H nextID 2 peer D nextID 2 peer G nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+Got status
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5001
+MONGERING with 127.0.0.1:5001
+RUMOR origin G from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin G from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+RUMOR origin G from 127.0.0.1:5009 ID 1 contents 
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer G nextID 2 peer B nextID 3 peer C nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 3 peer J nextID 2 peer D nextID 2 peer I nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+Got status
+STATUS from 127.0.0.1:5009 peer H nextID 2 peer D nextID 2 peer G nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 3 peer E nextID 3 peer C nextID 2 peer J nextID 2 peer I nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer J nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 3 peer H nextID 2 peer D nextID 2 peer G nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer H nextID 2 peer D nextID 2 peer G nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 3 peer E nextID 3 peer C nextID 2 peer J nextID 2 peer I nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer J nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 3 peer H nextID 2 peer D nextID 2 peer G nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 3 peer G nextID 2 peer B nextID 3 peer C nextID 2 peer I nextID 2 peer J nextID 2 peer D nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+STATUS from 127.0.0.1:5009 peer J nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2 peer A nextID 2 peer B nextID 3 peer H nextID 2 peer D nextID 2 peer G nextID 2 peer F nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer F nextID 2 peer A nextID 2 peer B nextID 3 peer H nextID 2 peer D nextID 2 peer G nextID 2 peer J nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer J nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 3 peer H nextID 2 peer D nextID 2 peer G nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer J nextID 2 peer I nextID 2 peer E nextID 3 peer C nextID 2 peer A nextID 2 peer B nextID 3 peer H nextID 2 peer D nextID 2 peer G nextID 2 peer F nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer E nextID 3 peer C nextID 2 peer J nextID 2 peer I nextID 2 peer H nextID 2 peer D nextID 2 peer G nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 3
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+RUMOR origin E from 127.0.0.1:5009 ID 3 contents No_clouds_really
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+DSDV E 127.0.0.1:5009
+MONGERING with 127.0.0.1:5001
+STATUS from 127.0.0.1:5001 peer I nextID 2 peer J nextID 2 peer D nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 4 peer G nextID 2 peer B nextID 3 peer C nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer G nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 3 peer H nextID 2 peer D nextID 2 peer J nextID 2 peer I nextID 2 peer E nextID 4 peer C nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5001
+MONGERING with 127.0.0.1:5001
+RUMOR origin E from 127.0.0.1:5009 ID 3 contents No_clouds_really
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+STATUS from 127.0.0.1:5001 peer I nextID 2 peer J nextID 2 peer D nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 4 peer G nextID 2 peer B nextID 3 peer C nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+Got status
+RUMOR origin B from 127.0.0.1:5001 ID 3 contents Let's_go_skiing
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+DSDV B 127.0.0.1:5001
+MONGERING with 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer A nextID 2 peer B nextID 4 peer H nextID 2 peer D nextID 2 peer G nextID 2 peer F nextID 2 peer J nextID 2 peer I nextID 2 peer E nextID 4 peer C nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5001
+MONGERING with 127.0.0.1:5001
+STATUS from 127.0.0.1:5001 peer C nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2 peer E nextID 4 peer G nextID 2 peer B nextID 4 peer D nextID 2 peer I nextID 2 peer J nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+Got status
+FLIPPED COIN sending rumor to 127.0.0.1:5009
+MONGERING with 127.0.0.1:5009
+STATUS from 127.0.0.1:5009 peer C nextID 2 peer J nextID 2 peer I nextID 2 peer E nextID 4 peer D nextID 2 peer G nextID 2 peer F nextID 2 peer A nextID 2 peer B nextID 4 peer H nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5009
+Got status
+RUMOR origin G from 127.0.0.1:5009 ID 2 contents Is_anybody_here?
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+DSDV G 127.0.0.1:5009
+MONGERING with 127.0.0.1:5001
+STATUS from 127.0.0.1:5001 peer J nextID 2 peer D nextID 2 peer I nextID 2 peer E nextID 4 peer G nextID 3 peer B nextID 4 peer C nextID 2 peer A nextID 2 peer F nextID 2 peer H nextID 2
+PEERS 127.0.0.1:5001,127.0.0.1:5009
+IN SYNC WITH 127.0.0.1:5001
+Got status
+RUMOR origin G from 127.0.0.1:5001 ID 2 contents Is_anybody_here?
+PEERS 127.0.0.1:5001,127.0.0.1:5009
