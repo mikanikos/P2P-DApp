@@ -39,12 +39,30 @@ $("#peerForm").submit(function (event) {
 $('#originList').dblclick(function (e) {
     var origin = e.target.textContent;
     var message = prompt("Enter the message to send to " + origin);
-    if (message != null || message != "") {
+    if (message != null && message != "") {
         $.ajax({
             url: '/message',
             type: 'post',
             data: { text: message, destination: origin },
         });
+    }
+});
+
+$('#buttonDownloadFile').click(function (e) {
+    var requestHex = prompt("Enter the hexadecimal metahash of the file to download");
+    if (requestHex != null && requestHex != "") {
+        var dest = prompt("Enter the name of the peer who has the file");
+        if (dest != null && dest != "") {
+            var fileName = prompt("Enter the name of the file");
+            if (fileName != null && fileName != "") {
+
+                $.ajax({
+                    url: '/message',
+                    type: 'post',
+                    data: { text: "", destination: dest, file: fileName, request: requestHex},
+                });
+            }
+        }
     }
 });
 
