@@ -1,52 +1,14 @@
 package gossiper
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
-
-var modeTypes = []string{"simple", "rumor", "status", "private", "request", "reply"}
-
-// SimpleMessage struct
-type SimpleMessage struct {
-	OriginalName  string
-	RelayPeerAddr string
-	Contents      string
-}
-
-// GossipPacket struct
-type GossipPacket struct {
-	Simple      *SimpleMessage
-	Rumor       *RumorMessage
-	Status      *StatusPacket
-	Private     *PrivateMessage
-	DataRequest *DataRequest
-	DataReply   *DataReply
-}
-
-// NetworkData struct
-type NetworkData struct {
-	Conn *net.UDPConn
-	Addr *net.UDPAddr
-}
-
-// ExtendedGossipPacket struct
-type ExtendedGossipPacket struct {
-	Packet     *GossipPacket
-	SenderAddr *net.UDPAddr
-}
-
-// PrivateMessage struct
-type PrivateMessage struct {
-	Origin      string
-	ID          uint32
-	Text        string
-	Destination string
-	HopLimit    uint32
-}
 
 func getTypeFromGossip(packet *GossipPacket) string {
 	if packet.Simple != nil {
@@ -130,4 +92,49 @@ func (gossiper *Gossiper) getRandomPeer(availablePeers []*net.UDPAddr) *net.UDPA
 	indexPeer := rand.Intn(len(availablePeers))
 	return availablePeers[indexPeer]
 
+}
+
+func getChunksFromMetafile(metafile []byte) [][]byte {
+
+	iterations := len(metafile) / 32
+	hashes := make([][]byte, iterations)
+
+	for i := 0; i < iterations; i++ {
+		hash := metafile[i*32 : (i+1)*32]
+
+		// var hash32 [32]byte
+		// copy(hash32[:], hash)
+		// //fmt.Println(hash32)
+		hashes[i] = hash
+		//var hash []byte
+		//copy(hash, metafile[i*32:(i+1)*32])
+	}
+
+	// fmt.Println(iterations)
+	return hashes
+}
+
+func reconstructFileFromChunks(name string, chunks []byte) {
+
+	wd, err := os.Getwd()
+	helpers.ErrorCheck(err)
+
+	fullPath := wd + downloadFolder + name
+	file, err := os.Create(fullPath)
+	helpers.ErrorCheck(err)
+
+	defer file.Close()
+
+	_, err = file.Write(chunks)
+	helpers.ErrorCheck(err)
+
+	err = file.Sync()
+	helpers.ErrorCheck(err)
+}
+
+func checkHash(hash []byte, data []byte) bool {
+
+	var hash32 [32]byte
+	copy(hash32[:], hash)
+	return hash32 == sha256.Sum256(data)
 }

@@ -9,8 +9,6 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-var rumorTimeout = 10
-
 // RumorMessage struct
 type RumorMessage struct {
 	Origin string

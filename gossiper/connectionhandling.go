@@ -8,8 +8,6 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-var maxBufferSize = 10000
-
 func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.Message) {
 	for {
 		messageFromClient := &helpers.Message{}

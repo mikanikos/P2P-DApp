@@ -10,12 +10,6 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-const fileChunk = 8192
-const shareFolder = "/_SharedFiles/"
-const downloadFolder = "/_Downloads/"
-
-var requestTimeout = 5
-
 // FileMetadata struct
 type FileMetadata struct {
 	Name     *string

@@ -14,3 +14,6 @@
 # Intellij data
 .idea/
 *.iml
+
+_SharedFiles
+_Downloads

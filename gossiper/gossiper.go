@@ -12,9 +12,6 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-var latestMessagesBuffer = 30
-var hopLimit = 10
-
 // Gossiper struct
 type Gossiper struct {
 	name               string
@@ -171,7 +168,7 @@ func (gossiper *Gossiper) processDataReply() {
 
 				if validated {
 					fmt.Println(hex.EncodeToString(extPacket.Packet.DataReply.HashValue))
-					value, loaded := gossiper.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue))
+					value, loaded := gossiper.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin)
 
 					if loaded {
 						channel := value.(chan *DataReply)
