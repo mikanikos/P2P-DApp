@@ -65,17 +65,17 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 
 func (gossiper *Gossiper) sendRumorWithTimeout(extPacket *ExtendedGossipPacket, peer *net.UDPAddr) bool {
 
-	// rumorChan, isMongering := gossiper.getListenerForStatus(extPacket.Packet, peer.String())
+	rumorChan, isMongering := gossiper.getListenerForStatus(extPacket.Packet, peer.String())
 
-	// if isMongering {
-	// 	fmt.Println("Already mongering")
-	// 	return false
-	// }
+	if isMongering {
+		fmt.Println("Already mongering")
+		return false
+	}
 
-	rumorChan := gossiper.createOrGetMongerChannel(peer.String())
+	//rumorChan := gossiper.createOrGetMongerChannel(peer.String())
 
 	//gossiper.currentMonger[peer.String()] = extPacket
-	//defer gossiper.deleteListenerForStatus(extPacket.Packet, peer.String())
+	defer gossiper.deleteListenerForStatus(extPacket.Packet, peer.String())
 
 	fmt.Println("MONGERING with " + peer.String())
 	gossiper.sendPacket(extPacket.Packet, peer)
@@ -100,7 +100,9 @@ func (gossiper *Gossiper) sendRumorWithTimeout(extPacket *ExtendedGossipPacket, 
 func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPacket) {
 	for extPacket := range statusChannel {
 
-		go gossiper.notifyMongerChannel(extPacket.SenderAddr.String())
+		//go gossiper.notifyMongerChannel(extPacket.SenderAddr.String())
+
+		go gossiper.notifyListenersForStatus(extPacket)
 
 		toSend := gossiper.getPeerStatusOtherNeeds(extPacket.Packet.Status.Want)
 

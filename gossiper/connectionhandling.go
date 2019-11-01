@@ -1,6 +1,7 @@
 package gossiper
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/dedis/protobuf"
@@ -36,6 +37,8 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 
 		if (modeType == "simple" && gossiper.simpleMode) || (modeType != "simple" && !gossiper.simpleMode) {
 			gossiper.channels[modeType] <- &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
+		} else {
+			fmt.Println("ERROR: message can't be accepted in this operation mode")
 		}
 	}
 }

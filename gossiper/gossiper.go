@@ -27,7 +27,7 @@ type Gossiper struct {
 	myStatus           MutexStatus
 	seqID              uint32
 	statusChannels     sync.Map
-	mongeringChannels  MutexDummyChannel
+	mongeringChannels  sync.Map //MutexDummyChannel
 	antiEntropyTimeout int
 	routingTable       MutexRoutingTable
 	routeTimer         int
@@ -67,7 +67,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		simpleMode:         simple,
 		seqID:              1,
 		statusChannels:     sync.Map{},
-		mongeringChannels:  MutexDummyChannel{Channels: make(map[string]chan bool)},
+		mongeringChannels:  sync.Map{}, //MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
 		routingTable:       MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		routeTimer:         rtimer,

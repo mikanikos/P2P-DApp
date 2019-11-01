@@ -79,15 +79,15 @@ func (gossiper *Gossiper) getTypeFromMessage(message *helpers.Message) string {
 		return "simple"
 	}
 
-	if *message.Destination != "" && message.Text != "" {
+	if message.Destination != nil && message.Text != "" {
 		return "private"
 	}
 
-	if *message.File != "" && *message.Destination != "" {
+	if message.File != nil && message.Destination != nil {
 		return "request"
 	}
 
-	if *message.File != "" {
+	if message.File != nil {
 		return "file"
 	}
 
@@ -118,7 +118,7 @@ func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket) {
 }
 
 func (gossiper *Gossiper) printClientMessage(message *helpers.Message) {
-	if *message.Destination != "" {
+	if message.Destination != nil {
 		fmt.Println("CLIENT MESSAGE " + message.Text + " dest " + *message.Destination)
 	} else {
 		fmt.Println("CLIENT MESSAGE " + message.Text)
