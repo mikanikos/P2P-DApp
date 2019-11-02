@@ -21,12 +21,12 @@ type Gossiper struct {
 	peers              MutexPeers
 	simpleMode         bool
 	originPackets      PacketsStorage
-	myStatus           MutexStatus
+	myStatus           sync.Map //MutexStatus
 	seqID              uint32
 	statusChannels     sync.Map
 	mongeringChannels  sync.Map //MutexDummyChannel
 	antiEntropyTimeout int
-	routingTable       MutexRoutingTable
+	routingTable       RoutingTable //MutexRoutingTable
 	routeTimer         int
 	myFileChunks       sync.Map
 	mySharedFiles      sync.Map
@@ -60,13 +60,13 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		gossiperData:       &NetworkData{Conn: connGossiper, Addr: addressGossiper},
 		peers:              MutexPeers{Peers: peers},
 		originPackets:      PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, latestMessagesBuffer)},
-		myStatus:           MutexStatus{Status: make(map[string]uint32)},
+		myStatus:           sync.Map{}, //MutexStatus{Status: make(map[string]uint32)},
 		simpleMode:         simple,
 		seqID:              1,
 		statusChannels:     sync.Map{},
 		mongeringChannels:  sync.Map{}, //MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
-		routingTable:       MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
+		routingTable:       RoutingTable{Table: sync.Map{}, Origins: make(chan string, latestMessagesBuffer)}, //MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		routeTimer:         rtimer,
 		myFileChunks:       sync.Map{},
 		mySharedFiles:      sync.Map{},
@@ -172,7 +172,9 @@ func (gossiper *Gossiper) processDataReply() {
 
 					if loaded {
 						channel := value.(chan *DataReply)
-						channel <- extPacket.Packet.DataReply
+						go func(c chan *DataReply, d *DataReply) {
+							c <- d
+						}(channel, extPacket.Packet.DataReply)
 					}
 				}
 			}
@@ -186,8 +188,10 @@ func (gossiper *Gossiper) processDataReply() {
 func (gossiper *Gossiper) processPrivateMessages() {
 	for extPacket := range gossiper.channels["private"] {
 
+		gossiper.updateRoutingTable(extPacket)
+
 		if extPacket.Packet.Private.Destination == gossiper.name {
-			fmt.Println("PRIVATE origin " + extPacket.Packet.Private.Origin + " hop-limit " + fmt.Sprint(extPacket.Packet.Private.HopLimit) + " contents " + extPacket.Packet.Private.Text)
+			gossiper.printPeerMessage(extPacket)
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet)
 		}
@@ -282,10 +286,14 @@ func (gossiper *Gossiper) processStatusMessages() {
 		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printStatusMessage(extPacket)
 
-		channelPeer, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket))
+		value, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket))
+		channelPeer := value.(chan *ExtendedGossipPacket)
 		if !exists {
-			go gossiper.handlePeerStatus(channelPeer.(chan *ExtendedGossipPacket))
+			go gossiper.handlePeerStatus(channelPeer)
 		}
-		channelPeer.(chan *ExtendedGossipPacket) <- extPacket
+		go func(c chan *ExtendedGossipPacket, p *ExtendedGossipPacket) {
+			c <- p
+		}(channelPeer, extPacket)
+
 	}
 }

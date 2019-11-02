@@ -3,6 +3,7 @@ package gossiper
 import (
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"os"
@@ -74,7 +75,11 @@ func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket) {
 	if gossiper.simpleMode {
 		fmt.Println("SIMPLE MESSAGE origin " + extPacket.Packet.Simple.OriginalName + " from " + extPacket.Packet.Simple.RelayPeerAddr + " contents " + extPacket.Packet.Simple.Contents)
 	} else {
-		fmt.Println("RUMOR origin " + extPacket.Packet.Rumor.Origin + " from " + extPacket.SenderAddr.String() + " ID " + fmt.Sprint(extPacket.Packet.Rumor.ID) + " contents " + extPacket.Packet.Rumor.Text)
+		if extPacket.Packet.Private != nil {
+			fmt.Println("PRIVATE origin " + extPacket.Packet.Private.Origin + " hop-limit " + fmt.Sprint(extPacket.Packet.Private.HopLimit) + " contents " + extPacket.Packet.Private.Text)
+		} else {
+			fmt.Println("RUMOR origin " + extPacket.Packet.Rumor.Origin + " from " + extPacket.SenderAddr.String() + " ID " + fmt.Sprint(extPacket.Packet.Rumor.ID) + " contents " + extPacket.Packet.Rumor.Text)
+		}
 	}
 	gossiper.printPeers()
 }
@@ -137,4 +142,20 @@ func checkHash(hash []byte, data []byte) bool {
 	var hash32 [32]byte
 	copy(hash32[:], hash)
 	return hash32 == sha256.Sum256(data)
+}
+
+func copyFile(source, target string) {
+	sourceFile, err := os.Open(source)
+	helpers.ErrorCheck(err)
+	defer sourceFile.Close()
+
+	targetFile, err := os.Create(target)
+	helpers.ErrorCheck(err)
+	defer targetFile.Close()
+
+	_, err = io.Copy(targetFile, sourceFile)
+	helpers.ErrorCheck(err)
+
+	err = targetFile.Close()
+	helpers.ErrorCheck(err)
 }

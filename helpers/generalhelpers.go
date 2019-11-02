@@ -89,5 +89,4 @@ func ConvertInputToMessage(msg string, dest, file, request *string) *Message {
 	}
 
 	return packet
-
 }

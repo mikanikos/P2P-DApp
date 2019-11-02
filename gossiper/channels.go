@@ -68,7 +68,9 @@ func (gossiper *Gossiper) notifyListenersForStatus(extpacket *ExtendedGossipPack
 			channel := value.(chan bool)
 			for _, ps := range extpacket.Packet.Status.Want {
 				if ps.Identifier == msg.Origin && msg.ID < ps.NextID {
-					channel <- true
+					go func(c chan bool) {
+						c <- true
+					}(channel)
 				}
 			}
 

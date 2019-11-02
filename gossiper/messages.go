@@ -23,22 +23,39 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 
 	_, loaded := mapValue.LoadOrStore(id, extPacket.Packet.Rumor)
 	if !loaded && extPacket.Packet.Rumor.Text != "" {
-		gossiper.originPackets.LatestMessages <- extPacket.Packet.Rumor
+		go func(r *RumorMessage) {
+			gossiper.originPackets.LatestMessages <- r
+		}(extPacket.Packet.Rumor)
 	}
 
 	// update status
-	gossiper.myStatus.Mutex.Lock()
-	defer gossiper.myStatus.Mutex.Unlock()
-	maxID, peerExists := gossiper.myStatus.Status[extPacket.Packet.Rumor.Origin]
-	if !peerExists {
-		maxID = 1
+	// gossiper.myStatus.Mutex.Lock()
+	// defer gossiper.myStatus.Mutex.Unlock()
+	// maxID, peerExists := gossiper.myStatus.Status[extPacket.Packet.Rumor.Origin]
+	// if !peerExists {
+	// 	maxID = 1
+	// }
+	// if maxID <= extPacket.Packet.Rumor.ID {
+	// 	_, found := mapValue.Load(maxID)
+	// 	for found {
+	// 		maxID++
+	// 		_, found = mapValue.Load(maxID)
+	// 		gossiper.myStatus.Status[origin] = maxID
+	// 	}
+	// }
+
+	value, peerExists := gossiper.myStatus.Load(extPacket.Packet.Rumor.Origin)
+	maxID := uint32(1)
+	if peerExists {
+		maxID = value.(uint32)
 	}
+
 	if maxID <= extPacket.Packet.Rumor.ID {
 		_, found := mapValue.Load(maxID)
 		for found {
 			maxID++
 			_, found = mapValue.Load(maxID)
-			gossiper.myStatus.Status[origin] = maxID
+			gossiper.myStatus.Store(origin, maxID)
 		}
 	}
 

@@ -22,8 +22,9 @@ func (gossiper *Gossiper) requestFile(fileName string, packet *GossipPacket) {
 	if loaded {
 		// already have this file
 
-		// TODO: COPY FILE LOCALLY WITH THE NAME GIVEN and RETURN
-		//return
+		fileMetadata := value.(*FileMetadata)
+		copyFile(*fileMetadata.Name, fileName)
+		return
 	}
 
 	messageToPrint := "DOWNLOADING metafile of " + fileName + " from " + packet.DataRequest.Destination
@@ -276,9 +277,9 @@ func (gossiper *Gossiper) requestChunkPeriodically(newPacket *GossipPacket, chun
 			close(chunkIn)
 			gossiper.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
 			fmt.Println("Sending to output channel")
-			go func() {
-				chanOut <- replyPacket
-			}()
+			go func(r *DataReply) {
+				chanOut <- r
+			}(replyPacket)
 			fmt.Println("Done")
 			return
 

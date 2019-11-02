@@ -63,12 +63,12 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 
 func (gossiper *Gossiper) sendRumorWithTimeout(extPacket *ExtendedGossipPacket, peer *net.UDPAddr) bool {
 
-	rumorChan, isMongering := gossiper.getListenerForStatus(extPacket.Packet, peer.String())
+	rumorChan, _ := gossiper.getListenerForStatus(extPacket.Packet, peer.String())
 
-	if isMongering {
-		fmt.Println("Already mongering")
-		return false
-	}
+	// if isMongering {
+	// 	fmt.Println("Already mongering")
+	// 	return true
+	// }
 
 	//rumorChan := gossiper.createOrGetMongerChannel(peer.String())
 
