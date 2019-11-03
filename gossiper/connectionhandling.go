@@ -12,10 +12,20 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 	for {
 		messageFromClient := &helpers.Message{}
 		packetBytes := make([]byte, maxBufferSize)
-		_, _, err := gossiper.clientData.Conn.ReadFromUDP(packetBytes)
+		fmt.Println("Waiting")
+
+		n, _, err := gossiper.clientData.Conn.ReadFromUDP(packetBytes)
+		fmt.Println("Got packet from client")
 		helpers.ErrorCheck(err)
 
-		protobuf.Decode(packetBytes, messageFromClient)
+		if n > maxBufferSize {
+			maxBufferSize = maxBufferSize + n
+		}
+
+		protobuf.Decode(packetBytes[:n], messageFromClient)
+		helpers.ErrorCheck(err)
+
+		fmt.Println("got from client")
 
 		go func(m *helpers.Message) {
 			clientChannel <- m
@@ -27,11 +37,19 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 	for {
 		packetFromPeer := &GossipPacket{}
 		packetBytes := make([]byte, maxBufferSize)
-		_, addr, err := gossiper.gossiperData.Conn.ReadFromUDP(packetBytes)
-
+		n, addr, err := gossiper.gossiperData.Conn.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err)
 
-		protobuf.Decode(packetBytes, packetFromPeer)
+		if n > maxBufferSize {
+			maxBufferSize = maxBufferSize + n
+		}
+
+		gossiper.AddPeer(addr)
+
+		err = protobuf.Decode(packetBytes[:n], packetFromPeer)
+		helpers.ErrorCheck(err)
+
+		fmt.Println("got from peer")
 
 		modeType := getTypeFromGossip(packetFromPeer)
 
@@ -49,12 +67,15 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 func (gossiper *Gossiper) sendPacket(packet *GossipPacket, address *net.UDPAddr) {
 	packetToSend, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
-	gossiper.gossiperData.Conn.WriteToUDP(packetToSend, address)
+	_, err = gossiper.gossiperData.Conn.WriteToUDP(packetToSend, address)
+	helpers.ErrorCheck(err)
+	fmt.Println("Send message to " + address.String())
 }
 
 func (gossiper *Gossiper) broadcastToPeers(packet *ExtendedGossipPacket) {
 	for _, peer := range gossiper.GetPeersAtomic() {
 		if peer.String() != packet.SenderAddr.String() {
+			fmt.Println("to " + peer.String())
 			gossiper.sendPacket(packet.Packet, peer)
 		}
 	}

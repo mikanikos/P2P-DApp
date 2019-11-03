@@ -3,8 +3,11 @@ package gossiper
 import (
 	"encoding/hex"
 	"fmt"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/mikanikos/Peerster/helpers"
 )
 
 func (gossiper *Gossiper) requestFile(fileName string, packet *GossipPacket) {
@@ -23,7 +26,9 @@ func (gossiper *Gossiper) requestFile(fileName string, packet *GossipPacket) {
 		// already have this file
 
 		fileMetadata := value.(*FileMetadata)
-		copyFile(*fileMetadata.Name, fileName)
+		wd, err := os.Getwd()
+		helpers.ErrorCheck(err)
+		copyFile(wd+downloadFolder+*fileMetadata.Name, wd+downloadFolder+fileName)
 		return
 	}
 
@@ -204,7 +209,7 @@ func (gossiper *Gossiper) processIncomingChunkData(numChunksToWait int, chunksOu
 
 	for chunkPacket := range chunksOutChan {
 		if len(chunkPacket.Data) != 0 {
-			gossiper.myFileChunks.Store(hex.EncodeToString(chunkPacket.HashValue), chunkPacket.Data)
+			gossiper.myFileChunks.Store(hex.EncodeToString(chunkPacket.HashValue), &chunkPacket.Data)
 		} else {
 			containsEmpty = true
 		}
@@ -223,7 +228,7 @@ func (gossiper *Gossiper) retrieveChunks(chunksHash [][]byte) ([]byte, int) {
 
 	for i, hChunk := range chunksHash {
 		value, _ := gossiper.myFileChunks.Load(hex.EncodeToString(hChunk))
-		chunk := value.([]byte)
+		chunk := *value.(*[]byte)
 		chunkLen := len(chunk)
 		copy(chunksData[i*fileChunk:(i*fileChunk)+chunkLen], chunk)
 		size += chunkLen

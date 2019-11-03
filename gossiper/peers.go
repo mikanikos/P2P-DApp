@@ -17,19 +17,20 @@ type MutexPeers struct {
 
 // AddPeer to peers list
 func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
-	peers := &gossiper.peers
-	peers.Mutex.Lock()
-	defer peers.Mutex.Unlock()
+	gossiper.peers.Mutex.Lock()
+	defer gossiper.peers.Mutex.Unlock()
 	contains := false
-	for _, p := range peers.Peers {
+	for _, p := range gossiper.peers.Peers {
 		if p.String() == peer.String() {
 			contains = true
 			break
 		}
 	}
 	if !contains {
-		peers.Peers = append(peers.Peers, peer)
+		gossiper.peers.Peers = append(gossiper.peers.Peers, peer)
 	}
+
+	fmt.Println("Added")
 }
 
 func (gossiper *Gossiper) printPeers() {
@@ -40,10 +41,9 @@ func (gossiper *Gossiper) printPeers() {
 
 // GetPeersAtomic in concurrent environment
 func (gossiper *Gossiper) GetPeersAtomic() []*net.UDPAddr {
-	peers := &gossiper.peers
-	peers.Mutex.Lock()
-	defer peers.Mutex.Unlock()
-	peerCopy := make([]*net.UDPAddr, len(peers.Peers))
-	copy(peerCopy, peers.Peers)
+	gossiper.peers.Mutex.Lock()
+	defer gossiper.peers.Mutex.Unlock()
+	peerCopy := make([]*net.UDPAddr, len(gossiper.peers.Peers))
+	copy(peerCopy, gossiper.peers.Peers)
 	return peerCopy
 }

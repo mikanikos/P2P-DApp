@@ -9,11 +9,6 @@ NC='\033[0m'
 # and then:
 # sharing file at a -> downloading file at d from a -> downloading file at b from d
 
-echo "Kill all the peerster processes..."
-kill $(ps aux | grep '\.\/[P]eerster' | awk '{print $2}')
-sleep 1
-echo "Killed"
-
 aUIPort=12001
 bUIPort=12002
 cUIPort=12003
@@ -64,32 +59,39 @@ rm "$sharedFileName"
 dd if=/dev/zero of="$sharedFileName"  bs=1010K  count=1 # copy a lot of nulls to file (a bit smaller, than 1M for technical reasons, haha)
 echo "ahahha" >> "$sharedFileName"
 cd ..
-rm _Downloads/"*$sharedFileName"
+cd _Downloads
+rm "b1-$downloadedFileName"
+rm "b2-$downloadedFileName" #"*$sharedFileName"
+cd ..
 
 # share big file on "a":
 ./client/client -UIPort="$aUIPort" -file="$sharedFileName"
 
 sleep 3
 
-fileHash=$(cat A.out | grep "^[S]HARED.*$sharedFileName" | awk '{print $6}')
+fileHash="2393aebeb3245f2acaf7e6d5a54bbb0915b047c7ed1af0c8a9e450a68fcb8eef" #$(cat tests/out/A.out | grep "^[S]HARED.*$sharedFileName" | awk '{print $6}')
 echo "~~~~~~ File shared, got hash: $fileHash, starting downloading ~~~~~~"
 
 
 # request file on "d":
 ./client/client -UIPort="$dUIPort" -file="d-$downloadedFileName" -dest="a" -request="$fileHash"
 
-sleep 2
+sleep 5
 echo "Downloading on d from a should have finished"
+
+./client/client -UIPort="$dUIPort" -file="$sharedFileName"
+
+sleep 3
 
 # try to download file from "d" now: check if downloaded files are shared
 ./client/client -UIPort="$bUIPort" -file="b1-$downloadedFileName" -dest="d" -request="$fileHash"
 
-sleep 2
+sleep 10
 echo "Downloading on b from d should have finished"
 
 ./client/client -UIPort="$bUIPort" -file="b2-$downloadedFileName" -dest="d" -request="$fileHash"
 
-sleep 2
+sleep 10
 echo "Do downloading on b from d once again just for fun"
 
 echo "Kill all the peerster processes..."

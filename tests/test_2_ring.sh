@@ -61,22 +61,27 @@ echo -e "${RED}###CHECK that client messages arrived${NC}"
 
 if !(grep -q "CLIENT MESSAGE $message_c1_1" "./tests/out/E.out") ; then
 	failed="T"
+    echo "Failed in E"
 fi
 
 if !(grep -q "CLIENT MESSAGE $message_c1_2" "./tests/out/E.out") ; then
 	failed="T"
+    echo "Failed in E"
 fi
 
 if !(grep -q "CLIENT MESSAGE $message_c2_1" "./tests/out/B.out") ; then
     failed="T"
+    echo "Failed in B"
 fi
 
 if !(grep -q "CLIENT MESSAGE $message_c2_2" "./tests/out/B.out") ; then
     failed="T"
+    echo "Failed in B"
 fi
 
 if !(grep -q "CLIENT MESSAGE $message_c3" "./tests/out/G.out") ; then
     failed="T"
+    echo "Failed in G"
 fi
 
 if [[ "$failed" == "T" ]] ; then

@@ -104,8 +104,6 @@ func (gossiper *Gossiper) Run() {
 func (gossiper *Gossiper) processDataRequest() {
 	for extPacket := range gossiper.channels["request"] {
 
-		gossiper.AddPeer(extPacket.SenderAddr)
-
 		fmt.Println("Got data request")
 
 		if extPacket.Packet.DataRequest.Destination == gossiper.name {
@@ -154,10 +152,6 @@ func (gossiper *Gossiper) processDataRequest() {
 func (gossiper *Gossiper) processDataReply() {
 	for extPacket := range gossiper.channels["reply"] {
 
-		gossiper.AddPeer(extPacket.SenderAddr)
-
-		fmt.Println("Got data reply")
-
 		if extPacket.Packet.DataReply.Destination == gossiper.name {
 
 			// check if I requested this metafile/chunk
@@ -168,11 +162,14 @@ func (gossiper *Gossiper) processDataReply() {
 			// check hash correspond to the data sent
 
 			if extPacket.Packet.DataReply.Data != nil {
+
 				validated := checkHash(extPacket.Packet.DataReply.HashValue, extPacket.Packet.DataReply.Data)
 
 				if validated {
 					fmt.Println(hex.EncodeToString(extPacket.Packet.DataReply.HashValue))
 					value, loaded := gossiper.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin)
+
+					fmt.Println("Found channel")
 
 					if loaded {
 						channel := value.(chan *DataReply)
@@ -191,8 +188,6 @@ func (gossiper *Gossiper) processDataReply() {
 
 func (gossiper *Gossiper) processPrivateMessages() {
 	for extPacket := range gossiper.channels["private"] {
-
-		gossiper.AddPeer(extPacket.SenderAddr)
 
 		gossiper.updateRoutingTable(extPacket)
 
@@ -256,7 +251,6 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 func (gossiper *Gossiper) processSimpleMessages() {
 	for extPacket := range gossiper.channels["simple"] {
 
-		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printPeerMessage(extPacket)
 
 		extPacket.Packet.Simple.RelayPeerAddr = gossiper.gossiperData.Addr.String()
@@ -268,7 +262,6 @@ func (gossiper *Gossiper) processSimpleMessages() {
 func (gossiper *Gossiper) processRumorMessages() {
 	for extPacket := range gossiper.channels["rumor"] {
 
-		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printPeerMessage(extPacket)
 
 		gossiper.updateRoutingTable(extPacket)
@@ -289,7 +282,6 @@ func (gossiper *Gossiper) processRumorMessages() {
 func (gossiper *Gossiper) processStatusMessages() {
 	for extPacket := range gossiper.channels["status"] {
 
-		gossiper.AddPeer(extPacket.SenderAddr)
 		gossiper.printStatusMessage(extPacket)
 
 		value, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket))
