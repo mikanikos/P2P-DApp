@@ -103,7 +103,10 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 			go func(o string) {
 				gossiper.routingTable.Origins <- o
 			}(origin)
+		} else {
+			gossiper.routingTable.Table.Store(origin, address)
 		}
+		fmt.Println("UPDATED ROUTING TABLE!!!!!!!!!!!")
 
 		// // add or update entry
 		// if !isPresent { //|| addressInTable.String() != address.String() {

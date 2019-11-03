@@ -104,6 +104,8 @@ func (gossiper *Gossiper) Run() {
 func (gossiper *Gossiper) processDataRequest() {
 	for extPacket := range gossiper.channels["request"] {
 
+		gossiper.AddPeer(extPacket.SenderAddr)
+
 		fmt.Println("Got data request")
 
 		if extPacket.Packet.DataRequest.Destination == gossiper.name {
@@ -152,6 +154,8 @@ func (gossiper *Gossiper) processDataRequest() {
 func (gossiper *Gossiper) processDataReply() {
 	for extPacket := range gossiper.channels["reply"] {
 
+		gossiper.AddPeer(extPacket.SenderAddr)
+
 		fmt.Println("Got data reply")
 
 		if extPacket.Packet.DataReply.Destination == gossiper.name {
@@ -187,6 +191,8 @@ func (gossiper *Gossiper) processDataReply() {
 
 func (gossiper *Gossiper) processPrivateMessages() {
 	for extPacket := range gossiper.channels["private"] {
+
+		gossiper.AddPeer(extPacket.SenderAddr)
 
 		gossiper.updateRoutingTable(extPacket)
 

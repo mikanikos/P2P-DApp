@@ -50,7 +50,7 @@ sleep 1
 ./client/client -UIPort=12346 -msg=$message_c2_2
 ./client/client -UIPort=12351 -msg=$message_c3
 
-sleep 5
+sleep 10
 pkill -f Peerster
 
 

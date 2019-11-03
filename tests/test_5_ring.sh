@@ -51,18 +51,22 @@ sleep 1
 ./client/client -UIPort=$dUIPort -msg="LetsKnowEachOther2"
 ./client/client -UIPort=$aUIPort -msg="LetsKnowEachOther3"
 ./client/client -UIPort=$dUIPort -msg="LetsKnowEachOther4"
+sleep 4
 # private msgs:
 ./client/client -UIPort=$aUIPort -dest="d" -msg=$msgA1
 ./client/client -UIPort=$dUIPort -dest="a" -msg=$msgD1
 ./client/client -UIPort=$aUIPort -dest="d" -msg=$msgA2
 ./client/client -UIPort=$dUIPort -dest="a" -msg=$msgD2
 # rumors:
+sleep 4
 ./client/client -UIPort=$cUIPort -msg=$msgC1
 ./client/client -UIPort=$bUIPort -msg=$msgB1
 # private msgs:
+sleep 2
 ./client/client -UIPort=$aUIPort -dest="d" -msg=$msgA3
 ./client/client -UIPort=$dUIPort -dest="a" -msg=$msgD3
 # final rumors:
+sleep 2
 ./client/client -UIPort=$aUIPort -msg="LetsKnowEachOther5"
 ./client/client -UIPort=$dUIPort -msg="LetsKnowEachOther6"
 
