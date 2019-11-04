@@ -22,12 +22,13 @@ type Gossiper struct {
 	origins            MutexOrigins
 	simpleMode         bool
 	originPackets      PacketsStorage
-	myStatus           sync.Map //MutexStatus
+	myStatus           MutexStatus
+	originLastID       MutexStatus
 	seqID              uint32
 	statusChannels     sync.Map
 	mongeringChannels  sync.Map //MutexDummyChannel
 	antiEntropyTimeout int
-	routingTable       sync.Map //RoutingTable //MutexRoutingTable
+	routingTable       MutexRoutingTable
 	routeTimer         int
 	myFileChunks       sync.Map
 	mySharedFiles      sync.Map
@@ -62,13 +63,14 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		peers:              MutexPeers{Peers: peers},
 		origins:            MutexOrigins{Origins: make([]string, 0)},
 		originPackets:      PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, latestMessagesBuffer)},
-		myStatus:           sync.Map{},
+		myStatus:           MutexStatus{Status: make(map[string]uint32)},
+		originLastID:       MutexStatus{Status: make(map[string]uint32)},
 		simpleMode:         simple,
 		seqID:              1,
 		statusChannels:     sync.Map{},
 		mongeringChannels:  sync.Map{},
 		antiEntropyTimeout: antiEntropyTimeout,
-		routingTable:       sync.Map{},
+		routingTable:       MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		routeTimer:         rtimer,
 		myFileChunks:       sync.Map{},
 		mySharedFiles:      sync.Map{},
@@ -295,7 +297,7 @@ func (gossiper *Gossiper) processRumorMessages() {
 func (gossiper *Gossiper) processStatusMessages() {
 	for extPacket := range gossiper.channels["status"] {
 
-		if hw2 {
+		if hw1 {
 			gossiper.printStatusMessage(extPacket)
 		}
 

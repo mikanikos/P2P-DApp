@@ -44,7 +44,10 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 	// 	}
 	// }
 
-	value, peerExists := gossiper.myStatus.Load(extPacket.Packet.Rumor.Origin)
+	gossiper.myStatus.Mutex.Lock()
+	defer gossiper.myStatus.Mutex.Unlock()
+
+	value, peerExists := gossiper.myStatus.Status[extPacket.Packet.Rumor.Origin]
 	maxID := uint32(1)
 	if peerExists {
 		maxID = value.(uint32)
@@ -55,7 +58,7 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 		for found {
 			maxID++
 			_, found = mapValue.Load(maxID)
-			gossiper.myStatus.Store(origin, maxID)
+			gossiper.myStatus.Status[origin] = maxID
 		}
 	}
 

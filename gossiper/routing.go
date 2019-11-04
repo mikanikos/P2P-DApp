@@ -9,10 +9,10 @@ import (
 )
 
 // MutexRoutingTable struct
-// type MutexRoutingTable struct {
-// 	RoutingTable map[string]*net.UDPAddr
-// 	Mutex        sync.Mutex
-// }
+type MutexRoutingTable struct {
+	RoutingTable map[string]*net.UDPAddr
+	Mutex        sync.RWMutex
+}
 
 // RoutingTable struct
 // type RoutingTable struct {
@@ -77,21 +77,23 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 		textPacket = extPacket.Packet.Private.Text
 	}
 
-	idMessages, isMessageKnown := gossiper.originPackets.OriginPacketsMap.Load(origin)
+	// idMessages, isMessageKnown := gossiper.originPackets.OriginPacketsMap.Load(origin)
 
-	var maxID uint32 = 0
-	if isMessageKnown {
+	// var maxID uint32 = 0
+	// if isMessageKnown {
 
-		idMessages.(*sync.Map).Range(func(key interface{}, value interface{}) bool {
-			id := key.(uint32)
-			if id > maxID {
-				maxID = id
-			}
-			return true
-		})
-	}
+	// 	idMessages.(*sync.Map).Range(func(key interface{}, value interface{}) bool {
+	// 		id := key.(uint32)
+	// 		if id > maxID {
+	// 			maxID = id
+	// 		}
+	// 		return true
+	// 	})
+	// }
 
-	if idPacket > maxID || extPacket.Packet.Private != nil {
+	check := gossiper.checkAndUpdateLastOriginID(origin, idPacket)
+
+	if check || extPacket.Packet.Private != nil {
 
 		if textPacket != "" {
 			if hw2 {
@@ -99,19 +101,42 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 			}
 		}
 
-		_, loaded := gossiper.routingTable.LoadOrStore(origin, address)
+		gossiper.routingTable.Mutex.Lock()
+
+		_, loaded := gossiper.routingTable.RoutingTable[origin]
+		gossiper.routingTable.RoutingTable[origin] = address
+
+		gossiper.routingTable.Mutex.Unlock()
 
 		if !loaded {
 			gossiper.addOrigin(origin)
 
-		} else {
-			gossiper.routingTable.Store(origin, address)
 		}
 
 		if debug {
 			fmt.Println("Routing table updated")
 		}
 	}
+}
+
+func (gossiper *Gossiper) checkAndUpdateLastOriginID(origin string, id uint32) bool {
+	gossiper.originLastID.Mutex.Lock()
+	defer gossiper.originLastID.Mutex.Unlock()
+
+	isNew := false
+
+	originMaxID, loaded := gossiper.originLastID.Status[origin]
+	if !loaded {
+		gossiper.originLastID.Status[origin] = id
+		isNew = true
+	} else {
+		if id > originMaxID {
+			gossiper.originLastID.Status[origin] = id
+			isNew = true
+		}
+	}
+
+	return isNew
 }
 
 func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket) {
@@ -141,10 +166,12 @@ func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket) {
 		// addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.Private.Destination]
 		// gossiper.routingTable.Mutex.Unlock()
 
-		value, isPresent := gossiper.routingTable.Load(destination)
+		gossiper.routingTable.Mutex.RLock()
+		addressInTable, isPresent := gossiper.routingTable.RoutingTable[destination]
+		gossiper.routingTable.Mutex.RUnlock()
 
 		if isPresent {
-			addressInTable := value.(*net.UDPAddr)
+			//addressInTable := value.(*net.UDPAddr)
 			gossiper.sendPacket(packet, addressInTable)
 		} else {
 			// IF NO ENTRIES IN ROUTING TABLE, SHOULD I SEND TO A RANDOM PEER (WHO MIGHT HAVE THE ENTRY) IN ORDER TO NOT LOSE THE PACKET?
