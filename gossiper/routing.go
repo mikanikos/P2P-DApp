@@ -25,7 +25,13 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 	if gossiper.routeTimer > 0 {
 
 		// startup route rumor
-		gossiper.mongerRouteRumor()
+		id := atomic.LoadUint32(&gossiper.seqID)
+		atomic.AddUint32(&gossiper.seqID, uint32(1))
+		rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
+		extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
+		gossiper.addMessage(extPacket)
+
+		gossiper.broadcastToPeers(extPacket)
 
 		timer := time.NewTicker(time.Duration(gossiper.routeTimer) * time.Second)
 		for {
