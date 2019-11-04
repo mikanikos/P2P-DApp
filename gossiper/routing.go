@@ -15,10 +15,9 @@ import (
 // }
 
 // RoutingTable struct
-type RoutingTable struct {
-	Table   sync.Map
-	Origins chan string
-}
+// type RoutingTable struct {
+// 	Table sync.Map
+// }
 
 func (gossiper *Gossiper) startRouteRumormongering() {
 
@@ -54,6 +53,7 @@ func (gossiper *Gossiper) mongerRouteRumor() {
 		gossiper.addMessage(extPacket)
 
 		randomPeer := gossiper.getRandomPeer(peersCopy)
+		fmt.Println(randomPeer)
 		gossiper.sendPacket(extPacket.Packet, randomPeer)
 	}
 }
@@ -103,14 +103,13 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 
 		//_, isPresent := gossiper.routingTable.RoutingTable[origin]
 
-		_, loaded := gossiper.routingTable.Table.LoadOrStore(origin, address)
+		_, loaded := gossiper.routingTable.LoadOrStore(origin, address)
 
 		if !loaded {
-			go func(o string) {
-				gossiper.routingTable.Origins <- o
-			}(origin)
+			gossiper.addOrigin(origin)
+
 		} else {
-			gossiper.routingTable.Table.Store(origin, address)
+			gossiper.routingTable.Store(origin, address)
 		}
 		//fmt.Println("UPDATED ROUTING TABLE!!!!!!!!!!!")
 
@@ -148,7 +147,7 @@ func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket) {
 		// addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.Private.Destination]
 		// gossiper.routingTable.Mutex.Unlock()
 
-		value, isPresent := gossiper.routingTable.Table.Load(destination)
+		value, isPresent := gossiper.routingTable.Load(destination)
 
 		if isPresent {
 			addressInTable := value.(*net.UDPAddr)
@@ -213,23 +212,23 @@ func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket) {
 // }
 
 // GetOriginsFromRoutingTable get the list of node ​Origin identifiers known to this node, i.e. for whom a next-hop route is available
-func (gossiper *Gossiper) GetOriginsFromRoutingTable() []string {
-	//origins := make([]string, 0)
+// func (gossiper *Gossiper) GetOriginsFromRoutingTable() []string {
+// 	//origins := make([]string, 0)
 
-	// gossiper.routingTable.Mutex.Lock()
-	// defer gossiper.routingTable.Mutex.Unlock()
+// 	// gossiper.routingTable.Mutex.Lock()
+// 	// defer gossiper.routingTable.Mutex.Unlock()
 
-	// for o := range gossiper.routingTable.Origins {
-	// 	origins = append(origins, o)
-	// }
+// 	// for o := range gossiper.routingTable.Origins {
+// 	// 	origins = append(origins, o)
+// 	// }
 
-	bufferLength := len(gossiper.routingTable.Origins)
+// 	// bufferLength := len(gossiper.routingTable.Origins)
 
-	origins := make([]string, bufferLength)
-	for i := 0; i < bufferLength; i++ {
-		o := <-gossiper.routingTable.Origins
-		origins[i] = o
-	}
+// 	// origins := make([]string, bufferLength)
+// 	// for i := 0; i < bufferLength; i++ {
+// 	// 	o := <-gossiper.routingTable.Origins
+// 	// 	origins[i] = o
+// 	// }
 
-	return origins
-}
+// 	// return origins
+// }

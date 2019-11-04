@@ -18,6 +18,7 @@ type Gossiper struct {
 	clientData         *NetworkData
 	gossiperData       *NetworkData
 	peers              MutexPeers
+	origins            MutexOrigins
 	simpleMode         bool
 	originPackets      PacketsStorage
 	myStatus           sync.Map //MutexStatus
@@ -25,7 +26,7 @@ type Gossiper struct {
 	statusChannels     sync.Map
 	mongeringChannels  sync.Map //MutexDummyChannel
 	antiEntropyTimeout int
-	routingTable       RoutingTable //MutexRoutingTable
+	routingTable       sync.Map //RoutingTable //MutexRoutingTable
 	routeTimer         int
 	myFileChunks       sync.Map
 	mySharedFiles      sync.Map
@@ -58,6 +59,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		clientData:         &NetworkData{Conn: connUI, Addr: addressUI},
 		gossiperData:       &NetworkData{Conn: connGossiper, Addr: addressGossiper},
 		peers:              MutexPeers{Peers: peers},
+		origins:            MutexOrigins{Origins: make([]string, 0)},
 		originPackets:      PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, latestMessagesBuffer)},
 		myStatus:           sync.Map{}, //MutexStatus{Status: make(map[string]uint32)},
 		simpleMode:         simple,
@@ -65,7 +67,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		statusChannels:     sync.Map{},
 		mongeringChannels:  sync.Map{}, //MutexDummyChannel{Channels: make(map[string]chan bool)},
 		antiEntropyTimeout: antiEntropyTimeout,
-		routingTable:       RoutingTable{Table: sync.Map{}, Origins: make(chan string, latestMessagesBuffer)}, //MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
+		routingTable:       sync.Map{}, //RoutingTable{Table: sync.Map{}, Origins: make(chan string, latestMessagesBuffer)}, //MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		routeTimer:         rtimer,
 		myFileChunks:       sync.Map{},
 		mySharedFiles:      sync.Map{},

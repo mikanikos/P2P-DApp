@@ -104,5 +104,5 @@ func (webserver *Webserver) getIDHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (webserver *Webserver) getOriginHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, webserver.Gossiper.GetOriginsFromRoutingTable())
+	writeJSON(w, webserver.Gossiper.GetOriginsAtomic())
 }

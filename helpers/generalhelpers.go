@@ -1,10 +1,7 @@
 package helpers
 
 import (
-	"encoding/hex"
-	"fmt"
 	"net"
-	"os"
 )
 
 // BaseAddress of the program
@@ -48,45 +45,4 @@ func GetArrayStringFromAddresses(peers []*net.UDPAddr) []string {
 		list = append(list, p.String())
 	}
 	return list
-}
-
-// ConvertInputToMessage for client arguments
-func ConvertInputToMessage(msg string, dest, file, request *string) *Message {
-	routeMsg := msg != "" && *dest == "" && *file == "" && *request == ""
-	privateMsg := msg != "" && *dest != "" && *file == "" && *request == ""
-	fileIndex := msg == "" && *dest == "" && *file != "" && *request == ""
-	fileRequest := msg == "" && *dest != "" && *file != "" && *request != ""
-
-	if !(routeMsg || privateMsg || fileIndex || fileRequest) {
-		fmt.Println("ERROR (Bad argument combination)")
-		os.Exit(1)
-	}
-
-	packet := &Message{}
-
-	if routeMsg {
-		packet.Text = msg
-	}
-
-	if privateMsg {
-		packet.Text = msg
-		packet.Destination = dest
-	}
-
-	if fileIndex {
-		packet.File = file
-	}
-
-	if fileRequest {
-		decodeRequest, err := hex.DecodeString(*request)
-		if err != nil {
-			fmt.Println("ERROR (Unable to decode hex hash)")
-			os.Exit(1)
-		}
-		packet.Request = &decodeRequest
-		packet.Destination = dest
-		packet.File = file
-	}
-
-	return packet
 }

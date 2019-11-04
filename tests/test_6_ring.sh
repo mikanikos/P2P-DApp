@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define variables
-DEBUG=false
+DEBUG=true
 HELP=false
 
 numberOfPeers=10
@@ -14,11 +14,11 @@ maxNumberOfChunksPerFile=10
 RTimer=5
 TimeToWait=20
 
-TestRouting=false
-TestPrivateMessages=false
-TestFileIndexing=false
-TestFileSharing=false
-TestFile=false
+TestRouting=true
+TestPrivateMessages=true
+TestFileIndexing=true
+TestFileSharing=true
+TestFile=true
 AllowWarning=true
 
 # Handle command-line arguments
