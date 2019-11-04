@@ -9,24 +9,6 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-// RumorMessage struct
-type RumorMessage struct {
-	Origin string
-	ID     uint32
-	Text   string
-}
-
-// StatusPacket struct
-type StatusPacket struct {
-	Want []PeerStatus
-}
-
-// PeerStatus struct
-type PeerStatus struct {
-	Identifier string
-	NextID     uint32
-}
-
 func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 	peersWithRumor := []*net.UDPAddr{extPacket.SenderAddr}
 	peers := gossiper.GetPeersAtomic()

@@ -8,6 +8,12 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
+// ExtendedGossipPacket struct
+type ExtendedGossipPacket struct {
+	Packet     *GossipPacket
+	SenderAddr *net.UDPAddr
+}
+
 func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.Message) {
 	for {
 		messageFromClient := &helpers.Message{}

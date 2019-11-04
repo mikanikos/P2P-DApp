@@ -63,7 +63,7 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 // 	helpers.ErrorCheck(err)
 // 	defer conn.Close()
 
-// 	packet := &helpers.Message{Text: msg, Destination: &dest}
+// 	packet := &Message{Text: msg, Destination: &dest}
 // 	packetBytes, err := protobuf.Encode(packet)
 // 	helpers.ErrorCheck(err)
 // 	conn.Write(packetBytes)

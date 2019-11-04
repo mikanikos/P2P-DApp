@@ -43,10 +43,22 @@ type NetworkData struct {
 	Addr *net.UDPAddr
 }
 
-// ExtendedGossipPacket struct
-type ExtendedGossipPacket struct {
-	Packet     *GossipPacket
-	SenderAddr *net.UDPAddr
+// RumorMessage struct
+type RumorMessage struct {
+	Origin string
+	ID     uint32
+	Text   string
+}
+
+// StatusPacket struct
+type StatusPacket struct {
+	Want []PeerStatus
+}
+
+// PeerStatus struct
+type PeerStatus struct {
+	Identifier string
+	NextID     uint32
 }
 
 // PrivateMessage struct
