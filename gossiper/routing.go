@@ -106,7 +106,7 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 		} else {
 			gossiper.routingTable.Table.Store(origin, address)
 		}
-		fmt.Println("UPDATED ROUTING TABLE!!!!!!!!!!!")
+		//fmt.Println("UPDATED ROUTING TABLE!!!!!!!!!!!")
 
 		// // add or update entry
 		// if !isPresent { //|| addressInTable.String() != address.String() {
@@ -116,74 +116,95 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 }
 
 func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket) {
-	if packet.Private.HopLimit > 0 {
-		packet.Private.HopLimit = packet.Private.HopLimit - 1
+
+	var hopLimit *uint32
+	var destination string
+
+	switch packetType := getTypeFromGossip(packet); packetType {
+
+	case "private":
+		hopLimit = &packet.Private.HopLimit
+		destination = packet.Private.Destination
+
+	case "request":
+		hopLimit = &packet.DataRequest.HopLimit
+		destination = packet.DataRequest.Destination
+
+	case "reply":
+		hopLimit = &packet.DataReply.HopLimit
+		destination = packet.DataReply.Destination
+	}
+
+	if *hopLimit > 0 {
+		*hopLimit = *hopLimit - 1
 
 		// gossiper.routingTable.Mutex.Lock()
 		// addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.Private.Destination]
 		// gossiper.routingTable.Mutex.Unlock()
 
-		value, isPresent := gossiper.routingTable.Table.Load(packet.Private.Destination)
+		value, isPresent := gossiper.routingTable.Table.Load(destination)
 
 		if isPresent {
 			addressInTable := value.(*net.UDPAddr)
 			gossiper.sendPacket(packet, addressInTable)
 		} else {
-			peersCopy := gossiper.GetPeersAtomic()
-			if len(peersCopy) != 0 {
-				randomPeer := gossiper.getRandomPeer(peersCopy)
-				gossiper.sendPacket(packet, randomPeer)
-			}
+			// IF NO ENTRIES IN ROUTING TABLE, SHOULD I SEND TO A RANDOM PEER (WHO MIGHT HAVE THE ENTRY) IN ORDER TO NOT LOSE THE PACKET?
+
+			// peersCopy := gossiper.GetPeersAtomic()
+			// if len(peersCopy) != 0 {
+			// 	randomPeer := gossiper.getRandomPeer(peersCopy)
+			// 	gossiper.sendPacket(packet, randomPeer)
+			// }
 		}
 	}
 }
 
-func (gossiper *Gossiper) forwardDataRequest(packet *GossipPacket) {
-	if packet.DataRequest.HopLimit > 0 {
-		packet.DataRequest.HopLimit = packet.DataRequest.HopLimit - 1
+// func (gossiper *Gossiper) forwardDataRequest(packet *GossipPacket) {
+// 	if packet.DataRequest.HopLimit > 0 {
+// 		packet.DataRequest.HopLimit = packet.DataRequest.HopLimit - 1
 
-		// gossiper.routingTable.Mutex.Lock()
-		// addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.DataRequest.Destination]
-		// gossiper.routingTable.Mutex.Unlock()
+// 		// gossiper.routingTable.Mutex.Lock()
+// 		// addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.DataRequest.Destination]
+// 		// gossiper.routingTable.Mutex.Unlock()
 
-		value, isPresent := gossiper.routingTable.Table.Load(packet.DataRequest.Destination)
+// 		value, isPresent := gossiper.routingTable.Table.Load(packet.DataRequest.Destination)
 
-		if isPresent {
-			addressInTable := value.(*net.UDPAddr)
-			gossiper.sendPacket(packet, addressInTable)
-		} else {
-			peersCopy := gossiper.GetPeersAtomic()
-			if len(peersCopy) != 0 {
-				randomPeer := gossiper.getRandomPeer(peersCopy)
-				gossiper.sendPacket(packet, randomPeer)
-			}
-		}
-	}
-}
+// 		if isPresent {
+// 			addressInTable := value.(*net.UDPAddr)
+// 			gossiper.sendPacket(packet, addressInTable)
+// 		} else {
+// 			peersCopy := gossiper.GetPeersAtomic()
+// 			if len(peersCopy) != 0 {
+// 				randomPeer := gossiper.getRandomPeer(peersCopy)
+// 				gossiper.sendPacket(packet, randomPeer)
+// 			}
+// 		}
+// 	}
+// }
 
-func (gossiper *Gossiper) forwardDataReply(packet *GossipPacket) {
+// func (gossiper *Gossiper) forwardDataReply(packet *GossipPacket) {
 
-	if packet.DataReply.HopLimit > 0 {
-		packet.DataReply.HopLimit = packet.DataReply.HopLimit - 1
+// 	if packet.DataReply.HopLimit > 0 {
+// 		packet.DataReply.HopLimit = packet.DataReply.HopLimit - 1
 
-		// gossiper.routingTable.Mutex.Lock()
-		// addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.DataReply.Destination]
-		// gossiper.routingTable.Mutex.Unlock()
+// 		// gossiper.routingTable.Mutex.Lock()
+// 		// addressInTable, isPresent := gossiper.routingTable.RoutingTable[packet.DataReply.Destination]
+// 		// gossiper.routingTable.Mutex.Unlock()
 
-		value, isPresent := gossiper.routingTable.Table.Load(packet.DataReply.Destination)
+// 		value, isPresent := gossiper.routingTable.Table.Load(packet.DataReply.Destination)
 
-		if isPresent {
-			addressInTable := value.(*net.UDPAddr)
-			gossiper.sendPacket(packet, addressInTable)
-		} else {
-			peersCopy := gossiper.GetPeersAtomic()
-			if len(peersCopy) != 0 {
-				randomPeer := gossiper.getRandomPeer(peersCopy)
-				gossiper.sendPacket(packet, randomPeer)
-			}
-		}
-	}
-}
+// 		if isPresent {
+// 			addressInTable := value.(*net.UDPAddr)
+// 			gossiper.sendPacket(packet, addressInTable)
+// 		} else {
+// 			peersCopy := gossiper.GetPeersAtomic()
+// 			if len(peersCopy) != 0 {
+// 				randomPeer := gossiper.getRandomPeer(peersCopy)
+// 				gossiper.sendPacket(packet, randomPeer)
+// 			}
+// 		}
+// 	}
+// }
 
 // GetOriginsFromRoutingTable get the list of node ​Origin identifiers known to this node, i.e. for whom a next-hop route is available
 func (gossiper *Gossiper) GetOriginsFromRoutingTable() []string {

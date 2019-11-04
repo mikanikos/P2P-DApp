@@ -2,7 +2,6 @@ package gossiper
 
 import (
 	"encoding/hex"
-	"fmt"
 	"math/rand"
 	"net"
 	"sync"
@@ -104,7 +103,7 @@ func (gossiper *Gossiper) Run() {
 func (gossiper *Gossiper) processDataRequest() {
 	for extPacket := range gossiper.channels["request"] {
 
-		fmt.Println("Got data request")
+		//fmt.Println("Got data request")
 
 		if extPacket.Packet.DataRequest.Destination == gossiper.name {
 
@@ -122,8 +121,8 @@ func (gossiper *Gossiper) processDataRequest() {
 
 				// fmt.Println(*fileRequested.MetaFile)
 
-				fmt.Println("Sent metafile")
-				go gossiper.forwardDataReply(packetToSend)
+				//fmt.Println("Sent metafile")
+				go gossiper.forwardPrivateMessage(packetToSend)
 
 			} else {
 
@@ -135,22 +134,24 @@ func (gossiper *Gossiper) processDataRequest() {
 					chunkRequested := chunkData.(*[]byte)
 					packetToSend.DataReply.Data = *chunkRequested
 
-					fmt.Println("Sent chunk " + keyHash + " to " + packetToSend.DataReply.Destination)
-					go gossiper.forwardDataReply(packetToSend)
+					//fmt.Println("Sent chunk " + keyHash + " to " + packetToSend.DataReply.Destination)
+					go gossiper.forwardPrivateMessage(packetToSend)
 				} else {
 					packetToSend.DataReply.Data = nil
-					go gossiper.forwardDataReply(packetToSend)
+					go gossiper.forwardPrivateMessage(packetToSend)
 				}
 			}
 
 		} else {
-			go gossiper.forwardDataRequest(extPacket.Packet)
+			go gossiper.forwardPrivateMessage(extPacket.Packet)
 		}
 	}
 }
 
 func (gossiper *Gossiper) processDataReply() {
 	for extPacket := range gossiper.channels["reply"] {
+
+		//fmt.Println("Got data reply")
 
 		if extPacket.Packet.DataReply.Destination == gossiper.name {
 
@@ -165,11 +166,13 @@ func (gossiper *Gossiper) processDataReply() {
 
 				validated := checkHash(extPacket.Packet.DataReply.HashValue, extPacket.Packet.DataReply.Data)
 
+				//fmt.Println("Validated?")
+
 				if validated {
-					fmt.Println(hex.EncodeToString(extPacket.Packet.DataReply.HashValue))
+					//fmt.Println(hex.EncodeToString(extPacket.Packet.DataReply.HashValue))
 					value, loaded := gossiper.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin)
 
-					fmt.Println("Found channel")
+					//fmt.Println("Found channel?")
 
 					if loaded {
 						channel := value.(chan *DataReply)
@@ -181,7 +184,7 @@ func (gossiper *Gossiper) processDataReply() {
 			}
 
 		} else {
-			go gossiper.forwardDataReply(extPacket.Packet)
+			go gossiper.forwardPrivateMessage(extPacket.Packet)
 		}
 	}
 }
@@ -189,7 +192,7 @@ func (gossiper *Gossiper) processDataReply() {
 func (gossiper *Gossiper) processPrivateMessages() {
 	for extPacket := range gossiper.channels["private"] {
 
-		gossiper.updateRoutingTable(extPacket)
+		//gossiper.updateRoutingTable(extPacket)
 
 		if extPacket.Packet.Private.Destination == gossiper.name {
 			gossiper.printPeerMessage(extPacket)
@@ -243,7 +246,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			go gossiper.requestFile(*message.File, packet.Packet)
 
 		default:
-			fmt.Println("Unkown packet!")
+			//fmt.Println("Unkown packet!")
 		}
 	}
 }

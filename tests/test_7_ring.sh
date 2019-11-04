@@ -36,10 +36,10 @@ cd client
 go build
 cd ..
 
-./Peerster -name=a -peers="$bAddr"        -UIPort=$aUIPort -gossipAddr=$aAddr -rtimer=0 -antiEntropy=0  > "./tests/out/A.out" &
-./Peerster -name=b -peers="$aAddr,$cAddr" -UIPort=$bUIPort -gossipAddr=$bAddr -rtimer=0 -antiEntropy=0 > "./tests/out/B.out" &
-./Peerster -name=c -peers="$bAddr,$dAddr" -UIPort=$cUIPort -gossipAddr=$cAddr -rtimer=0 -antiEntropy=0 > "./tests/out/C.out" &
-./Peerster -name=d -peers="$cAddr"        -UIPort=$dUIPort -gossipAddr=$dAddr -rtimer=0 -antiEntropy=0 > "./tests/out/D.out" &
+./Peerster -name=a -peers="$bAddr"        -UIPort=$aUIPort -gossipAddr=$aAddr -rtimer=5 -antiEntropy=0  > "./tests/out/A.out" &
+./Peerster -name=b -peers="$aAddr,$cAddr" -UIPort=$bUIPort -gossipAddr=$bAddr -rtimer=5 -antiEntropy=0 > "./tests/out/B.out" &
+./Peerster -name=c -peers="$bAddr,$dAddr" -UIPort=$cUIPort -gossipAddr=$cAddr -rtimer=5 -antiEntropy=0 > "./tests/out/C.out" &
+./Peerster -name=d -peers="$cAddr"        -UIPort=$dUIPort -gossipAddr=$dAddr -rtimer=5 -antiEntropy=0 > "./tests/out/D.out" &
 
 # let the gossipers initialize
 sleep 1
@@ -56,32 +56,31 @@ echo "~~~~~~ Initial rumor-mongering done, requesting file sharing ~~~~~~"
 # prepare file to send:
 cd _SharedFiles
 rm "$sharedFileName"
-dd if=/dev/zero of="$sharedFileName"  bs=1010K  count=1 # copy a lot of nulls to file (a bit smaller, than 1M for technical reasons, haha)
+dd if=/dev/urandom of="$sharedFileName"  bs=1MB  count=1 # copy a lot of nulls to file (a bit smaller, than 1M for technical reasons, haha)
 echo "ahahha" >> "$sharedFileName"
 cd ..
 cd _Downloads
 rm "b1-$downloadedFileName"
-rm "b2-$downloadedFileName" #"*$sharedFileName"
+rm "b2-$downloadedFileName"
+rm "d-$downloadedFileName" #"*$sharedFileName"
 cd ..
 
 # share big file on "a":
 ./client/client -UIPort="$aUIPort" -file="$sharedFileName"
 
-sleep 3
-
-fileHash="2393aebeb3245f2acaf7e6d5a54bbb0915b047c7ed1af0c8a9e450a68fcb8eef" #$(cat tests/out/A.out | grep "^[S]HARED.*$sharedFileName" | awk '{print $6}')
+read fileHash
+#fileHash="2393aebeb3245f2acaf7e6d5a54bbb0915b047c7ed1af0c8a9e450a68fcb8eef" #$(cat tests/out/A.out | grep "^[S]HARED.*$sharedFileName" | awk '{print $6}')
 echo "~~~~~~ File shared, got hash: $fileHash, starting downloading ~~~~~~"
-
 
 # request file on "d":
 ./client/client -UIPort="$dUIPort" -file="d-$downloadedFileName" -dest="a" -request="$fileHash"
 
-sleep 5
+sleep 10
 echo "Downloading on d from a should have finished"
 
 ./client/client -UIPort="$dUIPort" -file="$sharedFileName"
 
-sleep 3
+sleep 1
 
 # try to download file from "d" now: check if downloaded files are shared
 ./client/client -UIPort="$bUIPort" -file="b1-$downloadedFileName" -dest="d" -request="$fileHash"
@@ -91,7 +90,7 @@ echo "Downloading on b from d should have finished"
 
 ./client/client -UIPort="$bUIPort" -file="b2-$downloadedFileName" -dest="d" -request="$fileHash"
 
-sleep 10
+sleep 15
 echo "Do downloading on b from d once again just for fun"
 
 echo "Kill all the peerster processes..."

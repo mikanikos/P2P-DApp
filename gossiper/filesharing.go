@@ -174,10 +174,10 @@ func (gossiper *Gossiper) getAllChunks(fileName, destination string, chunksHash 
 		seqNum++
 	}
 
-	fmt.Println("Waiting for all finishing")
+	//fmt.Println("Waiting for all finishing")
 	wg.Wait()
 
-	fmt.Println("Got all chunks")
+	//fmt.Println("Got all chunks")
 
 	return numChunksToWait
 }
@@ -242,10 +242,10 @@ func (gossiper *Gossiper) requestMetafilePeriodically(packet *GossipPacket, meta
 	metahashEnc := hex.EncodeToString(packet.DataRequest.HashValue)
 
 	fmt.Println(messageToPrint)
-	go gossiper.forwardDataRequest(packet)
+	go gossiper.forwardPrivateMessage(packet)
 
 	timer := time.NewTicker(time.Duration(requestTimeout) * time.Second)
-	fmt.Println("Waiting for metafile....")
+	//fmt.Println("Waiting for metafile....")
 	for {
 		select {
 		case replyPacket := <-metaFileChan:
@@ -256,7 +256,7 @@ func (gossiper *Gossiper) requestMetafilePeriodically(packet *GossipPacket, meta
 
 		case <-timer.C:
 			fmt.Println(messageToPrint)
-			go gossiper.forwardDataRequest(packet)
+			go gossiper.forwardPrivateMessage(packet)
 		}
 	}
 }
@@ -270,27 +270,27 @@ func (gossiper *Gossiper) requestChunkPeriodically(newPacket *GossipPacket, chun
 	// chunkIn := value.(chan *DataReply)
 
 	fmt.Println(messageToPrint)
-	go gossiper.forwardDataRequest(newPacket)
+	go gossiper.forwardPrivateMessage(newPacket)
 
 	timer := time.NewTicker(time.Duration(requestTimeout) * time.Second)
 	for {
 		select {
 		case replyPacket := <-chunkIn:
-			fmt.Println("Got chunk")
+			//fmt.Println("Got chunk")
 			timer.Stop()
-			fmt.Println("Closing channel")
+			//fmt.Println("Closing channel")
 			close(chunkIn)
 			gossiper.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
-			fmt.Println("Sending to output channel")
+			//fmt.Println("Sending to output channel")
 			go func(r *DataReply) {
 				chanOut <- r
 			}(replyPacket)
-			fmt.Println("Done")
+			//fmt.Println("Done")
 			return
 
 		case <-timer.C:
 			fmt.Println(messageToPrint)
-			go gossiper.forwardDataRequest(newPacket)
+			go gossiper.forwardPrivateMessage(newPacket)
 		}
 	}
 }

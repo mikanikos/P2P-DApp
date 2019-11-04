@@ -81,6 +81,6 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 
 	gossiper.mySharedFiles.Store(keyHash, fileMetadata)
 
-	fmt.Println("File " + *fileName + " indexed: " + keyHash)
-	fmt.Println(fileSize)
+	//fmt.Println("File " + *fileName + " indexed: " + keyHash)
+	//fmt.Println(fileSize)
 }

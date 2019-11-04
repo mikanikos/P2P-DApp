@@ -84,11 +84,11 @@ func (gossiper *Gossiper) sendRumorWithTimeout(extPacket *ExtendedGossipPacket, 
 	for {
 		select {
 		case <-rumorChan:
-			fmt.Println("Got status")
+			//fmt.Println("Got status")
 			return true
 
 		case <-timer.C:
-			fmt.Println("Timeout")
+			//fmt.Println("Timeout")
 			//delete(gossiper.currentMonger, peer.String())
 			return false
 		}

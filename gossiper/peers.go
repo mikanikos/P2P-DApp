@@ -30,7 +30,7 @@ func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
 		gossiper.peers.Peers = append(gossiper.peers.Peers, peer)
 	}
 
-	fmt.Println("Added")
+	//fmt.Println("Added")
 }
 
 func (gossiper *Gossiper) printPeers() {

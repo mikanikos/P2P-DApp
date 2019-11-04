@@ -1,7 +1,6 @@
 package gossiper
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/dedis/protobuf"
@@ -12,10 +11,10 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 	for {
 		messageFromClient := &helpers.Message{}
 		packetBytes := make([]byte, maxBufferSize)
-		fmt.Println("Waiting")
+		//fmt.Println("Waiting")
 
 		n, _, err := gossiper.clientData.Conn.ReadFromUDP(packetBytes)
-		fmt.Println("Got packet from client")
+		//fmt.Println("Got packet from client")
 		helpers.ErrorCheck(err)
 
 		if n > maxBufferSize {
@@ -25,7 +24,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 		protobuf.Decode(packetBytes[:n], messageFromClient)
 		helpers.ErrorCheck(err)
 
-		fmt.Println("got from client")
+		//fmt.Println("got from client")
 
 		go func(m *helpers.Message) {
 			clientChannel <- m
@@ -49,7 +48,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		err = protobuf.Decode(packetBytes[:n], packetFromPeer)
 		helpers.ErrorCheck(err)
 
-		fmt.Println("got from peer")
+		//fmt.Println("got from peer")
 
 		modeType := getTypeFromGossip(packetFromPeer)
 
@@ -59,7 +58,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 				gossiper.channels[modeType] <- p
 			}(packet)
 		} else {
-			fmt.Println("ERROR: message can't be accepted in this operation mode")
+			//fmt.Println("ERROR: message can't be accepted in this operation mode")
 		}
 	}
 }
@@ -69,13 +68,13 @@ func (gossiper *Gossiper) sendPacket(packet *GossipPacket, address *net.UDPAddr)
 	helpers.ErrorCheck(err)
 	_, err = gossiper.gossiperData.Conn.WriteToUDP(packetToSend, address)
 	helpers.ErrorCheck(err)
-	fmt.Println("Send message to " + address.String())
+	//fmt.Println("Send message to " + address.String())
 }
 
 func (gossiper *Gossiper) broadcastToPeers(packet *ExtendedGossipPacket) {
 	for _, peer := range gossiper.GetPeersAtomic() {
 		if peer.String() != packet.SenderAddr.String() {
-			fmt.Println("to " + peer.String())
+			//fmt.Println("to " + peer.String())
 			gossiper.sendPacket(packet.Packet, peer)
 		}
 	}

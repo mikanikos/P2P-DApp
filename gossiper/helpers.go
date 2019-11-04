@@ -2,7 +2,6 @@ package gossiper
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -143,9 +142,9 @@ func checkHash(hash []byte, data []byte) bool {
 	var hash32 [32]byte
 	copy(hash32[:], hash)
 	value := sha256.Sum256(data)
-	fmt.Println(hex.EncodeToString(hash32[:]))
-	fmt.Println(hex.EncodeToString(value[:]))
-	return hash32 == sha256.Sum256(data)
+	//fmt.Println(hex.EncodeToString(hash32[:]))
+	//fmt.Println(hex.EncodeToString(value[:]))
+	return hash32 == value
 }
 
 func copyFile(source, target string) {
