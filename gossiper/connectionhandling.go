@@ -1,6 +1,7 @@
 package gossiper
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/dedis/protobuf"
@@ -11,10 +12,8 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 	for {
 		messageFromClient := &helpers.Message{}
 		packetBytes := make([]byte, maxBufferSize)
-		//fmt.Println("Waiting")
 
 		n, _, err := gossiper.clientData.Conn.ReadFromUDP(packetBytes)
-		//fmt.Println("Got packet from client")
 		helpers.ErrorCheck(err)
 
 		if n > maxBufferSize {
@@ -23,8 +22,6 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 
 		protobuf.Decode(packetBytes[:n], messageFromClient)
 		helpers.ErrorCheck(err)
-
-		//fmt.Println("got from client")
 
 		go func(m *helpers.Message) {
 			clientChannel <- m
@@ -48,8 +45,6 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		err = protobuf.Decode(packetBytes[:n], packetFromPeer)
 		helpers.ErrorCheck(err)
 
-		//fmt.Println("got from peer")
-
 		modeType := getTypeFromGossip(packetFromPeer)
 
 		if (modeType == "simple" && gossiper.simpleMode) || (modeType != "simple" && !gossiper.simpleMode) {
@@ -58,7 +53,9 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 				gossiper.channels[modeType] <- p
 			}(packet)
 		} else {
-			//fmt.Println("ERROR: message can't be accepted in this operation mode")
+			if debug {
+				fmt.Println("ERROR: message can't be accepted in this operation mode")
+			}
 		}
 	}
 }
@@ -68,33 +65,13 @@ func (gossiper *Gossiper) sendPacket(packet *GossipPacket, address *net.UDPAddr)
 	helpers.ErrorCheck(err)
 	_, err = gossiper.gossiperData.Conn.WriteToUDP(packetToSend, address)
 	helpers.ErrorCheck(err)
-	//fmt.Println("Send message to " + address.String())
 }
 
 func (gossiper *Gossiper) broadcastToPeers(packet *ExtendedGossipPacket) {
 	peers := gossiper.GetPeersAtomic()
 	for _, peer := range peers {
 		if peer.String() != packet.SenderAddr.String() {
-			//fmt.Println("to " + peer.String())
 			gossiper.sendPacket(packet.Packet, peer)
 		}
 	}
 }
-
-// func (gossiper *Gossiper) sendStatusPacket(addr *net.UDPAddr) {
-// 	myStatus := gossiper.createStatus()
-// 	statusPacket := &StatusPacket{Want: myStatus}
-// 	packet := &GossipPacket{Status: statusPacket}
-// 	gossiper.sendPacket(packet, addr)
-// }
-
-// func (gossiper *Gossiper) sendPacketFromStatus(toSend []PeerStatus, addr *net.UDPAddr) {
-// 	for _, ps := range toSend {
-// 		packets := gossiper.getPacketsFromStatus(ps)
-// 		for _, m := range packets {
-// 			fmt.Println("MONGERING with " + addr.String())
-// 			gossiper.sendPacket(m, addr)
-// 			return
-// 		}
-// 	}
-// }

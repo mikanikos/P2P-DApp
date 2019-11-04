@@ -29,14 +29,14 @@ func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
 	if !contains {
 		gossiper.peers.Peers = append(gossiper.peers.Peers, peer)
 	}
-
-	//fmt.Println("Added")
 }
 
 func (gossiper *Gossiper) printPeers() {
 	peers := gossiper.GetPeersAtomic()
 	listPeers := helpers.GetArrayStringFromAddresses(peers)
-	fmt.Println("PEERS " + strings.Join(listPeers, ","))
+	if hw1 {
+		fmt.Println("PEERS " + strings.Join(listPeers, ","))
+	}
 }
 
 // GetPeersAtomic in concurrent environment

@@ -67,21 +67,29 @@ func (gossiper *Gossiper) printStatusMessage(extPacket *ExtendedGossipPacket) {
 	for _, value := range extPacket.Packet.Status.Want {
 		message = message + "peer " + value.Identifier + " nextID " + fmt.Sprint(value.NextID) + " "
 	}
-	fmt.Println(message[:len(message)-1])
-	gossiper.printPeers()
+	if hw1 {
+		fmt.Println(message[:len(message)-1])
+		gossiper.printPeers()
+	}
 }
 
 func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket) {
 	if gossiper.simpleMode {
-		fmt.Println("SIMPLE MESSAGE origin " + extPacket.Packet.Simple.OriginalName + " from " + extPacket.Packet.Simple.RelayPeerAddr + " contents " + extPacket.Packet.Simple.Contents)
+		if hw1 {
+			fmt.Println("SIMPLE MESSAGE origin " + extPacket.Packet.Simple.OriginalName + " from " + extPacket.Packet.Simple.RelayPeerAddr + " contents " + extPacket.Packet.Simple.Contents)
+		}
 	} else {
 		if extPacket.Packet.Private != nil {
-			fmt.Println("PRIVATE origin " + extPacket.Packet.Private.Origin + " hop-limit " + fmt.Sprint(extPacket.Packet.Private.HopLimit) + " contents " + extPacket.Packet.Private.Text)
+			if hw2 {
+				fmt.Println("PRIVATE origin " + extPacket.Packet.Private.Origin + " hop-limit " + fmt.Sprint(extPacket.Packet.Private.HopLimit) + " contents " + extPacket.Packet.Private.Text)
+			}
 		} else {
 			fmt.Println("RUMOR origin " + extPacket.Packet.Rumor.Origin + " from " + extPacket.SenderAddr.String() + " ID " + fmt.Sprint(extPacket.Packet.Rumor.ID) + " contents " + extPacket.Packet.Rumor.Text)
 		}
 	}
-	gossiper.printPeers()
+	if hw1 {
+		gossiper.printPeers()
+	}
 }
 
 func (gossiper *Gossiper) printClientMessage(message *helpers.Message) {
@@ -90,7 +98,9 @@ func (gossiper *Gossiper) printClientMessage(message *helpers.Message) {
 	} else {
 		fmt.Println("CLIENT MESSAGE " + message.Text)
 	}
-	gossiper.printPeers()
+	if hw1 {
+		gossiper.printPeers()
+	}
 }
 
 func (gossiper *Gossiper) getRandomPeer(availablePeers []*net.UDPAddr) *net.UDPAddr {
@@ -106,16 +116,8 @@ func getChunksFromMetafile(metafile []byte) [][]byte {
 
 	for i := 0; i < iterations; i++ {
 		hash := metafile[i*32 : (i+1)*32]
-
-		// var hash32 [32]byte
-		// copy(hash32[:], hash)
-		// //fmt.Println(hash32)
 		hashes[i] = hash
-		//var hash []byte
-		//copy(hash, metafile[i*32:(i+1)*32])
 	}
-
-	// fmt.Println(iterations)
 	return hashes
 }
 
@@ -142,8 +144,6 @@ func checkHash(hash []byte, data []byte) bool {
 	var hash32 [32]byte
 	copy(hash32[:], hash)
 	value := sha256.Sum256(data)
-	//fmt.Println(hex.EncodeToString(hash32[:]))
-	//fmt.Println(hex.EncodeToString(value[:]))
 	return hash32 == value
 }
 

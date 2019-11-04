@@ -24,8 +24,6 @@ func (gossiper *Gossiper) addOrigin(origin string) {
 	if !contains {
 		gossiper.origins.Origins = append(gossiper.origins.Origins, origin)
 	}
-
-	//fmt.Println("Added")
 }
 
 // GetOriginsAtomic in concurrent environment

@@ -2,6 +2,7 @@ package gossiper
 
 import (
 	"encoding/hex"
+	"fmt"
 	"math/rand"
 	"net"
 	"sync"
@@ -61,13 +62,13 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		peers:              MutexPeers{Peers: peers},
 		origins:            MutexOrigins{Origins: make([]string, 0)},
 		originPackets:      PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, latestMessagesBuffer)},
-		myStatus:           sync.Map{}, //MutexStatus{Status: make(map[string]uint32)},
+		myStatus:           sync.Map{},
 		simpleMode:         simple,
 		seqID:              1,
 		statusChannels:     sync.Map{},
-		mongeringChannels:  sync.Map{}, //MutexDummyChannel{Channels: make(map[string]chan bool)},
+		mongeringChannels:  sync.Map{},
 		antiEntropyTimeout: antiEntropyTimeout,
-		routingTable:       sync.Map{}, //RoutingTable{Table: sync.Map{}, Origins: make(chan string, latestMessagesBuffer)}, //MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
+		routingTable:       sync.Map{},
 		routeTimer:         rtimer,
 		myFileChunks:       sync.Map{},
 		mySharedFiles:      sync.Map{},
@@ -105,7 +106,9 @@ func (gossiper *Gossiper) Run() {
 func (gossiper *Gossiper) processDataRequest() {
 	for extPacket := range gossiper.channels["request"] {
 
-		//fmt.Println("Got data request")
+		if debug {
+			fmt.Println("Got data request")
+		}
 
 		if extPacket.Packet.DataRequest.Destination == gossiper.name {
 
@@ -121,9 +124,9 @@ func (gossiper *Gossiper) processDataRequest() {
 				fileRequested := fileValue.(*FileMetadata)
 				packetToSend.DataReply.Data = *fileRequested.MetaFile
 
-				// fmt.Println(*fileRequested.MetaFile)
-
-				//fmt.Println("Sent metafile")
+				if debug {
+					fmt.Println("Sent metafile")
+				}
 				go gossiper.forwardPrivateMessage(packetToSend)
 
 			} else {
@@ -136,7 +139,9 @@ func (gossiper *Gossiper) processDataRequest() {
 					chunkRequested := chunkData.(*[]byte)
 					packetToSend.DataReply.Data = *chunkRequested
 
-					//fmt.Println("Sent chunk " + keyHash + " to " + packetToSend.DataReply.Destination)
+					if debug {
+						fmt.Println("Sent chunk " + keyHash + " to " + packetToSend.DataReply.Destination)
+					}
 					go gossiper.forwardPrivateMessage(packetToSend)
 				} else {
 					packetToSend.DataReply.Data = nil
@@ -153,28 +158,22 @@ func (gossiper *Gossiper) processDataRequest() {
 func (gossiper *Gossiper) processDataReply() {
 	for extPacket := range gossiper.channels["reply"] {
 
-		//fmt.Println("Got data reply")
+		if debug {
+			fmt.Println("Got data reply")
+		}
 
 		if extPacket.Packet.DataReply.Destination == gossiper.name {
-
-			// check if I requested this metafile/chunk
-			//metadata, loadedMeta := gossiper.myDownloadedFiles.Load(extPacket.Packet.DataReply.HashValue)
-
-			//fileStruct, loadedChunk := gossiper.chunksToFile.Load(extPacket.Packet.DataReply.HashValue)
-
-			// check hash correspond to the data sent
 
 			if extPacket.Packet.DataReply.Data != nil {
 
 				validated := checkHash(extPacket.Packet.DataReply.HashValue, extPacket.Packet.DataReply.Data)
 
-				//fmt.Println("Validated?")
-
 				if validated {
-					//fmt.Println(hex.EncodeToString(extPacket.Packet.DataReply.HashValue))
 					value, loaded := gossiper.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin)
 
-					//fmt.Println("Found channel?")
+					if debug {
+						fmt.Println("Found channel?")
+					}
 
 					if loaded {
 						channel := value.(chan *DataReply)
@@ -197,7 +196,9 @@ func (gossiper *Gossiper) processPrivateMessages() {
 		//gossiper.updateRoutingTable(extPacket)
 
 		if extPacket.Packet.Private.Destination == gossiper.name {
-			gossiper.printPeerMessage(extPacket)
+			if hw2 {
+				gossiper.printPeerMessage(extPacket)
+			}
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet)
 		}
@@ -212,7 +213,9 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 		switch typeMessage := gossiper.getTypeFromMessage(message); typeMessage {
 
 		case "simple":
-			gossiper.printClientMessage(message)
+			if hw1 {
+				gossiper.printClientMessage(message)
+			}
 
 			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.name, RelayPeerAddr: gossiper.gossiperData.Addr.String()}
 			packet.Packet = &GossipPacket{Simple: simplePacket}
@@ -220,7 +223,9 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			go gossiper.broadcastToPeers(packet)
 
 		case "private":
-			gossiper.printClientMessage(message)
+			if hw2 {
+				gossiper.printClientMessage(message)
+			}
 
 			privatePacket := &PrivateMessage{Origin: gossiper.name, ID: 0, Text: message.Text, Destination: *message.Destination, HopLimit: uint32(hopLimit)}
 			packet.Packet = &GossipPacket{Private: privatePacket}
@@ -248,7 +253,9 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			go gossiper.requestFile(*message.File, packet.Packet)
 
 		default:
-			//fmt.Println("Unkown packet!")
+			if debug {
+				fmt.Println("Unkown packet!")
+			}
 		}
 	}
 }
@@ -256,7 +263,9 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 func (gossiper *Gossiper) processSimpleMessages() {
 	for extPacket := range gossiper.channels["simple"] {
 
-		gossiper.printPeerMessage(extPacket)
+		if hw1 {
+			gossiper.printPeerMessage(extPacket)
+		}
 
 		extPacket.Packet.Simple.RelayPeerAddr = gossiper.gossiperData.Addr.String()
 
@@ -278,7 +287,6 @@ func (gossiper *Gossiper) processRumorMessages() {
 		gossiper.sendPacket(statusToSend, extPacket.SenderAddr)
 
 		if !isMessageKnown {
-			//fmt.Println(gossiper.routingTable.RoutingTable)
 			go gossiper.startRumorMongering(extPacket)
 		}
 	}
@@ -287,7 +295,9 @@ func (gossiper *Gossiper) processRumorMessages() {
 func (gossiper *Gossiper) processStatusMessages() {
 	for extPacket := range gossiper.channels["status"] {
 
-		gossiper.printStatusMessage(extPacket)
+		if hw2 {
+			gossiper.printStatusMessage(extPacket)
+		}
 
 		value, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket))
 		channelPeer := value.(chan *ExtendedGossipPacket)

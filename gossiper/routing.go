@@ -53,7 +53,6 @@ func (gossiper *Gossiper) mongerRouteRumor() {
 		gossiper.addMessage(extPacket)
 
 		randomPeer := gossiper.getRandomPeer(peersCopy)
-		fmt.Println(randomPeer)
 		gossiper.sendPacket(extPacket.Packet, randomPeer)
 	}
 }
@@ -95,13 +94,10 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 	if idPacket > maxID || extPacket.Packet.Private != nil {
 
 		if textPacket != "" {
-			fmt.Println("DSDV " + origin + " " + address.String())
+			if hw2 {
+				fmt.Println("DSDV " + origin + " " + address.String())
+			}
 		}
-
-		// gossiper.routingTable.Mutex.Lock()
-		// defer gossiper.routingTable.Mutex.Unlock()
-
-		//_, isPresent := gossiper.routingTable.RoutingTable[origin]
 
 		_, loaded := gossiper.routingTable.LoadOrStore(origin, address)
 
@@ -111,12 +107,10 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 		} else {
 			gossiper.routingTable.Store(origin, address)
 		}
-		//fmt.Println("UPDATED ROUTING TABLE!!!!!!!!!!!")
 
-		// // add or update entry
-		// if !isPresent { //|| addressInTable.String() != address.String() {
-		// 	gossiper.routingTable.RoutingTable[origin] = address
-		// }
+		if debug {
+			fmt.Println("Routing table updated")
+		}
 	}
 }
 

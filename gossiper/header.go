@@ -2,6 +2,10 @@ package gossiper
 
 import "net"
 
+var hw1 = false
+var hw2 = true
+var debug = false
+
 var modeTypes = []string{"simple", "rumor", "status", "private", "request", "reply"}
 
 var maxBufferSize = 10000
