@@ -40,11 +40,6 @@ func (webserver *Webserver) Run(portGUI string) {
 	r.HandleFunc("/origin", webserver.getOriginHandler).Methods("GET")
 	r.HandleFunc("/file", webserver.getFileHandler).Methods("GET")
 	r.HandleFunc("/download", webserver.getDownloadHandler).Methods("GET")
-	//r.HandleFunc("/private", postPrivateHandler).Methods("POST")
-
-	// if portGUI == "" {
-	// 	portGUI = portUI
-	// }
 
 	//r.Handle("/", http.FileServer(http.Dir("./webserver")))
 	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("./webserver"))))
@@ -59,19 +54,6 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(bytes)
 }
-
-// func (webserver *Webserver) sendMessage(msg string, dest string) {
-// 	gossiperAddr, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+":"+uiPort)
-// 	helpers.ErrorCheck(err)
-// 	conn, err := net.DialUDP("udp", nil, gossiperAddr)
-// 	helpers.ErrorCheck(err)
-// 	defer conn.Close()
-
-// 	packet := &Message{Text: msg, Destination: &dest}
-// 	packetBytes, err := protobuf.Encode(packet)
-// 	helpers.ErrorCheck(err)
-// 	conn.Write(packetBytes)
-// }
 
 func (webserver *Webserver) getDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = webserver.Gossiper.GetFilesDownloaded()

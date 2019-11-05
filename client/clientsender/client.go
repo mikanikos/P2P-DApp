@@ -34,7 +34,6 @@ func (client *Client) SendMessage(msg string, dest, file, request *string) {
 
 	packet := convertInputToMessage(msg, *dest, *file, *request)
 
-	//packet := &helpers.Message{Text: msg, Destination: dest, File: file, Request: &decodeRequest}
 	packetBytes, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
 

@@ -24,6 +24,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 
 		if n > maxBufferSize {
 			maxBufferSize = maxBufferSize + n
+			continue
 		}
 
 		protobuf.Decode(packetBytes[:n], messageFromClient)
@@ -44,6 +45,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 
 		if n > maxBufferSize {
 			maxBufferSize = maxBufferSize + n
+			continue
 		}
 
 		gossiper.AddPeer(addr)
@@ -59,9 +61,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 				gossiper.channels[modeType] <- p
 			}(packet)
 		} else {
-			if debug {
-				fmt.Println("ERROR: message can't be accepted in this operation mode")
-			}
+			fmt.Println("ERROR: message can't be accepted in this operation mode")
 		}
 	}
 }

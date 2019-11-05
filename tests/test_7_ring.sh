@@ -68,6 +68,7 @@ cd ..
 # share big file on "a":
 ./client/client -UIPort="$aUIPort" -file="$sharedFileName"
 
+sleep 2
 fileHash=$(cat tests/out/A.out | grep "File $sharedFileName.*" | awk '{print $4}')
 
 echo "~~~~~~ File shared, got hash: $fileHash, starting downloading ~~~~~~"

@@ -114,27 +114,6 @@ func (gossiper *Gossiper) getAllChunks(fileName, destination string, chunksHash 
 
 func (gossiper *Gossiper) processIncomingChunkData(numChunksToWait int, chunksOutChan chan *DataReply) bool {
 	containsEmpty := false
-
-	// for chunkPacket := range chunksOutChan {
-	// 	for i, hChunk := range chunksHash {
-	// 		if hex.EncodeToString(chunkPacket.HashValue) == hex.EncodeToString(hChunk) {
-	// 			chunkLen := len(chunkPacket.Data)
-	// 			if chunkLen != 0 {
-	// 				copy(chunksData[i*fileChunk:(i*fileChunk)+chunkLen], chunkPacket.Data)
-	// 				gossiper.myFileChunks.Store(hex.EncodeToString(chunkPacket.HashValue), chunkPacket.Data)
-	// 				size += chunkLen
-	// 			} else {
-	// 				containsEmpty = true
-	// 			}
-	// 			break
-	// 		}
-	// 	}
-	// 	count++
-	// 	if count == numChunksHash {
-	// 		break
-	// 	}
-	// }
-
 	count := 0
 
 	for chunkPacket := range chunksOutChan {
@@ -199,10 +178,6 @@ func (gossiper *Gossiper) requestMetafilePeriodically(packet *GossipPacket, meta
 func (gossiper *Gossiper) requestChunkPeriodically(newPacket *GossipPacket, chunkIn chan *DataReply, chanOut chan *DataReply, wg *sync.WaitGroup, messageToPrint string) {
 
 	defer wg.Done()
-
-	// chunkHashEnc := hex.EncodeToString(newPacket.DataRequest.HashValue)
-	// value, _ := gossiper.hashChannels.LoadOrStore(chunkHashEnc, make(chan *DataReply))
-	// chunkIn := value.(chan *DataReply)
 
 	if hw2 {
 		fmt.Println(messageToPrint)
