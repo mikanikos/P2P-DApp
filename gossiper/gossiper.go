@@ -34,6 +34,8 @@ type Gossiper struct {
 	mySharedFiles      sync.Map
 	myDownloadedFiles  sync.Map
 	hashChannels       sync.Map
+	filesIndexed       chan *FileMetadata
+	filesDownloaded    chan *FileMetadata
 }
 
 // NewGossiper function
@@ -76,6 +78,8 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		mySharedFiles:      sync.Map{},
 		myDownloadedFiles:  sync.Map{},
 		hashChannels:       sync.Map{},
+		filesIndexed:       make(chan *FileMetadata, 3),
+		filesDownloaded:    make(chan *FileMetadata, 3),
 	}
 }
 
@@ -195,12 +199,14 @@ func (gossiper *Gossiper) processDataReply() {
 func (gossiper *Gossiper) processPrivateMessages() {
 	for extPacket := range gossiper.channels["private"] {
 
-		//gossiper.updateRoutingTable(extPacket)
-
 		if extPacket.Packet.Private.Destination == gossiper.name {
 			if hw2 {
 				gossiper.printPeerMessage(extPacket)
 			}
+			go func(p *PrivateMessage) {
+				gossiper.originPackets.LatestMessages <- &RumorMessage{Text: p.Text, Origin: p.Origin}
+			}(extPacket.Packet.Private)
+
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet)
 		}
@@ -231,6 +237,10 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 
 			privatePacket := &PrivateMessage{Origin: gossiper.name, ID: 0, Text: message.Text, Destination: *message.Destination, HopLimit: uint32(hopLimit)}
 			packet.Packet = &GossipPacket{Private: privatePacket}
+
+			go func(p *PrivateMessage) {
+				gossiper.originPackets.LatestMessages <- &RumorMessage{Text: p.Text, Origin: p.Origin}
+			}(privatePacket)
 
 			go gossiper.forwardPrivateMessage(packet.Packet)
 

@@ -12,7 +12,7 @@ import (
 // MutexPeers struct
 type MutexPeers struct {
 	Peers []*net.UDPAddr
-	Mutex sync.Mutex
+	Mutex sync.RWMutex
 }
 
 // AddPeer to peers list
@@ -41,8 +41,8 @@ func (gossiper *Gossiper) printPeers() {
 
 // GetPeersAtomic in concurrent environment
 func (gossiper *Gossiper) GetPeersAtomic() []*net.UDPAddr {
-	gossiper.peers.Mutex.Lock()
-	defer gossiper.peers.Mutex.Unlock()
+	gossiper.peers.Mutex.RLock()
+	defer gossiper.peers.Mutex.RUnlock()
 	peerCopy := make([]*net.UDPAddr, len(gossiper.peers.Peers))
 	copy(peerCopy, gossiper.peers.Peers)
 	return peerCopy

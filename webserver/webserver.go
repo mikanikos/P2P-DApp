@@ -31,7 +31,6 @@ func NewWebserver(uiPort string, gossiper *gossiper.Gossiper) *Webserver {
 func (webserver *Webserver) Run(portGUI string) {
 
 	r := mux.NewRouter()
-	r.Handle("/", http.FileServer(http.Dir("./webserver")))
 
 	r.HandleFunc("/message", webserver.getMessageHandler).Methods("GET")
 	r.HandleFunc("/message", webserver.postMessageHandler).Methods("POST")
@@ -39,11 +38,16 @@ func (webserver *Webserver) Run(portGUI string) {
 	r.HandleFunc("/node", webserver.postNodeHandler).Methods("POST")
 	r.HandleFunc("/id", webserver.getIDHandler).Methods("GET")
 	r.HandleFunc("/origin", webserver.getOriginHandler).Methods("GET")
+	r.HandleFunc("/file", webserver.getFileHandler).Methods("GET")
+	r.HandleFunc("/download", webserver.getDownloadHandler).Methods("GET")
 	//r.HandleFunc("/private", postPrivateHandler).Methods("POST")
 
 	// if portGUI == "" {
 	// 	portGUI = portUI
 	// }
+
+	//r.Handle("/", http.FileServer(http.Dir("./webserver")))
+	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("./webserver"))))
 
 	log.Fatal(http.ListenAndServe(":"+portGUI, r))
 }
@@ -68,6 +72,16 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 // 	helpers.ErrorCheck(err)
 // 	conn.Write(packetBytes)
 // }
+
+func (webserver *Webserver) getDownloadHandler(w http.ResponseWriter, r *http.Request) {
+	var payload = webserver.Gossiper.GetFilesDownloaded()
+	writeJSON(w, payload)
+}
+
+func (webserver *Webserver) getFileHandler(w http.ResponseWriter, r *http.Request) {
+	var payload = webserver.Gossiper.GetFilesIndexed()
+	writeJSON(w, payload)
+}
 
 func (webserver *Webserver) getMessageHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = webserver.Gossiper.GetMessages()

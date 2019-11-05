@@ -7,7 +7,7 @@ import (
 // MutexOrigins struct
 type MutexOrigins struct {
 	Origins []string
-	Mutex   sync.Mutex
+	Mutex   sync.RWMutex
 }
 
 // AddOrigin to origins list
@@ -28,8 +28,8 @@ func (gossiper *Gossiper) addOrigin(origin string) {
 
 // GetOriginsAtomic in concurrent environment
 func (gossiper *Gossiper) GetOriginsAtomic() []string {
-	gossiper.origins.Mutex.Lock()
-	defer gossiper.origins.Mutex.Unlock()
+	gossiper.origins.Mutex.RLock()
+	defer gossiper.origins.Mutex.RUnlock()
 	originsCopy := make([]string, len(gossiper.origins.Origins))
 	copy(originsCopy, gossiper.origins.Origins)
 	return originsCopy

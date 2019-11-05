@@ -28,7 +28,7 @@ func (gossiper *Gossiper) requestFile(fileName string, packet *GossipPacket) {
 		fileMetadata := value.(*FileMetadata)
 		wd, err := os.Getwd()
 		helpers.ErrorCheck(err)
-		copyFile(wd+downloadFolder+*fileMetadata.Name, wd+downloadFolder+fileName)
+		copyFile(wd+downloadFolder+fileMetadata.Name, wd+downloadFolder+fileName)
 		return
 	}
 
@@ -61,7 +61,10 @@ func (gossiper *Gossiper) requestFile(fileName string, packet *GossipPacket) {
 			fmt.Println("RECONSTRUCTED file " + fileName)
 		}
 
-		fileMetadata := &FileMetadata{Name: &fileName, MetaFile: &replyPacket.Data}
+		fileMetadata := &FileMetadata{Name: fileName, MetaFile: &replyPacket.Data, Size: size, MetaHash: metahashEnc}
+		go func(f *FileMetadata) {
+			gossiper.filesDownloaded <- f
+		}(fileMetadata)
 
 		gossiper.myDownloadedFiles.Store(metahashEnc, fileMetadata)
 	}
@@ -231,4 +234,18 @@ func (gossiper *Gossiper) requestChunkPeriodically(newPacket *GossipPacket, chun
 			go gossiper.forwardPrivateMessage(newPacket)
 		}
 	}
+}
+
+// GetFilesDownloaded for GUI
+func (gossiper *Gossiper) GetFilesDownloaded() []FileMetadata {
+
+	bufferLength := len(gossiper.filesDownloaded)
+
+	files := make([]FileMetadata, bufferLength)
+	for i := 0; i < bufferLength; i++ {
+		file := <-gossiper.filesDownloaded
+		files[i] = *file
+	}
+
+	return files
 }

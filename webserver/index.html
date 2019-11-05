@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="en">
 
+<head>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+    <script type="text/javascript" src="js/scripts.js"></script>
+</head>
+
 <body>
 
     <h1 style="text-align: center" id="peerID">Peerster</h1>
@@ -9,11 +14,12 @@
         style="float:left;height:65vh;width:20%;border:1px solid #bbb;margin:10px;position:relative;">
         <label style="margin:10px;display:inline-block">
             <strong>Origin Box</strong>
+            Double clink on an origin to send a private message
         </label>
         <ul id="originList" style="padding:10px;list-style:none;max-height:650px;overflow:auto;">
         </ul>
     </div>
-    <div class="chatBox" style="float:left;height:80vh;width:50%;border:1px solid #bbb;margin:10px;position: relative;">
+    <div class="chatBox" style="float:left;height:65vh;width:50%;border:1px solid #bbb;margin:10px;position: relative;">
         <label style="margin:10px;display:inline-block;">
             <strong>Chat Box</strong>
         </label>
@@ -21,11 +27,11 @@
         </ul>
         <div style="position:absolute;bottom:0;width:100%">
             <form id="sendForm" style="margin:10px;">
-                <input id="messageInput" type="text" placeholder="Write your message" style="width:60%" />
+                <input id="messageInput" type="text" placeholder="Write your message" style="width:80%" />
                 <button type="submit" style="width:10%;">Send</button>
-                <button id="buttonFile" style="width:10%;">Share file</button>
+                <!-- <button id="buttonFile" style="width:10%;">Share file</button>
                 <button id="buttonDownloadFile" style="width:15%;">Download file</button>
-                <input type="file" id="fileInput">
+                <input type="file" id="fileInput"> -->
             </form>
         </div>
     </div>
@@ -42,10 +48,32 @@
             </form>
         </div>
     </div>
+    <div class="fileBox" style="float:left;height:65vh;width:20%;border:1px solid #bbb;margin:10px;position:relative;">
+        <label style="margin:10px;display:inline-block">
+            <strong>File Box</strong>
+        </label>
+        <ul id="fileList" style="padding:10px;list-style:none;max-height:650px;overflow:auto;">
+        </ul>
+        <div style="position:absolute;bottom:0;width:100%;margin:10px;">
+            <input type="file" id="fileInput">
+            <button id="buttonFile" style="width:40%;">Share file</button>
+            <!-- <button id="buttonDownloadFile" style="width:40%;">Download file</button> -->
+        </div>
+    </div>
+    <div class="downloadBox" style="float:left;height:65vh;width:20%;border:1px solid #bbb;margin:10px;position:relative;">
+            <label style="margin:10px;display:inline-block">
+                <strong>Download Box</strong>
+            </label>
+            <ul id="downloadList" style="padding:10px;list-style:none;max-height:650px;overflow:auto;">
+            </ul>
+            <div style="position:absolute;bottom:0;width:100%;margin:10px;">
+                <button id="buttonDownloadFile" style="width:40%;">Download file</button>        
+            </div>
+        </div>
 
 
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
-    <script src="js/scripts.js"></script>
+    <!-- <script type="text/javascript" src="scripts.js"></script> -->
+
     <!-- <script>
         $("#sendForm").submit(function (event) {
 
@@ -188,4 +216,5 @@ $.get("/message", function (data) {
 }, 1000);
     </script> -->
 </body>
+
 </html>

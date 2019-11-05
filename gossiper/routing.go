@@ -24,13 +24,15 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 	if gossiper.routeTimer > 0 {
 
 		// startup route rumor
-		id := atomic.LoadUint32(&gossiper.seqID)
-		atomic.AddUint32(&gossiper.seqID, uint32(1))
-		rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
-		extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
-		gossiper.addMessage(extPacket)
+		// id := atomic.LoadUint32(&gossiper.seqID)
+		// atomic.AddUint32(&gossiper.seqID, uint32(1))
+		// rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
+		// extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
+		// gossiper.addMessage(extPacket)
 
-		gossiper.broadcastToPeers(extPacket)
+		// gossiper.broadcastToPeers(extPacket)
+
+		gossiper.mongerRouteRumor()
 
 		timer := time.NewTicker(time.Duration(gossiper.routeTimer) * time.Second)
 		for {
@@ -43,18 +45,19 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 }
 
 func (gossiper *Gossiper) mongerRouteRumor() {
-	peersCopy := gossiper.GetPeersAtomic()
-	if len(peersCopy) != 0 {
+	// peersCopy := gossiper.GetPeersAtomic()
+	// if len(peersCopy) != 0 {
 
-		id := atomic.LoadUint32(&gossiper.seqID)
-		atomic.AddUint32(&gossiper.seqID, uint32(1))
-		rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
-		extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
-		gossiper.addMessage(extPacket)
+	id := atomic.LoadUint32(&gossiper.seqID)
+	atomic.AddUint32(&gossiper.seqID, uint32(1))
+	rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
+	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
+	gossiper.addMessage(extPacket)
 
-		randomPeer := gossiper.getRandomPeer(peersCopy)
-		gossiper.sendPacket(extPacket.Packet, randomPeer)
-	}
+	go gossiper.startRumorMongering(extPacket)
+	//randomPeer := gossiper.getRandomPeer(peersCopy)
+	//gossiper.sendPacket(extPacket.Packet, randomPeer)
+	//}
 }
 
 func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
@@ -91,9 +94,7 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 	// 	})
 	// }
 
-	check := gossiper.checkAndUpdateLastOriginID(origin, idPacket)
-
-	if check || extPacket.Packet.Private != nil {
+	if gossiper.checkAndUpdateLastOriginID(origin, idPacket) {
 
 		if textPacket != "" {
 			if hw2 {

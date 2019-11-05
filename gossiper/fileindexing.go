@@ -12,8 +12,10 @@ import (
 
 // FileMetadata struct
 type FileMetadata struct {
-	Name     *string
+	Name     string
+	MetaHash string
 	MetaFile *[]byte
+	Size     int
 }
 
 func initializeDirectories() {
@@ -62,15 +64,34 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	}
 
 	metahash32 := sha256.Sum256(hashes)
-	fileMetadata := &FileMetadata{Name: fileName, MetaFile: &hashes}
 
 	metahash := metahash32[:]
 	keyHash := hex.EncodeToString(metahash)
 
+	fileMetadata := &FileMetadata{Name: *fileName, MetaFile: &hashes, Size: int(fileSize), MetaHash: keyHash}
+
 	gossiper.mySharedFiles.Store(keyHash, fileMetadata)
+
+	go func(f *FileMetadata) {
+		gossiper.filesIndexed <- f
+	}(fileMetadata)
 
 	if debug {
 		fmt.Println("File " + *fileName + " indexed: " + keyHash)
 		fmt.Println(fileSize)
 	}
+}
+
+// GetFilesIndexed for GUI
+func (gossiper *Gossiper) GetFilesIndexed() []FileMetadata {
+
+	bufferLength := len(gossiper.filesIndexed)
+
+	files := make([]FileMetadata, bufferLength)
+	for i := 0; i < bufferLength; i++ {
+		file := <-gossiper.filesIndexed
+		files[i] = *file
+	}
+
+	return files
 }
