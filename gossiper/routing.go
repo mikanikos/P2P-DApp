@@ -87,7 +87,6 @@ func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
 
 		if !loaded {
 			gossiper.addOrigin(origin)
-
 		}
 
 		if debug {

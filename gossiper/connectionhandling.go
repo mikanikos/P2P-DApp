@@ -24,7 +24,6 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 
 		if n > maxBufferSize {
 			maxBufferSize = maxBufferSize + n
-			continue
 		}
 
 		protobuf.Decode(packetBytes[:n], messageFromClient)
@@ -45,7 +44,6 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 
 		if n > maxBufferSize {
 			maxBufferSize = maxBufferSize + n
-			continue
 		}
 
 		gossiper.AddPeer(addr)
