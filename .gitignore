@@ -15,5 +15,10 @@
 .idea/
 *.iml
 
+# Program folders 
 _SharedFiles
 _Downloads
+
+# Binary files
+Peerster
+client/client
