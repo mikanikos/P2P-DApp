@@ -126,13 +126,17 @@ func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket) {
 		hopLimit = &packet.Private.HopLimit
 		destination = packet.Private.Destination
 
-	case "request":
+	case "dataRequest":
 		hopLimit = &packet.DataRequest.HopLimit
 		destination = packet.DataRequest.Destination
 
-	case "reply":
+	case "dataReply":
 		hopLimit = &packet.DataReply.HopLimit
 		destination = packet.DataReply.Destination
+
+	case "searchReply":
+		hopLimit = &packet.SearchReply.HopLimit
+		destination = packet.SearchReply.Destination
 	}
 
 	if *hopLimit > 0 {

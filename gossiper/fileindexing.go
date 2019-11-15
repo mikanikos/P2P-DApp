@@ -12,12 +12,9 @@ import (
 
 // FileMetadata struct
 type FileMetadata struct {
-	Name       string
-	MetaHash   string
-	MetaFile   *[]byte
-	Size       int
-	ChunkMap   []uint64
-	ChunkCount uint64
+	FileSearchData *SearchResult
+	MetaFile       *[]byte
+	Size           int
 }
 
 func initializeDirectories() {
@@ -73,7 +70,8 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	metahash := metahash32[:]
 	keyHash := hex.EncodeToString(metahash)
 
-	fileMetadata := &FileMetadata{Name: *fileName, MetaFile: &hashes, Size: int(fileSize), MetaHash: keyHash, ChunkMap: chunkMap, ChunkCount: numFileChunks}
+	searchResult := &SearchResult{FileName: *fileName, MetafileHash: metahash, ChunkMap: chunkMap, ChunkCount: numFileChunks}
+	fileMetadata := &FileMetadata{FileSearchData: searchResult, MetaFile: &hashes, Size: int(fileSize)}
 
 	gossiper.myFiles.Store(keyHash, fileMetadata)
 

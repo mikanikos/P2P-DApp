@@ -111,14 +111,10 @@ func (gossiper *Gossiper) Run() {
 }
 
 func (gossiper *Gossiper) processSearchRequest() {
-	// for extPacket := range gossiper.channels["searchRequest"] {
+	for extPacket := range gossiper.channels["searchRequest"] {
 
-	// 	keywords := extPacket.Packet.SearchRequest.Keywords
-
-	// 	go searchForLocalFiles(extPacket)
-
-	// 	go forwardSearchRequest(extPacket)
-	// }
+		go gossiper.sendMatchingLocalFiles(extPacket)
+	}
 }
 
 func (gossiper *Gossiper) processSearchReply() {
