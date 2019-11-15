@@ -30,9 +30,9 @@ func NewClient(uiPort string) *Client {
 }
 
 // SendMessage to gossiper
-func (client *Client) SendMessage(msg string, dest, file, request *string) {
+func (client *Client) SendMessage(msg string, dest, file, request *string, keywords string, budget uint64) {
 
-	packet := convertInputToMessage(msg, *dest, *file, *request)
+	packet := convertInputToMessage(msg, *dest, *file, *request, keywords, budget)
 
 	packetBytes, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
@@ -41,33 +41,37 @@ func (client *Client) SendMessage(msg string, dest, file, request *string) {
 	helpers.ErrorCheck(err)
 }
 
-func getInputType(msg, dest, file, request string) string {
+func getInputType(msg, dest, file, request, keywords string, budget uint64) string {
 
-	if msg != "" && dest == "" && file == "" && request == "" {
+	if msg != "" && dest == "" && file == "" && request == "" && keywords == "" {
 		return "rumor"
 	}
 
-	if msg != "" && dest != "" && file == "" && request == "" {
+	if msg != "" && dest != "" && file == "" && request == "" && keywords == "" {
 		return "private"
 	}
 
-	if msg == "" && dest == "" && file != "" && request == "" {
+	if msg == "" && dest == "" && file != "" && request == "" && keywords == "" {
 		return "file"
 	}
 
-	if msg == "" && dest != "" && file != "" && request != "" {
+	if msg == "" && dest == "" && file != "" && request != "" && keywords == "" {
 		return "request"
+	}
+
+	if msg == "" && dest == "" && file == "" && request == "" && keywords != "" {
+		return "search"
 	}
 
 	return "unknown"
 }
 
 // ConvertInputToMessage for client arguments
-func convertInputToMessage(msg, dest, file, request string) *helpers.Message {
+func convertInputToMessage(msg, dest, file, request, keywords string, budget uint64) *helpers.Message {
 
 	packet := &helpers.Message{}
 
-	switch typeMes := getInputType(msg, dest, file, request); typeMes {
+	switch typeMes := getInputType(msg, dest, file, request, keywords, budget); typeMes {
 
 	case "rumor":
 		packet.Text = msg
@@ -86,8 +90,11 @@ func convertInputToMessage(msg, dest, file, request string) *helpers.Message {
 			os.Exit(1)
 		}
 		packet.Request = &decodeRequest
-		packet.Destination = &dest
 		packet.File = &file
+
+	case "search":
+		packet.Keywords = &keywords
+		packet.Budget = &budget
 
 	default:
 		fmt.Println("ERROR (Bad argument combination)")

@@ -12,10 +12,12 @@ import (
 
 // FileMetadata struct
 type FileMetadata struct {
-	Name     string
-	MetaHash string
-	MetaFile *[]byte
-	Size     int
+	Name       string
+	MetaHash   string
+	MetaFile   *[]byte
+	Size       int
+	ChunkMap   []uint64
+	ChunkCount uint64
 }
 
 func initializeDirectories() {
@@ -47,6 +49,7 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	fileInfo, _ := file.Stat()
 	fileSize := fileInfo.Size()
 	numFileChunks := uint64(math.Ceil(float64(fileSize) / float64(fileChunk)))
+	chunkMap := make([]uint64, numFileChunks)
 
 	hashes := make([]byte, numFileChunks*sha256.Size)
 
@@ -61,6 +64,8 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 
 		gossiper.myFileChunks.Store(hex.EncodeToString(hash), &partBuffer)
 		copy(hashes[i*32:(i+1)*32], hash)
+
+		chunkMap = append(chunkMap, i+1)
 	}
 
 	metahash32 := sha256.Sum256(hashes)
@@ -68,9 +73,9 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	metahash := metahash32[:]
 	keyHash := hex.EncodeToString(metahash)
 
-	fileMetadata := &FileMetadata{Name: *fileName, MetaFile: &hashes, Size: int(fileSize), MetaHash: keyHash}
+	fileMetadata := &FileMetadata{Name: *fileName, MetaFile: &hashes, Size: int(fileSize), MetaHash: keyHash, ChunkMap: chunkMap, ChunkCount: numFileChunks}
 
-	gossiper.mySharedFiles.Store(keyHash, fileMetadata)
+	gossiper.myFiles.Store(keyHash, fileMetadata)
 
 	go func(f *FileMetadata) {
 		gossiper.filesIndexed <- f

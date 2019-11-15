@@ -21,7 +21,6 @@ func (gossiper *Gossiper) requestFile(fileName string, packet *GossipPacket) {
 		return
 	}
 
-	value, loaded = gossiper.myDownloadedFiles.Load(metahashEnc)
 	if loaded {
 		// already have this file
 
@@ -61,12 +60,14 @@ func (gossiper *Gossiper) requestFile(fileName string, packet *GossipPacket) {
 			fmt.Println("RECONSTRUCTED file " + fileName)
 		}
 
+		// TO CHANGEEE
 		fileMetadata := &FileMetadata{Name: fileName, MetaFile: &replyPacket.Data, Size: size, MetaHash: metahashEnc}
+
 		go func(f *FileMetadata) {
 			gossiper.filesDownloaded <- f
 		}(fileMetadata)
 
-		gossiper.myDownloadedFiles.Store(metahashEnc, fileMetadata)
+		//gossiper.myFiles.Store(metahashEnc, fileMetadata)
 	}
 }
 

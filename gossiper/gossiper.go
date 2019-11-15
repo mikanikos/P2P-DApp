@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,16 +27,16 @@ type Gossiper struct {
 	originLastID       MutexStatus
 	seqID              uint32
 	statusChannels     sync.Map
-	mongeringChannels  sync.Map //MutexDummyChannel
+	mongeringChannels  sync.Map
 	antiEntropyTimeout int
 	routingTable       MutexRoutingTable
 	routeTimer         int
 	myFileChunks       sync.Map
-	mySharedFiles      sync.Map
-	myDownloadedFiles  sync.Map
-	hashChannels       sync.Map
-	filesIndexed       chan *FileMetadata
-	filesDownloaded    chan *FileMetadata
+	//mySharedFiles      sync.Map
+	myFiles         sync.Map
+	hashChannels    sync.Map
+	filesIndexed    chan *FileMetadata
+	filesDownloaded chan *FileMetadata
 }
 
 // NewGossiper function
@@ -75,11 +76,11 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		routingTable:       MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		routeTimer:         rtimer,
 		myFileChunks:       sync.Map{},
-		mySharedFiles:      sync.Map{},
-		myDownloadedFiles:  sync.Map{},
-		hashChannels:       sync.Map{},
-		filesIndexed:       make(chan *FileMetadata, 3),
-		filesDownloaded:    make(chan *FileMetadata, 3),
+		//mySharedFiles:      sync.Map{},
+		myFiles:         sync.Map{},
+		hashChannels:    sync.Map{},
+		filesIndexed:    make(chan *FileMetadata, 3),
+		filesDownloaded: make(chan *FileMetadata, 3),
 	}
 }
 
@@ -109,8 +110,25 @@ func (gossiper *Gossiper) Run() {
 	gossiper.receivePacketsFromPeers()
 }
 
+func (gossiper *Gossiper) processSearchRequest() {
+	// for extPacket := range gossiper.channels["searchRequest"] {
+
+	// 	keywords := extPacket.Packet.SearchRequest.Keywords
+
+	// 	go searchForLocalFiles(extPacket)
+
+	// 	go forwardSearchRequest(extPacket)
+	// }
+}
+
+func (gossiper *Gossiper) processSearchReply() {
+	// for extPacket := range gossiper.channels["searchReply"] {
+
+	// }
+}
+
 func (gossiper *Gossiper) processDataRequest() {
-	for extPacket := range gossiper.channels["request"] {
+	for extPacket := range gossiper.channels["dataRequest"] {
 
 		if debug {
 			fmt.Println("Got data request")
@@ -123,7 +141,7 @@ func (gossiper *Gossiper) processDataRequest() {
 			packetToSend := &GossipPacket{DataReply: &DataReply{Origin: gossiper.name, Destination: extPacket.Packet.DataRequest.Origin, HopLimit: uint32(hopLimit), HashValue: extPacket.Packet.DataRequest.HashValue}}
 
 			// try loading from metafiles
-			fileValue, loaded := gossiper.mySharedFiles.Load(keyHash)
+			fileValue, loaded := gossiper.myFiles.Load(keyHash)
 
 			if loaded {
 
@@ -162,7 +180,7 @@ func (gossiper *Gossiper) processDataRequest() {
 }
 
 func (gossiper *Gossiper) processDataReply() {
-	for extPacket := range gossiper.channels["reply"] {
+	for extPacket := range gossiper.channels["dataReply"] {
 
 		if debug {
 			fmt.Println("Got data reply")
@@ -258,11 +276,21 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 		case "file":
 			go gossiper.indexFile(message.File)
 
-		case "request":
-			requestPacket := &DataRequest{Origin: gossiper.name, Destination: *message.Destination, HashValue: *message.Request, HopLimit: uint32(hopLimit)}
-			packet.Packet = &GossipPacket{DataRequest: requestPacket}
+		case "dataRequest":
+			// requestPacket := &DataRequest{Origin: gossiper.name, HashValue: *message.Request, HopLimit: uint32(hopLimit)}
+			// packet.Packet = &GossipPacket{DataRequest: requestPacket}
+
+			// CHANGE IMPLEMENTATION
 
 			go gossiper.requestFile(*message.File, packet.Packet)
+
+		case "searchRequest":
+
+			keywordsSplitted := strings.Split(*message.Keywords, ",")
+			requestPacket := &SearchRequest{Origin: gossiper.name, Budget: *message.Budget, Keywords: keywordsSplitted}
+			packet.Packet = &GossipPacket{SearchRequest: requestPacket}
+
+			go gossiper.searchFilePeriodically(packet)
 
 		default:
 			if debug {

@@ -12,6 +12,9 @@ import (
 )
 
 func getTypeFromGossip(packet *GossipPacket) string {
+
+	// as stated in the handout, assuming every packet has only one field which is not null
+
 	if packet.Simple != nil {
 		return "simple"
 	}
@@ -27,11 +30,19 @@ func getTypeFromGossip(packet *GossipPacket) string {
 	}
 
 	if packet.DataRequest != nil {
-		return "request"
+		return "dataRequest"
 	}
 
 	if packet.DataReply != nil {
-		return "reply"
+		return "dataReply"
+	}
+
+	if packet.SearchRequest != nil {
+		return "searchRequest"
+	}
+
+	if packet.SearchReply != nil {
+		return "searchReply"
 	}
 
 	return "unknown"
@@ -47,11 +58,15 @@ func (gossiper *Gossiper) getTypeFromMessage(message *helpers.Message) string {
 	}
 
 	if message.File != nil && message.Destination != nil {
-		return "request"
+		return "dataRequest"
 	}
 
 	if message.File != nil {
 		return "file"
+	}
+
+	if message.Keywords != nil && message.Budget != nil {
+		return "searchRequest"
 	}
 
 	return "rumor"
