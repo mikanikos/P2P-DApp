@@ -2,8 +2,11 @@ package gossiper
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
+
+	"github.com/mikanikos/Peerster/helpers"
 )
 
 func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket) {
@@ -63,6 +66,30 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 
 	if extPacket.Packet.SearchRequest.Budget > 0 {
 
+		budget := extPacket.Packet.SearchRequest.Budget
+
+		gossiper.peers.Mutex.RLock()
+		peersLeft := gossiper.peers.Peers
+		gossiper.peers.Mutex.RUnlock()
+
+		numberPeers := len(peersLeft)
+		budgetForEach := budget / uint64(numberPeers)
+		budgetToShare := budget % uint64(numberPeers)
+
+		for budgetToShare != 0 && budgetForEach != 0 {
+
+			peer := gossiper.getRandomPeer(peersLeft)
+			if budgetToShare > 0 {
+				extPacket.Packet.SearchRequest.Budget = budgetForEach + 1
+				budgetToShare = budgetToShare - 1
+			} else {
+				extPacket.Packet.SearchRequest.Budget = budgetForEach
+			}
+
+			peersWithRumor = []*net.UDPAddr{randomPeer}
+			availablePeers := helpers.DifferenceString(peers, peersWithRumor)
+			go gossiper.sendPacket()
+		}
 	}
 
 }
