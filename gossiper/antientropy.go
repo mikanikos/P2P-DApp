@@ -4,9 +4,10 @@ import (
 	"time"
 )
 
-func (gossiper *Gossiper) startAntiEntropy() {
-	if gossiper.antiEntropyTimeout > 0 {
-		timer := time.NewTicker(time.Duration(gossiper.antiEntropyTimeout) * time.Second)
+// StartAntiEntropy with the specified timer
+func (gossiper *Gossiper) StartAntiEntropy(antiEntropyTimeout int) {
+	if antiEntropyTimeout > 0 {
+		timer := time.NewTicker(time.Duration(antiEntropyTimeout) * time.Second)
 		for {
 			select {
 			case <-timer.C:

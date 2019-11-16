@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"sort"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
@@ -49,7 +50,7 @@ func getTypeFromGossip(packet *GossipPacket) string {
 }
 
 func (gossiper *Gossiper) getTypeFromMessage(message *helpers.Message) string {
-	if gossiper.simpleMode {
+	if simpleMode {
 		return "simple"
 	}
 
@@ -89,7 +90,7 @@ func (gossiper *Gossiper) printStatusMessage(extPacket *ExtendedGossipPacket) {
 }
 
 func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket) {
-	if gossiper.simpleMode {
+	if simpleMode {
 		if hw1 {
 			fmt.Println("SIMPLE MESSAGE origin " + extPacket.Packet.Simple.OriginalName + " from " + extPacket.Packet.Simple.RelayPeerAddr + " contents " + extPacket.Packet.Simple.Contents)
 		}
@@ -121,7 +122,6 @@ func (gossiper *Gossiper) printClientMessage(message *helpers.Message) {
 func (gossiper *Gossiper) getRandomPeer(availablePeers []*net.UDPAddr) *net.UDPAddr {
 	indexPeer := rand.Intn(len(availablePeers))
 	return availablePeers[indexPeer]
-
 }
 
 func getChunksFromMetafile(metafile []byte) [][]byte {
@@ -136,23 +136,9 @@ func getChunksFromMetafile(metafile []byte) [][]byte {
 	return hashes
 }
 
-func reconstructFileFromChunks(name string, chunks []byte) {
+// func reconstructFileFromChunks(name string, chunks []byte) {
 
-	wd, err := os.Getwd()
-	helpers.ErrorCheck(err)
-
-	fullPath := wd + downloadFolder + name
-	file, err := os.Create(fullPath)
-	helpers.ErrorCheck(err)
-
-	defer file.Close()
-
-	_, err = file.Write(chunks)
-	helpers.ErrorCheck(err)
-
-	err = file.Sync()
-	helpers.ErrorCheck(err)
-}
+// }
 
 func checkHash(hash []byte, data []byte) bool {
 
@@ -163,6 +149,13 @@ func checkHash(hash []byte, data []byte) bool {
 }
 
 func copyFile(source, target string) {
+
+	wd, err := os.Getwd()
+	helpers.ErrorCheck(err)
+
+	source = wd + downloadFolder + source
+	target = wd + downloadFolder + target
+
 	sourceFile, err := os.Open(source)
 	helpers.ErrorCheck(err)
 	defer sourceFile.Close()
@@ -176,4 +169,16 @@ func copyFile(source, target string) {
 
 	err = targetFile.Close()
 	helpers.ErrorCheck(err)
+}
+
+func sortUint64(slice []uint64) {
+	sort.Slice(slice, func(i, j int) bool { return slice[i] < slice[j] })
+}
+
+func insertToSortUint64Slice(data []uint64, el uint64) []uint64 {
+	index := sort.Search(len(data), func(i int) bool { return data[i] > el })
+	data = append(data, 0)
+	copy(data[index+1:], data[index:])
+	data[index] = el
+	return data
 }

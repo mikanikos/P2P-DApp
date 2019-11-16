@@ -78,8 +78,9 @@ func (webserver *Webserver) postMessageHandler(w http.ResponseWriter, r *http.Re
 	destination := r.PostForm.Get("destination")
 	file := r.PostForm.Get("file")
 	request := r.PostForm.Get("request")
+	keywords := r.PostForm.Get("keywords")
 
-	webserver.Client.SendMessage(message, &destination, &file, &request)
+	webserver.Client.SendMessage(message, &destination, &file, &request, keywords, uint64(2))
 }
 
 func (webserver *Webserver) getNodeHandler(w http.ResponseWriter, r *http.Request) {

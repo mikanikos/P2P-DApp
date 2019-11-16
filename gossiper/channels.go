@@ -10,7 +10,7 @@ type MessageUniqueIdentifier struct {
 	ID     uint32
 }
 
-func initializeChannels(modeTypes []string, simpleMode bool) (channels map[string]chan *ExtendedGossipPacket) {
+func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedGossipPacket) {
 	channels = make(map[string]chan *ExtendedGossipPacket)
 	for _, t := range modeTypes {
 		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {

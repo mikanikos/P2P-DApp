@@ -53,7 +53,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 
 		modeType := getTypeFromGossip(packetFromPeer)
 
-		if (modeType == "simple" && gossiper.simpleMode) || (modeType != "simple" && !gossiper.simpleMode) {
+		if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
 			packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
 			go func(p *ExtendedGossipPacket) {
 				gossiper.channels[modeType] <- p

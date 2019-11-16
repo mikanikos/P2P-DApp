@@ -14,9 +14,10 @@ type MutexRoutingTable struct {
 	Mutex        sync.RWMutex
 }
 
-func (gossiper *Gossiper) startRouteRumormongering() {
+// StartRouteRumormongering with the specified timer
+func (gossiper *Gossiper) StartRouteRumormongering(routeTimer int) {
 
-	if gossiper.routeTimer > 0 {
+	if routeTimer > 0 {
 
 		// DIFFERENT METHOD: BROADCAST START-UP ROUTE RUMOR INSTEAD OF MONGERING IT
 
@@ -29,7 +30,7 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 
 		gossiper.mongerRouteRumor()
 
-		timer := time.NewTicker(time.Duration(gossiper.routeTimer) * time.Second)
+		timer := time.NewTicker(time.Duration(routeTimer) * time.Second)
 		for {
 			select {
 			case <-timer.C:

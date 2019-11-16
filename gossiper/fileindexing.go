@@ -17,6 +17,12 @@ type FileMetadata struct {
 	Size           int
 }
 
+// ChunkOwners struct
+type ChunkOwners struct {
+	Data   *[]byte
+	Owners []string
+}
+
 func initializeDirectories() {
 	wd, err := os.Getwd()
 
@@ -97,4 +103,20 @@ func (gossiper *Gossiper) GetFilesIndexed() []FileMetadata {
 	}
 
 	return files
+}
+
+func (gossiper *Gossiper) storeChunksOwner(destination string, chunkMap []uint64, fileMetadata *FileMetadata) {
+
+	for _, elem := range chunkMap {
+
+		metafile := *fileMetadata.MetaFile
+		chunkHash := metafile[(elem-1)*32 : elem*32]
+
+		value, loaded := gossiper.myFileChunks.LoadOrStore(hex.EncodeToString(chunkHash), &ChunkOwners{})
+		chunkOwner := value.(*ChunkOwners)
+		if !loaded {
+			chunkOwner.Owners = make([]string, 0)
+		}
+		chunkOwner.Owners = append(chunkOwner.Owners, destination)
+	}
 }

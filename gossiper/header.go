@@ -6,9 +6,11 @@ var hw1 = false
 var hw2 = true
 var debug = false
 
+var simpleMode = false
+
 var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply"}
 
-var maxBufferSize = 10000
+var maxBufferSize = 60000
 
 var rumorTimeout = 10
 var latestMessagesBuffer = 30
