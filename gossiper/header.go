@@ -23,6 +23,7 @@ const downloadFolder = "/_Downloads/"
 
 var requestTimeout = 5
 var searchTimeout = 1
+var searchRequestDuplicate = 0.5
 
 var matchThreshold = 2
 var maxBudget = 32

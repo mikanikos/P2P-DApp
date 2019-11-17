@@ -30,10 +30,11 @@ type Gossiper struct {
 	routingTable      MutexRoutingTable
 	myFileChunks      sync.Map
 	//mySharedFiles      sync.Map
-	myFiles         sync.Map
-	hashChannels    sync.Map
-	filesIndexed    chan *FileMetadata
-	filesDownloaded chan *FileMetadata
+	myFiles            sync.Map
+	hashChannels       sync.Map
+	filesIndexed       chan *FileMetadata
+	filesDownloaded    chan *FileMetadata
+	lastSearchRequests MutexSearchResult
 }
 
 // NewGossiper function
@@ -74,10 +75,11 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		routingTable:      MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		myFileChunks:      sync.Map{},
 		//mySharedFiles:      sync.Map{},
-		myFiles:         sync.Map{},
-		hashChannels:    sync.Map{},
-		filesIndexed:    make(chan *FileMetadata, 3),
-		filesDownloaded: make(chan *FileMetadata, 3),
+		myFiles:            sync.Map{},
+		hashChannels:       sync.Map{},
+		filesIndexed:       make(chan *FileMetadata, 3),
+		filesDownloaded:    make(chan *FileMetadata, 3),
+		lastSearchRequests: MutexSearchResult{SearchResults: make(map[string]ExtendedSearchRequest)},
 	}
 }
 
@@ -110,9 +112,14 @@ func (gossiper *Gossiper) Run() {
 func (gossiper *Gossiper) processSearchRequest() {
 	for extPacket := range gossiper.channels["searchRequest"] {
 
-		// TODO: immplement CHECK FOR DUPLICATE REQUEST
+		if !gossiper.isRecentSearchRequest(extPacket.Packet.SearchRequest) {
 
-		go gossiper.sendMatchingLocalFiles(extPacket)
+			go gossiper.sendMatchingLocalFiles(extPacket)
+		} else {
+			if debug {
+				fmt.Println("Too recent request!!!!")
+			}
+		}
 	}
 }
 
@@ -299,7 +306,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 
 		case "searchRequest":
 
-			keywordsSplitted := strings.Split(*message.Keywords, ",")
+			keywordsSplitted := helpers.RemoveDuplicatesFromSlice(strings.Split(*message.Keywords, ","))
 			requestPacket := &SearchRequest{Origin: gossiper.name, Budget: *message.Budget, Keywords: keywordsSplitted}
 			packet.Packet = &GossipPacket{SearchRequest: requestPacket}
 

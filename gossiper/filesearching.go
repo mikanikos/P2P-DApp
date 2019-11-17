@@ -4,11 +4,49 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
+
+// ExtendedSearchRequest struct
+type ExtendedSearchRequest struct {
+	Request     *SearchRequest
+	ArrivalTime time.Time
+}
+
+// MutexSearchResult struct
+type MutexSearchResult struct {
+	SearchResults map[string]ExtendedSearchRequest
+	Mutex         sync.RWMutex
+}
+
+func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bool {
+
+	sort.Strings(searchRequest.Keywords)
+	identifier := searchRequest.Origin + strings.Join(searchRequest.Keywords, "")
+	gossiper.lastSearchRequests.Mutex.RLock()
+	stored := gossiper.lastSearchRequests.SearchResults[identifier]
+	gossiper.lastSearchRequests.Mutex.RUnlock()
+
+	if stored.ArrivalTime.IsZero() || stored.ArrivalTime.Add(500*time.Millisecond).Before(time.Now()) {
+		gossiper.lastSearchRequests.Mutex.Lock()
+		defer gossiper.lastSearchRequests.Mutex.Unlock()
+
+		if gossiper.lastSearchRequests.SearchResults[identifier].ArrivalTime.IsZero() {
+			gossiper.lastSearchRequests.SearchResults[identifier] = ExtendedSearchRequest{ArrivalTime: time.Now(), Request: searchRequest}
+		} else {
+			last := gossiper.lastSearchRequests.SearchResults[identifier]
+			last.ArrivalTime = time.Now()
+			gossiper.lastSearchRequests.SearchResults[identifier] = last
+		}
+		return false
+	}
+	return true
+}
 
 func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket) {
 
@@ -16,7 +54,6 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 		fmt.Println("Got search request")
 	}
 
-	//budget := extPacket.Packet.SearchRequest.Budget
 	keywords := extPacket.Packet.SearchRequest.Keywords
 
 	gossiper.broadcastToPeers(extPacket)
@@ -27,7 +64,7 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 		select {
 		case <-timer.C:
 
-			if gossiper.getMatchesForKeywords(keywords) >= matchThreshold {
+			if gossiper.checkEnoughMatches(keywords) {
 				timer.Stop()
 				if hw3 {
 					fmt.Println("SEARCH FINISHED")
@@ -37,6 +74,11 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 
 			if extPacket.Packet.SearchRequest.Budget >= uint64(maxBudget) {
 				timer.Stop()
+
+				if debug {
+					fmt.Println("SEARCH TIMEOUT")
+				}
+
 				return
 			}
 
@@ -52,9 +94,9 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 
 }
 
-func (gossiper *Gossiper) getMatchesForKeywords(keywords []string) int {
+func (gossiper *Gossiper) checkEnoughMatches(keywords []string) bool {
 
-	matches := 0
+	matches := make([]string, 0)
 
 	for _, k := range keywords {
 
@@ -85,18 +127,24 @@ func (gossiper *Gossiper) getMatchesForKeywords(keywords []string) int {
 				}
 
 				if knowAllTheChunks {
-					matches = matches + 1
+					matches = append(matches, fileMetadata.FileSearchData.FileName)
+					matches = helpers.RemoveDuplicatesFromSlice(matches)
 				}
 			}
+
+			if len(matches) == matchThreshold {
+				return false
+			}
+
 			return true
 		})
+
+		if len(matches) == matchThreshold {
+			return true
+		}
 	}
 
-	if debug {
-		fmt.Println("Found " + fmt.Sprint(matches) + " matches")
-	}
-
-	return matches
+	return false
 }
 
 func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket) {

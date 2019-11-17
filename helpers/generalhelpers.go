@@ -48,3 +48,17 @@ func GetArrayStringFromAddresses(peers []*net.UDPAddr) []string {
 	}
 	return list
 }
+
+// RemoveDuplicatesFromSlice utility
+func RemoveDuplicatesFromSlice(slice []string) []string {
+	found := make(map[string]bool)
+	for i := range slice {
+		found[slice[i]] = true
+	}
+
+	result := []string{}
+	for key := range found {
+		result = append(result, key)
+	}
+	return result
+}
