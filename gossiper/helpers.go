@@ -55,19 +55,19 @@ func (gossiper *Gossiper) getTypeFromMessage(message *helpers.Message) string {
 		return "simple"
 	}
 
-	if message.Destination != nil && message.Text != "" {
+	if message.Destination != nil && message.Text != "" && message.File == nil && message.Request == nil && message.Keywords == nil {
 		return "private"
 	}
 
-	if message.File != nil && message.Request != nil {
+	if message.Text == "" && message.File != nil && message.Request != nil && message.Keywords == nil {
 		return "dataRequest"
 	}
 
-	if message.File != nil {
+	if message.Destination == nil && message.Text == "" && message.File != nil && message.Request == nil && message.Keywords == nil {
 		return "file"
 	}
 
-	if message.Keywords != nil && message.Budget != nil {
+	if message.Destination == nil && message.Text == "" && message.File == nil && message.Request == nil && message.Keywords != nil {
 		return "searchRequest"
 	}
 

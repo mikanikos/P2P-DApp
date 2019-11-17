@@ -17,6 +17,13 @@ type FileMetadata struct {
 	Size           int
 }
 
+// FileGUI struct
+type FileGUI struct {
+	Name     string
+	MetaHash string
+	Size     int
+}
+
 // ChunkOwners struct
 type ChunkOwners struct {
 	Data   *[]byte
@@ -86,7 +93,7 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	gossiper.myFiles.Store(keyHash, fileMetadata)
 
 	go func(f *FileMetadata) {
-		gossiper.filesIndexed <- f
+		gossiper.filesIndexed <- &FileGUI{Name: f.FileSearchData.FileName, MetaHash: hex.EncodeToString(f.FileSearchData.MetafileHash), Size: f.Size}
 	}(fileMetadata)
 
 	if debug {
@@ -96,11 +103,11 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 }
 
 // GetFilesIndexed for GUI
-func (gossiper *Gossiper) GetFilesIndexed() []FileMetadata {
+func (gossiper *Gossiper) GetFilesIndexed() []FileGUI {
 
 	bufferLength := len(gossiper.filesIndexed)
 
-	files := make([]FileMetadata, bufferLength)
+	files := make([]FileGUI, bufferLength)
 	for i := 0; i < bufferLength; i++ {
 		file := <-gossiper.filesIndexed
 		files[i] = *file

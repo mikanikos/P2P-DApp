@@ -12,15 +12,9 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-// ExtendedSearchRequest struct
-type ExtendedSearchRequest struct {
-	Request     *SearchRequest
-	ArrivalTime time.Time
-}
-
 // MutexSearchResult struct
 type MutexSearchResult struct {
-	SearchResults map[string]ExtendedSearchRequest
+	SearchResults map[string]time.Time
 	Mutex         sync.RWMutex
 }
 
@@ -32,15 +26,15 @@ func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bo
 	stored := gossiper.lastSearchRequests.SearchResults[identifier]
 	gossiper.lastSearchRequests.Mutex.RUnlock()
 
-	if stored.ArrivalTime.IsZero() || stored.ArrivalTime.Add(500*time.Millisecond).Before(time.Now()) {
+	if stored.IsZero() || stored.Add(500*time.Millisecond).Before(time.Now()) {
 		gossiper.lastSearchRequests.Mutex.Lock()
 		defer gossiper.lastSearchRequests.Mutex.Unlock()
 
-		if gossiper.lastSearchRequests.SearchResults[identifier].ArrivalTime.IsZero() {
-			gossiper.lastSearchRequests.SearchResults[identifier] = ExtendedSearchRequest{ArrivalTime: time.Now(), Request: searchRequest}
+		if gossiper.lastSearchRequests.SearchResults[identifier].IsZero() {
+			gossiper.lastSearchRequests.SearchResults[identifier] = time.Now()
 		} else {
 			last := gossiper.lastSearchRequests.SearchResults[identifier]
-			last.ArrivalTime = time.Now()
+			last = time.Now()
 			gossiper.lastSearchRequests.SearchResults[identifier] = last
 		}
 		return false

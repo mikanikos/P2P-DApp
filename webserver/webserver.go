@@ -40,6 +40,7 @@ func (webserver *Webserver) Run(portGUI string) {
 	r.HandleFunc("/origin", webserver.getOriginHandler).Methods("GET")
 	r.HandleFunc("/file", webserver.getFileHandler).Methods("GET")
 	r.HandleFunc("/download", webserver.getDownloadHandler).Methods("GET")
+	r.HandleFunc("/search", webserver.getSearchHandler).Methods("GET")
 
 	//r.Handle("/", http.FileServer(http.Dir("./webserver")))
 	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("./webserver"))))
@@ -53,6 +54,11 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(bytes)
+}
+
+func (webserver *Webserver) getSearchHandler(w http.ResponseWriter, r *http.Request) {
+	var payload = webserver.Gossiper.GetFilesSearched()
+	writeJSON(w, payload)
 }
 
 func (webserver *Webserver) getDownloadHandler(w http.ResponseWriter, r *http.Request) {

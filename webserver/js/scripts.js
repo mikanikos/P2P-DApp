@@ -67,6 +67,21 @@ $(document).ready(function () {
         }
     });
 
+    $('#buttonSearchFile').click(function (e) {
+        var keywordsValue = prompt("Enter the keywords of the file you wanna search on the other nodes");
+        if (keywordsValue != null && keywordsValue != "") {
+            var budgetValue = prompt("Enter the initial budget for the search");
+            if (budgetValue != null && budgetValue != "") {
+
+                $.ajax({
+                    url: '/message',
+                    type: 'post',
+                    data: { text: "", keywords: keywordsValue, budget: budgetValue },
+                });
+            }
+        }
+    });
+
     $("#fileInput").css('opacity', '0');
 
     $("#buttonFile").click(function (e) {
@@ -155,6 +170,25 @@ $(document).ready(function () {
             });
         }
         updateDownloadBox()
+
+        function updateSearchBox() {
+            $.get("/search", function (data) {
+                var jsonData = JSON.parse(data);
+                var list = document.getElementById('searchList');
+
+                while (list.hasChildNodes()) {
+                    list.removeChild(list.firstChild)
+                }
+
+                for (el of jsonData) {
+                    var entry = document.createElement('li');
+                    var text = el["Name"] + " - " + el["MetaHash"]
+                    entry.appendChild(document.createTextNode(text));
+                    list.appendChild(entry);
+                }
+            });
+        }
+        updateSearchBox()
 
         $.get("/message", function (data) {
             var jsonData = JSON.parse(data);

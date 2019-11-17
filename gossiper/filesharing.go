@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
@@ -44,6 +43,7 @@ func (gossiper *Gossiper) downloadMetafile(destination string, fileMetadata *Fil
 				fmt.Println("ERROR: metafile doesn't correspond to hash")
 			} else {
 				fileMetadata.MetaFile = &replyPacket.Data
+				fileMetadata.FileSearchData.ChunkCount = uint64(len(replyPacket.Data) / 32)
 			}
 
 			if debug {
@@ -60,15 +60,23 @@ func (gossiper *Gossiper) downloadMetafile(destination string, fileMetadata *Fil
 	}
 }
 
-func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte) {
+func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destination string) {
 
 	value, loaded := gossiper.myFiles.Load(hex.EncodeToString(metaHash))
 
 	if !loaded {
-		if debug {
-			fmt.Println("ERROR: file not found")
+
+		if destination == "" {
+			if debug {
+				fmt.Println("ERROR: file not found")
+			}
+			return
 		}
-		return
+
+		fileData := &SearchResult{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0)}
+		value, _ = gossiper.myFiles.LoadOrStore(hex.EncodeToString(metaHash), &FileMetadata{FileSearchData: fileData})
+		fileMetadata := value.(*FileMetadata)
+		gossiper.downloadMetafile(destination, fileMetadata)
 	}
 
 	fileMetadata := value.(*FileMetadata)
@@ -88,27 +96,15 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte) {
 
 	metafile := *fileMetadata.MetaFile
 
-	var wg sync.WaitGroup
-	wg.Add(int(fileMetadata.FileSearchData.ChunkCount))
-
 	for i := uint64(0); i < fileMetadata.FileSearchData.ChunkCount; i++ {
 
 		hashChunk := metafile[i*32 : (i+1)*32]
 
-		value, loaded := gossiper.myFileChunks.Load(hex.EncodeToString(hashChunk))
-		if !loaded {
-			if debug {
-				fmt.Println("ERROR: no chunk location found")
-			}
-			return
-		}
+		chunkLoaded, _ := gossiper.myFileChunks.LoadOrStore(hex.EncodeToString(hashChunk), &ChunkOwners{})
+		chunkOwner := chunkLoaded.(*ChunkOwners)
 
-		chunkOwner := value.(*ChunkOwners)
-
-		go gossiper.downloadChunk(fileMetadata, chunkOwner, hashChunk, &wg, uint64(i+1))
+		gossiper.downloadChunk(fileMetadata, chunkOwner, hashChunk, uint64(i+1), destination)
 	}
-
-	wg.Wait()
 
 	if debug {
 		fmt.Println("Got all chunks")
@@ -132,16 +128,20 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte) {
 		}
 
 		go func(f *FileMetadata) {
-			gossiper.filesDownloaded <- f
+			gossiper.filesDownloaded <- &FileGUI{Name: f.FileSearchData.FileName, MetaHash: hex.EncodeToString(f.FileSearchData.MetafileHash), Size: f.Size}
+
 		}(fileMetadata)
 	}
 }
 
-func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *ChunkOwners, hashChunk []byte, wg *sync.WaitGroup, seqNum uint64) {
+func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *ChunkOwners, hashChunk []byte, seqNum uint64, destination string) {
 
 	hashChunkEnc := hex.EncodeToString(hashChunk)
 	peersWithChunk := chunkOwner.Owners
-	defer wg.Done()
+
+	if destination != "" {
+		peersWithChunk = append(peersWithChunk, destination)
+	}
 
 	// it is possible to check if the chunk id is present in the chunkMap of the fileMetadata (maybe better?) but this is easier to do
 	for chunkOwner.Data == nil && len(peersWithChunk) != 0 {
@@ -182,6 +182,9 @@ func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *
 				gossiper.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
 				if len(replyPacket.Data) != 0 && checkHash(replyPacket.HashValue, replyPacket.Data) {
 					chunkOwner.Data = &replyPacket.Data
+					if destination != "" {
+						chunkOwner.Owners = helpers.RemoveDuplicatesFromSlice(append(chunkOwner.Owners, destination))
+					}
 					fileMetadata.FileSearchData.ChunkMap = insertToSortUint64Slice(fileMetadata.FileSearchData.ChunkMap, seqNum)
 				}
 				keepWaiting = false
@@ -241,13 +244,27 @@ func (gossiper *Gossiper) reconstructFileFromChunks(fileMetadata *FileMetadata) 
 }
 
 // GetFilesDownloaded for GUI
-func (gossiper *Gossiper) GetFilesDownloaded() []FileMetadata {
+func (gossiper *Gossiper) GetFilesDownloaded() []FileGUI {
 
 	bufferLength := len(gossiper.filesDownloaded)
 
-	files := make([]FileMetadata, bufferLength)
+	files := make([]FileGUI, bufferLength)
 	for i := 0; i < bufferLength; i++ {
 		file := <-gossiper.filesDownloaded
+		files[i] = *file
+	}
+
+	return files
+}
+
+// GetFilesSearched for GUI
+func (gossiper *Gossiper) GetFilesSearched() []FileGUI {
+
+	bufferLength := len(gossiper.filesSearched)
+
+	files := make([]FileGUI, bufferLength)
+	for i := 0; i < bufferLength; i++ {
+		file := <-gossiper.filesSearched
 		files[i] = *file
 	}
 

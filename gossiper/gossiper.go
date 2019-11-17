@@ -32,8 +32,9 @@ type Gossiper struct {
 	//mySharedFiles      sync.Map
 	myFiles            sync.Map
 	hashChannels       sync.Map
-	filesIndexed       chan *FileMetadata
-	filesDownloaded    chan *FileMetadata
+	filesIndexed       chan *FileGUI
+	filesDownloaded    chan *FileGUI
+	filesSearched      chan *FileGUI
 	lastSearchRequests MutexSearchResult
 }
 
@@ -77,9 +78,10 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		//mySharedFiles:      sync.Map{},
 		myFiles:            sync.Map{},
 		hashChannels:       sync.Map{},
-		filesIndexed:       make(chan *FileMetadata, 3),
-		filesDownloaded:    make(chan *FileMetadata, 3),
-		lastSearchRequests: MutexSearchResult{SearchResults: make(map[string]ExtendedSearchRequest)},
+		filesIndexed:       make(chan *FileGUI, 3),
+		filesDownloaded:    make(chan *FileGUI, 3),
+		filesSearched:      make(chan *FileGUI, 30),
+		lastSearchRequests: MutexSearchResult{SearchResults: make(map[string]time.Time)},
 	}
 }
 
@@ -145,6 +147,11 @@ func (gossiper *Gossiper) processSearchReply() {
 				}
 
 				gossiper.storeChunksOwner(extPacket.Packet.SearchReply.Origin, res.ChunkMap, fileMetadata)
+
+				go func(f *FileMetadata) {
+					gossiper.filesIndexed <- &FileGUI{Name: f.FileSearchData.FileName, MetaHash: hex.EncodeToString(f.FileSearchData.MetafileHash)}
+				}(fileMetadata)
+
 			}
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet)
@@ -301,8 +308,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			go gossiper.indexFile(message.File)
 
 		case "dataRequest":
-
-			go gossiper.requestFile(*message.File, *message.Request)
+			go gossiper.requestFile(*message.File, *message.Request, *message.Destination)
 
 		case "searchRequest":
 

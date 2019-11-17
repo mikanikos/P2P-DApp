@@ -55,7 +55,7 @@ func getInputType(msg, dest, file, request, keywords string, budget uint64) stri
 		return "file"
 	}
 
-	if msg == "" && dest == "" && file != "" && request != "" && keywords == "" {
+	if msg == "" && file != "" && request != "" && keywords == "" {
 		return "request"
 	}
 
@@ -91,6 +91,7 @@ func convertInputToMessage(msg, dest, file, request, keywords string, budget uin
 		}
 		packet.Request = &decodeRequest
 		packet.File = &file
+		packet.Destination = &dest
 
 	case "search":
 		packet.Keywords = &keywords
