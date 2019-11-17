@@ -119,24 +119,28 @@ func (gossiper *Gossiper) processSearchRequest() {
 func (gossiper *Gossiper) processSearchReply() {
 	for extPacket := range gossiper.channels["searchReply"] {
 
-		searchResults := extPacket.Packet.SearchReply.Results
+		if extPacket.Packet.SearchReply.Destination == gossiper.name {
 
-		for _, res := range searchResults {
+			searchResults := extPacket.Packet.SearchReply.Results
 
-			fmt.Print("FOUND match " + res.FileName + " at " + extPacket.Packet.SearchReply.Origin + " metafile=" + hex.EncodeToString(res.MetafileHash) + " chunks=")
-			fmt.Println(res.ChunkMap)
+			for _, res := range searchResults {
 
-			fileData := &SearchResult{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)}
-			value, loaded := gossiper.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileSearchData: fileData})
-			fileMetadata := value.(*FileMetadata)
+				printSearchMatchMessage(extPacket.Packet.SearchReply.Origin, res)
 
-			// CHECK IF FILE WAS LOADED, I.E. ALREADY PRESENT FROM PREVIOUS SEARCH OR PREVIOUS DOWNLOAD
+				fileData := &SearchResult{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)}
+				value, loaded := gossiper.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileSearchData: fileData})
+				fileMetadata := value.(*FileMetadata)
 
-			if !loaded {
-				gossiper.downloadMetafile(extPacket.Packet.SearchReply.Destination, fileMetadata)
+				// WHAT TO DO IF FILE WAS LOADED, I.E. ALREADY PRESENT FROM PREVIOUS SEARCH OR PREVIOUS DOWNLOAD? PROBABLY NOTHING...
+
+				if !loaded {
+					gossiper.downloadMetafile(extPacket.Packet.SearchReply.Origin, fileMetadata)
+				}
+
+				gossiper.storeChunksOwner(extPacket.Packet.SearchReply.Origin, res.ChunkMap, fileMetadata)
 			}
-
-			gossiper.storeChunksOwner(extPacket.Packet.SearchReply.Destination, res.ChunkMap, fileMetadata)
+		} else {
+			go gossiper.forwardPrivateMessage(extPacket.Packet)
 		}
 
 	}

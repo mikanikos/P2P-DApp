@@ -68,13 +68,17 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 		gossiper.myFileChunks.Store(hex.EncodeToString(hash), &partBuffer)
 		copy(hashes[i*32:(i+1)*32], hash)
 
-		chunkMap = append(chunkMap, i+1)
+		chunkMap[i] = i + 1
 	}
 
 	metahash32 := sha256.Sum256(hashes)
 
 	metahash := metahash32[:]
 	keyHash := hex.EncodeToString(metahash)
+
+	if debug {
+		fmt.Println(chunkMap)
+	}
 
 	searchResult := &SearchResult{FileName: *fileName, MetafileHash: metahash, ChunkMap: chunkMap, ChunkCount: numFileChunks}
 	fileMetadata := &FileMetadata{FileSearchData: searchResult, MetaFile: &hashes, Size: int(fileSize)}
@@ -107,9 +111,10 @@ func (gossiper *Gossiper) GetFilesIndexed() []FileMetadata {
 
 func (gossiper *Gossiper) storeChunksOwner(destination string, chunkMap []uint64, fileMetadata *FileMetadata) {
 
+	metafile := *fileMetadata.MetaFile
+
 	for _, elem := range chunkMap {
 
-		metafile := *fileMetadata.MetaFile
 		chunkHash := metafile[(elem-1)*32 : elem*32]
 
 		value, loaded := gossiper.myFileChunks.LoadOrStore(hex.EncodeToString(chunkHash), &ChunkOwners{})

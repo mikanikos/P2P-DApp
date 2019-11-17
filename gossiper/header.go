@@ -4,7 +4,8 @@ import "net"
 
 var hw1 = false
 var hw2 = true
-var debug = false
+var hw3 = true
+var debug = true
 
 var simpleMode = false
 

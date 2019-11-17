@@ -33,8 +33,10 @@ func main() {
 		go webserver.Run(*guiPort)
 	}
 
-	go gossiper.StartAntiEntropy(*antiEntropy)
-	go gossiper.StartRouteRumormongering(*rtimer)
+	if !*simple {
+		go gossiper.StartAntiEntropy(*antiEntropy)
+		go gossiper.StartRouteRumormongering(*rtimer)
+	}
 
 	gossiper.Run()
 }

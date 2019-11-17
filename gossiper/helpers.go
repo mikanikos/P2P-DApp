@@ -2,6 +2,7 @@ package gossiper
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -58,7 +59,7 @@ func (gossiper *Gossiper) getTypeFromMessage(message *helpers.Message) string {
 		return "private"
 	}
 
-	if message.File != nil && message.Destination != nil {
+	if message.File != nil && message.Request != nil {
 		return "dataRequest"
 	}
 
@@ -86,6 +87,16 @@ func (gossiper *Gossiper) printStatusMessage(extPacket *ExtendedGossipPacket) {
 	if hw1 {
 		fmt.Println(message[:len(message)-1])
 		gossiper.printPeers()
+	}
+}
+
+func printSearchMatchMessage(origin string, res *SearchResult) {
+	message := "FOUND match " + res.FileName + " at " + origin + " metafile=" + hex.EncodeToString(res.MetafileHash) + " chunks="
+	for _, elem := range res.ChunkMap {
+		message = message + fmt.Sprint(elem) + ","
+	}
+	if hw3 {
+		fmt.Println(message[:len(message)-1])
 	}
 }
 

@@ -78,7 +78,10 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte) {
 			fmt.Println("Already have this file")
 		}
 		if fileMetadata.FileSearchData.FileName != fileName {
-			copyFile(fileMetadata.FileSearchData.FileName, fileMetadata.FileSearchData.FileName)
+			if debug {
+				fmt.Println("Same file content but different name, just copy it")
+			}
+			copyFile(fileMetadata.FileSearchData.FileName, fileName)
 		}
 		return
 	}
@@ -167,7 +170,8 @@ func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *
 		go gossiper.forwardPrivateMessage(newPacket)
 
 		timer := time.NewTicker(time.Duration(requestTimeout) * time.Second)
-		for {
+		keepWaiting := true
+		for keepWaiting {
 			select {
 			case replyPacket := <-chunkIn:
 				if debug {
@@ -178,9 +182,9 @@ func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *
 				gossiper.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
 				if len(replyPacket.Data) != 0 && checkHash(replyPacket.HashValue, replyPacket.Data) {
 					chunkOwner.Data = &replyPacket.Data
-					fileMetadata.FileSearchData.ChunkMap = insertToSortUint64Slice(fileMetadata.FileSearchData.ChunkMap, 3)
+					fileMetadata.FileSearchData.ChunkMap = insertToSortUint64Slice(fileMetadata.FileSearchData.ChunkMap, seqNum)
 				}
-				break
+				keepWaiting = false
 
 			case <-timer.C:
 				if hw2 {
@@ -202,7 +206,9 @@ func (gossiper *Gossiper) reconstructFileFromChunks(fileMetadata *FileMetadata) 
 		value, loaded := gossiper.myFileChunks.Load(hex.EncodeToString(hChunk))
 
 		if !loaded {
-			fmt.Println("ERROR: no chunk during reconstruction")
+			if debug {
+				fmt.Println("ERROR: no chunk during reconstruction")
+			}
 			return
 		}
 
@@ -227,7 +233,7 @@ func (gossiper *Gossiper) reconstructFileFromChunks(fileMetadata *FileMetadata) 
 
 	defer file.Close()
 
-	_, err = file.Write(chunksData)
+	_, err = file.Write(fileReconstructed)
 	helpers.ErrorCheck(err)
 
 	err = file.Sync()
