@@ -49,6 +49,17 @@ $(document).ready(function () {
         }
     });
 
+    $('#searchList').dblclick(function (e) {
+        var fileToDownload = e.target.textContent;
+        var result = fileToDownload.split(" ");
+        $.ajax({
+            url: '/message',
+            type: 'post',
+            data: { file: result[0], request: result[1] },
+        });
+
+    });
+
     $('#buttonDownloadFile').click(function (e) {
         var requestHex = prompt("Enter the hexadecimal metahash of the file to download");
         if (requestHex != null && requestHex != "") {
@@ -149,6 +160,7 @@ $(document).ready(function () {
                 for (el of jsonData) {
                     var entry = document.createElement('li');
                     var text = el["Name"] + ", " + el["Size"] + " KB " + el["MetaHash"]
+                    entry.style.margin = "10px"
                     entry.appendChild(document.createTextNode(text));
                     list.appendChild(entry);
                 }
@@ -164,6 +176,7 @@ $(document).ready(function () {
                 for (el of jsonData) {
                     var entry = document.createElement('li');
                     var text = el["Name"] + ", " + el["Size"] + " KB " + el["MetaHash"]
+                    entry.style.margin = "10px"
                     entry.appendChild(document.createTextNode(text));
                     list.appendChild(entry);
                 }
@@ -182,7 +195,8 @@ $(document).ready(function () {
 
                 for (el of jsonData) {
                     var entry = document.createElement('li');
-                    var text = el["Name"] + " - " + el["MetaHash"]
+                    var text = el["Name"] + " " + el["MetaHash"]
+                    entry.style.margin = "10px"
                     entry.appendChild(document.createTextNode(text));
                     list.appendChild(entry);
                 }

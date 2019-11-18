@@ -256,17 +256,3 @@ func (gossiper *Gossiper) GetFilesDownloaded() []FileGUI {
 
 	return files
 }
-
-// GetFilesSearched for GUI
-func (gossiper *Gossiper) GetFilesSearched() []FileGUI {
-
-	bufferLength := len(gossiper.filesSearched)
-
-	files := make([]FileGUI, bufferLength)
-	for i := 0; i < bufferLength; i++ {
-		file := <-gossiper.filesSearched
-		files[i] = *file
-	}
-
-	return files
-}

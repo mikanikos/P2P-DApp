@@ -26,7 +26,7 @@ func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bo
 	stored := gossiper.lastSearchRequests.SearchResults[identifier]
 	gossiper.lastSearchRequests.Mutex.RUnlock()
 
-	if stored.IsZero() || stored.Add(500*time.Millisecond).Before(time.Now()) {
+	if stored.IsZero() || stored.Add(searchRequestDuplicate).Before(time.Now()) {
 		gossiper.lastSearchRequests.Mutex.Lock()
 		defer gossiper.lastSearchRequests.Mutex.Unlock()
 
@@ -213,4 +213,9 @@ func (gossiper *Gossiper) forwardRequestWithBudget(extPacket *ExtendedGossipPack
 		}
 	}
 
+}
+
+// GetFilesSearched for GUI
+func (gossiper *Gossiper) GetFilesSearched() []FileGUI {
+	return gossiper.filesSearched
 }

@@ -34,7 +34,7 @@ type Gossiper struct {
 	hashChannels       sync.Map
 	filesIndexed       chan *FileGUI
 	filesDownloaded    chan *FileGUI
-	filesSearched      chan *FileGUI
+	filesSearched      []FileGUI
 	lastSearchRequests MutexSearchResult
 }
 
@@ -80,7 +80,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		hashChannels:       sync.Map{},
 		filesIndexed:       make(chan *FileGUI, 3),
 		filesDownloaded:    make(chan *FileGUI, 3),
-		filesSearched:      make(chan *FileGUI, 30),
+		filesSearched:      make([]FileGUI, 0),
 		lastSearchRequests: MutexSearchResult{SearchResults: make(map[string]time.Time)},
 	}
 }
@@ -148,9 +148,23 @@ func (gossiper *Gossiper) processSearchReply() {
 
 				gossiper.storeChunksOwner(extPacket.Packet.SearchReply.Origin, res.ChunkMap, fileMetadata)
 
-				go func(f *FileMetadata) {
-					gossiper.filesIndexed <- &FileGUI{Name: f.FileSearchData.FileName, MetaHash: hex.EncodeToString(f.FileSearchData.MetafileHash)}
-				}(fileMetadata)
+				element := FileGUI{Name: fileMetadata.FileSearchData.FileName, MetaHash: hex.EncodeToString(fileMetadata.FileSearchData.MetafileHash)}
+
+				contains := false
+				for _, elem := range gossiper.filesSearched {
+					if elem.Name == element.Name && elem.MetaHash == element.MetaHash {
+						contains = true
+						break
+					}
+				}
+
+				if !contains {
+					gossiper.filesSearched = append(gossiper.filesSearched, element)
+				}
+
+				// go func(f *FileMetadata) {
+				// 	gossiper.filesSearched <- &FileGUI{Name: f.FileSearchData.FileName, MetaHash: hex.EncodeToString(f.FileSearchData.MetafileHash)}
+				// }(fileMetadata)
 
 			}
 		} else {

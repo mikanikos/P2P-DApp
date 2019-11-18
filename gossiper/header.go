@@ -1,6 +1,9 @@
 package gossiper
 
-import "net"
+import (
+	"net"
+	"time"
+)
 
 var hw1 = true
 var hw2 = true
@@ -23,7 +26,7 @@ const downloadFolder = "/_Downloads/"
 
 var requestTimeout = 5
 var searchTimeout = 1
-var searchRequestDuplicate = 0.5
+var searchRequestDuplicate = 500 * time.Millisecond
 
 var matchThreshold = 2
 var maxBudget = 32
