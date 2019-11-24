@@ -81,15 +81,16 @@ $(document).ready(function () {
     $('#buttonSearchFile').click(function (e) {
         var keywordsValue = prompt("Enter the keywords of the file you wanna search on the other nodes");
         if (keywordsValue != null && keywordsValue != "") {
-            var budgetValue = prompt("Enter the initial budget for the search");
-            if (budgetValue != null && budgetValue != "") {
-
-                $.ajax({
-                    url: '/message',
-                    type: 'post',
-                    data: { text: "", keywords: keywordsValue, budget: budgetValue },
-                });
+            var budgetValue = prompt("Enter the initial budget for the search (leave empty for default 2 with doubling each second)");
+            if (budgetValue == null || budgetValue == "") {
+                budgetValue = "0"
             }
+
+            $.ajax({
+                url: '/message',
+                type: 'post',
+                data: { text: "", keywords: keywordsValue, budget: budgetValue },
+            });
         }
     });
 

@@ -14,7 +14,7 @@ func main() {
 	file := flag.String("file", "", "file to be indexed by the gossiper")
 	request := flag.String("request", "", "request a chunk or metafile of this hash")
 	keywords := flag.String("keywords", "", "keywords (comma-separated) to search for files from other peers")
-	budget := flag.Uint64("budget", 2, "budget used to search for files in nearby nodes")
+	budget := flag.Uint64("budget", 0, "budget used to search for files in nearby nodes")
 
 	flag.Parse()
 

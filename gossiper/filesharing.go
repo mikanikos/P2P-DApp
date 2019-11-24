@@ -75,6 +75,7 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 
 		fileData := &SearchResult{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0)}
 		value, _ = gossiper.myFiles.LoadOrStore(hex.EncodeToString(metaHash), &FileMetadata{FileSearchData: fileData})
+		gossiper.filesList.LoadOrStore(hex.EncodeToString(metaHash)+fileName, &FileIDPair{FileName: fileName, EncMetaHash: hex.EncodeToString(metaHash)})
 		fileMetadata := value.(*FileMetadata)
 		gossiper.downloadMetafile(destination, fileMetadata)
 	}

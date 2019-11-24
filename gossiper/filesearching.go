@@ -42,13 +42,23 @@ func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bo
 	return true
 }
 
-func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket) {
+func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket, increment bool) {
 
 	if debug {
 		fmt.Println("Got search request")
 	}
 
 	keywords := extPacket.Packet.SearchRequest.Keywords
+	budget := extPacket.Packet.SearchRequest.Budget
+
+	extPacket.Packet.SearchRequest.Budget = budget - 1
+
+	if budget <= 0 {
+		if debug {
+			fmt.Println("Budget too low")
+		}
+		return
+	}
 
 	gossiper.broadcastToPeers(extPacket)
 
@@ -58,7 +68,17 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 		select {
 		case <-timer.C:
 
-			if gossiper.checkEnoughMatches(keywords) {
+			if extPacket.Packet.SearchRequest.Budget >= uint64(maxBudget) {
+				timer.Stop()
+
+				if debug {
+					fmt.Println("Search timeout")
+				}
+
+				return
+			}
+
+			if gossiper.searchForFilesNotDownloaded(keywords) >= matchThreshold {
 				timer.Stop()
 				if hw3 {
 					fmt.Println("SEARCH FINISHED")
@@ -66,20 +86,14 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 				return
 			}
 
-			if extPacket.Packet.SearchRequest.Budget >= uint64(maxBudget) {
-				timer.Stop()
-
-				if debug {
-					fmt.Println("SEARCH TIMEOUT")
-				}
-
-				return
+			if increment {
+				extPacket.Packet.SearchRequest.Budget = budget * 2
+				budget = extPacket.Packet.SearchRequest.Budget
 			}
-
-			extPacket.Packet.SearchRequest.Budget = extPacket.Packet.SearchRequest.Budget * 2
 			if debug {
 				fmt.Println("Sending request")
 			}
+			extPacket.Packet.SearchRequest.Budget = budget - 1
 			gossiper.broadcastToPeers(extPacket)
 
 		}
@@ -88,7 +102,7 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 
 }
 
-func (gossiper *Gossiper) checkEnoughMatches(keywords []string) bool {
+func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 
 	matches := make([]string, 0)
 
@@ -98,47 +112,56 @@ func (gossiper *Gossiper) checkEnoughMatches(keywords []string) bool {
 			fmt.Println("Looking for " + k)
 		}
 
-		gossiper.myFiles.Range(func(key interface{}, value interface{}) bool {
-			fileMetadata := value.(*FileMetadata)
+		gossiper.filesList.Range(func(key interface{}, value interface{}) bool {
+			id := value.(*FileIDPair)
 
-			if strings.Contains(fileMetadata.FileSearchData.FileName, k) && fileMetadata.Size == 0 {
+			if strings.Contains(id.FileName, k) {
+
+				valueFile, loaded := gossiper.myFiles.Load(id.EncMetaHash)
+
+				if !loaded {
+					if debug {
+						fmt.Println("Error: file not found when searching for search results")
+					}
+					return false
+				}
+
+				fileMetadata := valueFile.(*FileMetadata)
+
 				metaFile := *fileMetadata.MetaFile
-				knowAllTheChunks := true
 
-				for i := uint64(0); i < fileMetadata.FileSearchData.ChunkCount; i++ {
-					hash := metaFile[i*32 : (i+1)*32]
-					value, loaded := gossiper.myFileChunks.Load(hex.EncodeToString(hash))
-					if loaded {
-						chunkOwnerEntry := value.(*ChunkOwners)
-						if len(chunkOwnerEntry.Owners) == 0 {
+				if fileMetadata.Size == 0 {
+
+					knowAllTheChunks := true
+
+					for i := uint64(0); i < fileMetadata.FileSearchData.ChunkCount; i++ {
+						hash := metaFile[i*32 : (i+1)*32]
+						chunkValue, loaded := gossiper.myFileChunks.Load(hex.EncodeToString(hash))
+						if loaded {
+							chunkOwnerEntry := chunkValue.(*ChunkOwners)
+							if len(chunkOwnerEntry.Owners) == 0 {
+								knowAllTheChunks = false
+								break
+							}
+						} else {
 							knowAllTheChunks = false
 							break
 						}
-					} else {
-						knowAllTheChunks = false
-						break
+					}
+
+					if knowAllTheChunks {
+						hashName := key.(string)
+						matches = append(matches, hashName)
+						matches = helpers.RemoveDuplicatesFromSlice(matches)
 					}
 				}
-
-				if knowAllTheChunks {
-					matches = append(matches, fileMetadata.FileSearchData.FileName)
-					matches = helpers.RemoveDuplicatesFromSlice(matches)
-				}
-			}
-
-			if len(matches) == matchThreshold {
-				return false
 			}
 
 			return true
 		})
-
-		if len(matches) == matchThreshold {
-			return true
-		}
 	}
 
-	return false
+	return len(matches)
 }
 
 func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket) {
@@ -148,13 +171,33 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 
 	for _, k := range keywords {
 
-		gossiper.myFiles.Range(func(key interface{}, value interface{}) bool {
-			fileMetadata := value.(*FileMetadata)
-			if strings.Contains(fileMetadata.FileSearchData.FileName, k) {
-				searchResults = append(searchResults, fileMetadata.FileSearchData)
+		gossiper.filesList.Range(func(key interface{}, value interface{}) bool {
+			id := value.(*FileIDPair)
+
+			if strings.Contains(id.FileName, k) {
+				valueFile, loaded := gossiper.myFiles.Load(id.EncMetaHash)
+
+				if !loaded {
+					if debug {
+						fmt.Println("Error: file not found when searching for search results")
+					}
+					return false
+				}
+
+				fileMetadata := valueFile.(*FileMetadata)
+				searchResults = append(searchResults, &SearchResult{FileName: id.FileName, MetafileHash: fileMetadata.FileSearchData.MetafileHash, ChunkCount: fileMetadata.FileSearchData.ChunkCount, ChunkMap: fileMetadata.FileSearchData.ChunkMap})
 			}
+
 			return true
 		})
+
+		// gossiper.myFiles.Range(func(key interface{}, value interface{}) bool {
+		// 	fileMetadata := value.(*FileMetadata)
+		// 	if strings.Contains(fileMetadata.FileSearchData.FileName, k) {
+		// 		searchResults = append(searchResults, fileMetadata.FileSearchData)
+		// 	}
+		// 	return true
+		// })
 	}
 
 	if len(searchResults) != 0 {

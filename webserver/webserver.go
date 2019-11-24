@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/mikanikos/Peerster/client/clientsender"
@@ -85,8 +86,15 @@ func (webserver *Webserver) postMessageHandler(w http.ResponseWriter, r *http.Re
 	file := r.PostForm.Get("file")
 	request := r.PostForm.Get("request")
 	keywords := r.PostForm.Get("keywords")
+	budget := r.PostForm.Get("budget")
 
-	webserver.Client.SendMessage(message, &destination, &file, &request, keywords, uint64(2))
+	if budget == "" {
+		budget = "0"
+	}
+	budgetValue, err := strconv.ParseUint(budget, 10, 64)
+	helpers.ErrorCheck(err)
+
+	webserver.Client.SendMessage(message, &destination, &file, &request, keywords, budgetValue)
 }
 
 func (webserver *Webserver) getNodeHandler(w http.ResponseWriter, r *http.Request) {

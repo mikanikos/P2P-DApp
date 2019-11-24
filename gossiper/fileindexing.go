@@ -17,6 +17,12 @@ type FileMetadata struct {
 	Size           int
 }
 
+// FileIDPair struct
+type FileIDPair struct {
+	FileName    string
+	EncMetaHash string
+}
+
 // FileGUI struct
 type FileGUI struct {
 	Name     string
@@ -72,7 +78,7 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 		hash32 := sha256.Sum256(partBuffer)
 		hash := hash32[:]
 
-		gossiper.myFileChunks.Store(hex.EncodeToString(hash), &partBuffer)
+		gossiper.myFileChunks.Store(hex.EncodeToString(hash), &ChunkOwners{Data: &partBuffer, Owners: make([]string, 0)})
 		copy(hashes[i*32:(i+1)*32], hash)
 
 		chunkMap[i] = i + 1
@@ -91,6 +97,7 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	fileMetadata := &FileMetadata{FileSearchData: searchResult, MetaFile: &hashes, Size: int(fileSize)}
 
 	gossiper.myFiles.Store(keyHash, fileMetadata)
+	gossiper.filesList.LoadOrStore(keyHash+*fileName, &FileIDPair{FileName: *fileName, EncMetaHash: keyHash})
 
 	go func(f *FileMetadata) {
 		gossiper.filesIndexed <- &FileGUI{Name: f.FileSearchData.FileName, MetaHash: hex.EncodeToString(f.FileSearchData.MetafileHash), Size: f.Size}

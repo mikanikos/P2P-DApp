@@ -32,6 +32,7 @@ type Gossiper struct {
 	//mySharedFiles      sync.Map
 	myFiles            sync.Map
 	hashChannels       sync.Map
+	filesList          sync.Map
 	filesIndexed       chan *FileGUI
 	filesDownloaded    chan *FileGUI
 	filesSearched      []FileGUI
@@ -78,6 +79,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		//mySharedFiles:      sync.Map{},
 		myFiles:            sync.Map{},
 		hashChannels:       sync.Map{},
+		filesList:          sync.Map{},
 		filesIndexed:       make(chan *FileGUI, 3),
 		filesDownloaded:    make(chan *FileGUI, 3),
 		filesSearched:      make([]FileGUI, 0),
@@ -138,6 +140,7 @@ func (gossiper *Gossiper) processSearchReply() {
 
 				fileData := &SearchResult{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)}
 				value, loaded := gossiper.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileSearchData: fileData})
+				gossiper.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
 				fileMetadata := value.(*FileMetadata)
 
 				// WHAT TO DO IF FILE WAS LOADED, I.E. ALREADY PRESENT FROM PREVIOUS SEARCH OR PREVIOUS DOWNLOAD? PROBABLY NOTHING...
@@ -206,8 +209,8 @@ func (gossiper *Gossiper) processDataRequest() {
 
 				if loaded {
 
-					chunkRequested := chunkData.(*[]byte)
-					packetToSend.DataReply.Data = *chunkRequested
+					chunkRequested := chunkData.(*ChunkOwners)
+					packetToSend.DataReply.Data = *chunkRequested.Data
 
 					if debug {
 						fmt.Println("Sent chunk " + keyHash + " to " + packetToSend.DataReply.Destination)
@@ -327,10 +330,17 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 		case "searchRequest":
 
 			keywordsSplitted := helpers.RemoveDuplicatesFromSlice(strings.Split(*message.Keywords, ","))
-			requestPacket := &SearchRequest{Origin: gossiper.name, Budget: *message.Budget, Keywords: keywordsSplitted}
+
+			requestPacket := &SearchRequest{Origin: gossiper.name, Keywords: keywordsSplitted}
 			packet.Packet = &GossipPacket{SearchRequest: requestPacket}
 
-			go gossiper.searchFilePeriodically(packet)
+			if *message.Budget != 0 {
+				requestPacket.Budget = *message.Budget
+				go gossiper.searchFilePeriodically(packet, false)
+			} else {
+				requestPacket.Budget = uint64(2)
+				go gossiper.searchFilePeriodically(packet, true)
+			}
 
 		default:
 			if debug {
