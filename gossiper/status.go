@@ -23,7 +23,7 @@ func (gossiper *Gossiper) getStatusToSend() *GossipPacket {
 	return &GossipPacket{Status: statusPacket}
 }
 
-func (gossiper *Gossiper) getPeerStatusOtherNeeds(otherStatus []PeerStatus) *PeerStatus {
+func (gossiper *Gossiper) getPeerStatusForPeer(otherStatus []PeerStatus) *PeerStatus {
 
 	originIDMap := make(map[string]uint32)
 	for _, elem := range otherStatus {
@@ -45,7 +45,7 @@ func (gossiper *Gossiper) getPeerStatusOtherNeeds(otherStatus []PeerStatus) *Pee
 	return nil
 }
 
-func (gossiper *Gossiper) doINeedSomething(otherStatus []PeerStatus) bool {
+func (gossiper *Gossiper) isPeerStatusNeeded(otherStatus []PeerStatus) bool {
 
 	gossiper.myStatus.Mutex.RLock()
 	defer gossiper.myStatus.Mutex.RUnlock()

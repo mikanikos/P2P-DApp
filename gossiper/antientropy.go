@@ -5,7 +5,7 @@ import (
 )
 
 // StartAntiEntropy with the specified timer
-func (gossiper *Gossiper) StartAntiEntropy(antiEntropyTimeout int) {
+func (gossiper *Gossiper) StartAntiEntropy(antiEntropyTimeout uint) {
 	if antiEntropyTimeout > 0 {
 		timer := time.NewTicker(time.Duration(antiEntropyTimeout) * time.Second)
 		for {
@@ -13,7 +13,7 @@ func (gossiper *Gossiper) StartAntiEntropy(antiEntropyTimeout int) {
 			case <-timer.C:
 				peersCopy := gossiper.GetPeersAtomic()
 				if len(peersCopy) != 0 {
-					randomPeer := gossiper.getRandomPeer(peersCopy)
+					randomPeer := getRandomPeer(peersCopy)
 					statusToSend := gossiper.getStatusToSend()
 					gossiper.sendPacket(statusToSend, randomPeer)
 				}

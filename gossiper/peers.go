@@ -1,12 +1,8 @@
 package gossiper
 
 import (
-	"fmt"
 	"net"
-	"strings"
 	"sync"
-
-	"github.com/mikanikos/Peerster/helpers"
 )
 
 // MutexPeers struct
@@ -28,14 +24,6 @@ func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
 	}
 	if !contains {
 		gossiper.peers.Peers = append(gossiper.peers.Peers, peer)
-	}
-}
-
-func (gossiper *Gossiper) printPeers() {
-	peers := gossiper.GetPeersAtomic()
-	listPeers := helpers.GetArrayStringFromAddresses(peers)
-	if hw1 {
-		fmt.Println("PEERS " + strings.Join(listPeers, ","))
 	}
 }
 

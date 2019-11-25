@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/rand"
-	"os"
 	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
@@ -12,7 +11,7 @@ import (
 
 func (gossiper *Gossiper) downloadMetafile(destination string, fileMetadata *FileMetadata) {
 
-	metaHashEnc := hex.EncodeToString(fileMetadata.FileSearchData.MetafileHash)
+	metaHashEnc := hex.EncodeToString(fileMetadata.MetafileHash)
 	value, loaded := gossiper.hashChannels.LoadOrStore(metaHashEnc+destination, make(chan *DataReply))
 	metaFileChan := value.(chan *DataReply)
 
@@ -23,39 +22,39 @@ func (gossiper *Gossiper) downloadMetafile(destination string, fileMetadata *Fil
 		return
 	}
 
-	dataRequest := &DataRequest{Origin: gossiper.name, Destination: destination, HashValue: fileMetadata.FileSearchData.MetafileHash, HopLimit: uint32(hopLimit)}
+	dataRequest := &DataRequest{Origin: gossiper.name, Destination: destination, HashValue: fileMetadata.MetafileHash, HopLimit: uint32(hopLimit)}
 	packet := &GossipPacket{DataRequest: dataRequest}
 
 	if hw2 {
-		fmt.Println("DOWNLOADING metafile of " + fileMetadata.FileSearchData.FileName + " from " + destination)
+		fmt.Println("DOWNLOADING metafile of " + fileMetadata.FileName + " from " + destination)
 	}
-	go gossiper.forwardPrivateMessage(packet)
+	go gossiper.forwardPrivateMessage(packet, &packet.DataRequest.HopLimit, packet.DataRequest.Destination)
 
 	timer := time.NewTicker(time.Duration(requestTimeout) * time.Second)
 	for {
 		select {
 		case replyPacket := <-metaFileChan:
-			timer.Stop()
-			close(metaFileChan)
-			gossiper.hashChannels.Delete(metaHashEnc + destination)
 
-			if !checkHash(fileMetadata.FileSearchData.MetafileHash, replyPacket.Data) {
-				fmt.Println("ERROR: metafile doesn't correspond to hash")
-			} else {
+			if replyPacket.Data != nil && checkHash(fileMetadata.MetafileHash, replyPacket.Data) {
+
+				timer.Stop()
+				close(metaFileChan)
+				gossiper.hashChannels.Delete(metaHashEnc + destination)
+
 				fileMetadata.MetaFile = &replyPacket.Data
-				fileMetadata.FileSearchData.ChunkCount = uint64(len(replyPacket.Data) / 32)
-			}
+				fileMetadata.ChunkCount = uint64(len(replyPacket.Data) / 32)
 
-			if debug {
-				fmt.Println("Got metafile")
+				if debug {
+					fmt.Println("Got metafile")
+				}
+				return
 			}
-			return
 
 		case <-timer.C:
 			if hw2 {
-				fmt.Println("DOWNLOADING metafile of " + fileMetadata.FileSearchData.FileName + " from " + destination)
+				fmt.Println("DOWNLOADING metafile of " + fileMetadata.FileName + " from " + destination)
 			}
-			go gossiper.forwardPrivateMessage(packet)
+			go gossiper.forwardPrivateMessage(packet, &packet.DataRequest.HopLimit, packet.DataRequest.Destination)
 		}
 	}
 }
@@ -65,16 +64,13 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 	value, loaded := gossiper.myFiles.Load(hex.EncodeToString(metaHash))
 
 	if !loaded {
-
 		if destination == "" {
 			if debug {
 				fmt.Println("ERROR: file not found")
 			}
 			return
 		}
-
-		fileData := &SearchResult{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0)}
-		value, _ = gossiper.myFiles.LoadOrStore(hex.EncodeToString(metaHash), &FileMetadata{FileSearchData: fileData})
+		value, _ = gossiper.myFiles.LoadOrStore(hex.EncodeToString(metaHash), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0)})
 		gossiper.filesList.LoadOrStore(hex.EncodeToString(metaHash)+fileName, &FileIDPair{FileName: fileName, EncMetaHash: hex.EncodeToString(metaHash)})
 		fileMetadata := value.(*FileMetadata)
 		gossiper.downloadMetafile(destination, fileMetadata)
@@ -86,42 +82,29 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 		if debug {
 			fmt.Println("Already have this file")
 		}
-		if fileMetadata.FileSearchData.FileName != fileName {
+		if fileMetadata.FileName != fileName {
 			if debug {
 				fmt.Println("Same file content but different name, just copy it")
 			}
-			copyFile(fileMetadata.FileSearchData.FileName, fileName)
+			copyFile(fileMetadata.FileName, fileName)
 		}
 		return
 	}
 
 	metafile := *fileMetadata.MetaFile
 
-	for i := uint64(0); i < fileMetadata.FileSearchData.ChunkCount; i++ {
-
+	for i := uint64(0); i < fileMetadata.ChunkCount; i++ {
 		hashChunk := metafile[i*32 : (i+1)*32]
-
 		chunkLoaded, _ := gossiper.myFileChunks.LoadOrStore(hex.EncodeToString(hashChunk), &ChunkOwners{})
 		chunkOwner := chunkLoaded.(*ChunkOwners)
-
-		gossiper.downloadChunk(fileMetadata, chunkOwner, hashChunk, uint64(i+1), destination)
+		gossiper.downloadChunk(fileMetadata, chunkOwner, uint64(i+1), destination)
 	}
 
 	if debug {
 		fmt.Println("Got all chunks")
 	}
 
-	// check
-	for i := uint64(0); i < fileMetadata.FileSearchData.ChunkCount; i++ {
-		if fileMetadata.FileSearchData.ChunkMap[i] != i+1 {
-			if debug {
-				fmt.Println("ERROR: not all chunks retrieved")
-			}
-			return
-		}
-	}
-
-	if fileMetadata.FileSearchData.ChunkCount == uint64(len(fileMetadata.FileSearchData.ChunkMap)) {
+	if chunksIntegrityCheck(fileMetadata) {
 		gossiper.reconstructFileFromChunks(fileMetadata)
 
 		if hw2 {
@@ -129,13 +112,16 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 		}
 
 		go func(f *FileMetadata) {
-			gossiper.filesDownloaded <- &FileGUI{Name: f.FileSearchData.FileName, MetaHash: hex.EncodeToString(f.FileSearchData.MetafileHash), Size: f.Size}
+			gossiper.filesDownloaded <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
 
 		}(fileMetadata)
 	}
 }
 
-func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *ChunkOwners, hashChunk []byte, seqNum uint64, destination string) {
+func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *ChunkOwners, seqNum uint64, destination string) {
+
+	metafile := *fileMetadata.MetaFile
+	hashChunk := metafile[(seqNum-1)*32 : (seqNum)*32]
 
 	hashChunkEnc := hex.EncodeToString(hashChunk)
 	peersWithChunk := chunkOwner.Owners
@@ -166,46 +152,48 @@ func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *
 		newPacket := &GossipPacket{DataRequest: dataRequest}
 
 		if hw2 {
-			fmt.Println("DOWNLOADING " + fileMetadata.FileSearchData.FileName + " chunk " + fmt.Sprint(seqNum) + " from " + destination)
+			fmt.Println("DOWNLOADING " + fileMetadata.FileName + " chunk " + fmt.Sprint(seqNum) + " from " + destination)
 		}
-		go gossiper.forwardPrivateMessage(newPacket)
+		go gossiper.forwardPrivateMessage(newPacket, &newPacket.DataRequest.HopLimit, newPacket.DataRequest.Destination)
 
 		timer := time.NewTicker(time.Duration(requestTimeout) * time.Second)
-		keepWaiting := true
-		for keepWaiting {
+		for {
 			select {
 			case replyPacket := <-chunkIn:
 				if debug {
 					fmt.Println("Got chunk")
 				}
-				timer.Stop()
-				close(chunkIn)
-				gossiper.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
-				if len(replyPacket.Data) != 0 && checkHash(replyPacket.HashValue, replyPacket.Data) {
+				if replyPacket.Data != nil && checkHash(replyPacket.HashValue, replyPacket.Data) {
+
+					timer.Stop()
+					close(chunkIn)
+					gossiper.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
+
 					chunkOwner.Data = &replyPacket.Data
 					if destination != "" {
 						chunkOwner.Owners = helpers.RemoveDuplicatesFromSlice(append(chunkOwner.Owners, destination))
 					}
-					fileMetadata.FileSearchData.ChunkMap = insertToSortUint64Slice(fileMetadata.FileSearchData.ChunkMap, seqNum)
+					fileMetadata.ChunkMap = insertToSortUint64Slice(fileMetadata.ChunkMap, seqNum)
+
+					return
 				}
-				keepWaiting = false
 
 			case <-timer.C:
 				if hw2 {
-					fmt.Println("DOWNLOADING " + fileMetadata.FileSearchData.FileName + " chunk " + fmt.Sprint(seqNum) + " from " + destination)
+					fmt.Println("DOWNLOADING " + fileMetadata.FileName + " chunk " + fmt.Sprint(seqNum) + " from " + destination)
 				}
-				go gossiper.forwardPrivateMessage(newPacket)
+				go gossiper.forwardPrivateMessage(newPacket, &newPacket.DataRequest.HopLimit, newPacket.DataRequest.Destination)
 			}
 		}
 	}
 }
 
 func (gossiper *Gossiper) reconstructFileFromChunks(fileMetadata *FileMetadata) {
-	size := 0
-	chunksData := make([]byte, fileMetadata.FileSearchData.ChunkCount*fileChunk)
+	size := int64(0)
+	chunksData := make([]byte, fileMetadata.ChunkCount*fileChunk)
 	metafile := *fileMetadata.MetaFile
 
-	for i := 0; i < int(fileMetadata.FileSearchData.ChunkCount); i++ {
+	for i := 0; i < int(fileMetadata.ChunkCount); i++ {
 		hChunk := metafile[i*32 : (i+1)*32]
 		value, loaded := gossiper.myFileChunks.Load(hex.EncodeToString(hChunk))
 
@@ -220,7 +208,7 @@ func (gossiper *Gossiper) reconstructFileFromChunks(fileMetadata *FileMetadata) 
 		chunk := *chunkOwner.Data
 		chunkLen := len(chunk)
 		copy(chunksData[i*fileChunk:(i*fileChunk)+chunkLen], chunk)
-		size += chunkLen
+		size += int64(chunkLen)
 	}
 
 	fileReconstructed := make([]byte, size)
@@ -228,32 +216,5 @@ func (gossiper *Gossiper) reconstructFileFromChunks(fileMetadata *FileMetadata) 
 
 	fileMetadata.Size = size
 
-	wd, err := os.Getwd()
-	helpers.ErrorCheck(err)
-
-	fullPath := wd + downloadFolder + fileMetadata.FileSearchData.FileName
-	file, err := os.Create(fullPath)
-	helpers.ErrorCheck(err)
-
-	defer file.Close()
-
-	_, err = file.Write(fileReconstructed)
-	helpers.ErrorCheck(err)
-
-	err = file.Sync()
-	helpers.ErrorCheck(err)
-}
-
-// GetFilesDownloaded for GUI
-func (gossiper *Gossiper) GetFilesDownloaded() []FileGUI {
-
-	bufferLength := len(gossiper.filesDownloaded)
-
-	files := make([]FileGUI, bufferLength)
-	for i := 0; i < bufferLength; i++ {
-		file := <-gossiper.filesDownloaded
-		files[i] = *file
-	}
-
-	return files
+	saveFileOnDisk(fileMetadata.FileName, fileReconstructed)
 }

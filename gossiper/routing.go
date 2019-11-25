@@ -15,7 +15,7 @@ type MutexRoutingTable struct {
 }
 
 // StartRouteRumormongering with the specified timer
-func (gossiper *Gossiper) StartRouteRumormongering(routeTimer int) {
+func (gossiper *Gossiper) StartRouteRumormongering(routeTimer uint) {
 
 	if routeTimer > 0 {
 
@@ -51,25 +51,7 @@ func (gossiper *Gossiper) mongerRouteRumor() {
 	go gossiper.startRumorMongering(extPacket)
 }
 
-func (gossiper *Gossiper) updateRoutingTable(extPacket *ExtendedGossipPacket) {
-
-	var origin string
-	var textPacket string
-	var idPacket uint32
-	address := extPacket.SenderAddr
-
-	switch typePacket := getTypeFromGossip(extPacket.Packet); typePacket {
-
-	case "rumor":
-		origin = extPacket.Packet.Rumor.Origin
-		idPacket = extPacket.Packet.Rumor.ID
-		textPacket = extPacket.Packet.Rumor.Text
-
-	case "private":
-		origin = extPacket.Packet.Private.Origin
-		idPacket = extPacket.Packet.Private.ID
-		textPacket = extPacket.Packet.Private.Text
-	}
+func (gossiper *Gossiper) updateRoutingTable(origin, textPacket string, idPacket uint32, address *net.UDPAddr) {
 
 	if gossiper.checkAndUpdateLastOriginID(origin, idPacket) {
 
@@ -116,29 +98,7 @@ func (gossiper *Gossiper) checkAndUpdateLastOriginID(origin string, id uint32) b
 	return isNew
 }
 
-func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket) {
-
-	var hopLimit *uint32
-	var destination string
-
-	switch packetType := getTypeFromGossip(packet); packetType {
-
-	case "private":
-		hopLimit = &packet.Private.HopLimit
-		destination = packet.Private.Destination
-
-	case "dataRequest":
-		hopLimit = &packet.DataRequest.HopLimit
-		destination = packet.DataRequest.Destination
-
-	case "dataReply":
-		hopLimit = &packet.DataReply.HopLimit
-		destination = packet.DataReply.Destination
-
-	case "searchReply":
-		hopLimit = &packet.SearchReply.HopLimit
-		destination = packet.SearchReply.Destination
-	}
+func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket, hopLimit *uint32, destination string) {
 
 	if *hopLimit > 0 {
 		*hopLimit = *hopLimit - 1

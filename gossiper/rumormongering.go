@@ -16,7 +16,7 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 	flipped := false
 
 	if len(availablePeers) != 0 {
-		randomPeer := gossiper.getRandomPeer(availablePeers)
+		randomPeer := getRandomPeer(availablePeers)
 		coin := 0
 		for coin == 0 {
 			statusReceived := gossiper.sendRumorWithTimeout(extPacket, randomPeer)
@@ -32,7 +32,7 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 				if len(availablePeers) == 0 {
 					return
 				}
-				randomPeer = gossiper.getRandomPeer(availablePeers)
+				randomPeer = getRandomPeer(availablePeers)
 
 				if flipped {
 					if hw1 {
@@ -82,13 +82,13 @@ func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPac
 
 		go gossiper.notifyListenersForStatus(extPacket)
 
-		toSend := gossiper.getPeerStatusOtherNeeds(extPacket.Packet.Status.Want)
+		toSend := gossiper.getPeerStatusForPeer(extPacket.Packet.Status.Want)
 
 		if toSend != nil {
 			packetToSend := gossiper.getPacketFromPeerStatus(*toSend)
 			gossiper.sendPacket(packetToSend, extPacket.SenderAddr)
 		} else {
-			wanted := gossiper.doINeedSomething(extPacket.Packet.Status.Want)
+			wanted := gossiper.isPeerStatusNeeded(extPacket.Packet.Status.Want)
 			if wanted {
 				statusToSend := gossiper.getStatusToSend()
 				gossiper.sendPacket(statusToSend, extPacket.SenderAddr)

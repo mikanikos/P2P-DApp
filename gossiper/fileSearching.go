@@ -63,18 +63,15 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 	gossiper.broadcastToPeers(extPacket)
 
 	timer := time.NewTicker(time.Duration(searchTimeout) * time.Second)
-
 	for {
 		select {
 		case <-timer.C:
 
 			if extPacket.Packet.SearchRequest.Budget >= uint64(maxBudget) {
 				timer.Stop()
-
 				if debug {
 					fmt.Println("Search timeout")
 				}
-
 				return
 			}
 
@@ -95,11 +92,8 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 			}
 			extPacket.Packet.SearchRequest.Budget = budget - 1
 			gossiper.broadcastToPeers(extPacket)
-
 		}
 	}
-	//timer.Stop()
-
 }
 
 func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
@@ -107,34 +101,26 @@ func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 	matches := make([]string, 0)
 
 	for _, k := range keywords {
-
 		if debug {
 			fmt.Println("Looking for " + k)
 		}
 
 		gossiper.filesList.Range(func(key interface{}, value interface{}) bool {
 			id := value.(*FileIDPair)
-
 			if strings.Contains(id.FileName, k) {
-
 				valueFile, loaded := gossiper.myFiles.Load(id.EncMetaHash)
-
 				if !loaded {
 					if debug {
 						fmt.Println("Error: file not found when searching for search results")
 					}
 					return false
 				}
-
 				fileMetadata := valueFile.(*FileMetadata)
-
 				metaFile := *fileMetadata.MetaFile
 
 				if fileMetadata.Size == 0 {
-
 					knowAllTheChunks := true
-
-					for i := uint64(0); i < fileMetadata.FileSearchData.ChunkCount; i++ {
+					for i := uint64(0); i < fileMetadata.ChunkCount; i++ {
 						hash := metaFile[i*32 : (i+1)*32]
 						chunkValue, loaded := gossiper.myFileChunks.Load(hex.EncodeToString(hash))
 						if loaded {
@@ -148,7 +134,6 @@ func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 							break
 						}
 					}
-
 					if knowAllTheChunks {
 						hashName := key.(string)
 						matches = append(matches, hashName)
@@ -156,7 +141,6 @@ func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 					}
 				}
 			}
-
 			return true
 		})
 	}
@@ -170,53 +154,38 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 	searchResults := make([]*SearchResult, 0)
 
 	for _, k := range keywords {
-
 		gossiper.filesList.Range(func(key interface{}, value interface{}) bool {
 			id := value.(*FileIDPair)
-
 			if strings.Contains(id.FileName, k) {
 				valueFile, loaded := gossiper.myFiles.Load(id.EncMetaHash)
-
 				if !loaded {
 					if debug {
 						fmt.Println("Error: file not found when searching for search results")
 					}
 					return false
 				}
-
 				fileMetadata := valueFile.(*FileMetadata)
-				searchResults = append(searchResults, &SearchResult{FileName: id.FileName, MetafileHash: fileMetadata.FileSearchData.MetafileHash, ChunkCount: fileMetadata.FileSearchData.ChunkCount, ChunkMap: fileMetadata.FileSearchData.ChunkMap})
+				searchResults = append(searchResults, &SearchResult{FileName: id.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: fileMetadata.ChunkMap})
 			}
-
 			return true
 		})
-
-		// gossiper.myFiles.Range(func(key interface{}, value interface{}) bool {
-		// 	fileMetadata := value.(*FileMetadata)
-		// 	if strings.Contains(fileMetadata.FileSearchData.FileName, k) {
-		// 		searchResults = append(searchResults, fileMetadata.FileSearchData)
-		// 	}
-		// 	return true
-		// })
 	}
 
 	if len(searchResults) != 0 {
-
 		if debug {
 			fmt.Println("Sending search results")
 		}
-
 		searchReply := &SearchReply{Origin: gossiper.name, Destination: extPacket.Packet.SearchRequest.Origin, HopLimit: uint32(hopLimit), Results: searchResults}
 		packetToSend := &GossipPacket{SearchReply: searchReply}
 
-		go gossiper.forwardPrivateMessage(packetToSend)
+		go gossiper.forwardPrivateMessage(packetToSend, &packetToSend.SearchReply.HopLimit, packetToSend.SearchReply.Destination)
 	}
 
-	go gossiper.forwardRequestWithBudget(extPacket)
+	gossiper.forwardSearchRequestWithBudget(extPacket)
 
 }
 
-func (gossiper *Gossiper) forwardRequestWithBudget(extPacket *ExtendedGossipPacket) {
+func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGossipPacket) {
 
 	extPacket.Packet.SearchRequest.Budget = extPacket.Packet.SearchRequest.Budget - 1
 
@@ -240,8 +209,7 @@ func (gossiper *Gossiper) forwardRequestWithBudget(extPacket *ExtendedGossipPack
 
 		for len(availablePeers) != 0 || (budgetToShare != 0 && budgetForEach == 0) {
 
-			randomPeer := gossiper.getRandomPeer(availablePeers)
-
+			randomPeer := getRandomPeer(availablePeers)
 			if budgetToShare > 0 {
 				extPacket.Packet.SearchRequest.Budget = budgetForEach + 1
 				budgetToShare = budgetToShare - 1
@@ -250,15 +218,41 @@ func (gossiper *Gossiper) forwardRequestWithBudget(extPacket *ExtendedGossipPack
 			}
 
 			gossiper.sendPacket(extPacket.Packet, randomPeer)
-
 			peersChosen = append(peersChosen, randomPeer)
 			availablePeers = helpers.DifferenceString(gossiper.GetPeersAtomic(), peersChosen)
 		}
 	}
-
 }
 
-// GetFilesSearched for GUI
-func (gossiper *Gossiper) GetFilesSearched() []FileGUI {
-	return gossiper.filesSearched
+func (gossiper *Gossiper) storeChunksOwner(destination string, chunkMap []uint64, fileMetadata *FileMetadata) {
+
+	metafile := *fileMetadata.MetaFile
+
+	for _, elem := range chunkMap {
+
+		chunkHash := metafile[(elem-1)*32 : elem*32]
+
+		value, loaded := gossiper.myFileChunks.LoadOrStore(hex.EncodeToString(chunkHash), &ChunkOwners{})
+		chunkOwner := value.(*ChunkOwners)
+		if !loaded {
+			chunkOwner.Owners = make([]string, 0)
+		}
+		chunkOwner.Owners = append(chunkOwner.Owners, destination)
+	}
+}
+
+func (gossiper *Gossiper) addSearchFileForGUI(fileMetadata *FileMetadata) {
+
+	element := FileGUI{Name: fileMetadata.FileName, MetaHash: hex.EncodeToString(fileMetadata.MetafileHash)}
+	contains := false
+	for _, elem := range gossiper.filesSearched {
+		if elem.Name == element.Name && elem.MetaHash == element.MetaHash {
+			contains = true
+			break
+		}
+	}
+
+	if !contains {
+		gossiper.filesSearched = append(gossiper.filesSearched, element)
+	}
 }

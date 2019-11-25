@@ -28,6 +28,7 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 		}(extPacket.Packet.Rumor)
 	}
 
+	// Update status
 	gossiper.myStatus.Mutex.Lock()
 	defer gossiper.myStatus.Mutex.Unlock()
 
@@ -47,20 +48,6 @@ func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
 	}
 
 	return loaded
-}
-
-// GetMessages for GUI
-func (gossiper *Gossiper) GetMessages() []RumorMessage {
-
-	bufferLength := len(gossiper.originPackets.LatestMessages)
-
-	messages := make([]RumorMessage, bufferLength)
-	for i := 0; i < bufferLength; i++ {
-		message := <-gossiper.originPackets.LatestMessages
-		messages[i] = *message
-	}
-
-	return messages
 }
 
 func (gossiper *Gossiper) getPacketFromPeerStatus(ps PeerStatus) *GossipPacket {

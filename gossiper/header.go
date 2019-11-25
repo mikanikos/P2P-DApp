@@ -11,25 +11,29 @@ var hw3 = true
 var debug = true
 
 var simpleMode = false
+var hw3ex2Mode = false
+var hw3ex3Mode = false
+var hw3ex4Mode = false
 
-var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply"}
+var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck"}
 
 var maxBufferSize = 60000
 
 var rumorTimeout = 10
-var latestMessagesBuffer = 30
-var hopLimit = 10
-
-const fileChunk = 8192
-const shareFolder = "/_SharedFiles/"
-const downloadFolder = "/_Downloads/"
-
+var stubbornTimeout = 10
 var requestTimeout = 5
 var searchTimeout = 1
 var searchRequestDuplicate = 500 * time.Millisecond
 
+var latestMessagesBuffer = 30
+var hopLimit = 10
 var matchThreshold = 2
 var maxBudget = 32
+
+const fileChunk = 8192
+
+var shareFolder = "/_SharedFiles/"
+var downloadFolder = "/_Downloads/"
 
 // SimpleMessage struct
 type SimpleMessage struct {
@@ -48,6 +52,8 @@ type GossipPacket struct {
 	DataReply     *DataReply
 	SearchRequest *SearchRequest
 	SearchReply   *SearchReply
+	TLCMessage    *TLCMessage
+	Ack           *TLCAck
 }
 
 // NetworkData struct
@@ -122,3 +128,29 @@ type SearchResult struct {
 	ChunkMap     []uint64
 	ChunkCount   uint64
 }
+
+// TxPublish struct
+type TxPublish struct {
+	Name         string
+	Size         int64 // Size in bytes
+	MetafileHash []byte
+}
+
+// BlockPublish struct
+type BlockPublish struct {
+	PrevHash    [32]byte // (used in Exercise 4, for now 0)
+	Transaction TxPublish
+}
+
+// TLCMessage struct
+type TLCMessage struct {
+	Origin      string
+	ID          uint32
+	Confirmed   bool
+	TxBlock     BlockPublish
+	VectorClock *StatusPacket // (used in Exercise 3, for now nil)
+	Fitness     float32       // (used in Exercise 4, for now 0)
+}
+
+// TLCAck type
+type TLCAck PrivateMessage

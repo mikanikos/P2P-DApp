@@ -58,22 +58,22 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 }
 
 func (webserver *Webserver) getSearchHandler(w http.ResponseWriter, r *http.Request) {
-	var payload = webserver.Gossiper.GetFilesSearched()
+	var payload = webserver.Gossiper.GetSearchedFiles()
 	writeJSON(w, payload)
 }
 
 func (webserver *Webserver) getDownloadHandler(w http.ResponseWriter, r *http.Request) {
-	var payload = webserver.Gossiper.GetFilesDownloaded()
+	var payload = gossiper.GetFilesList(webserver.Gossiper.GetDownloadedFiles())
 	writeJSON(w, payload)
 }
 
 func (webserver *Webserver) getFileHandler(w http.ResponseWriter, r *http.Request) {
-	var payload = webserver.Gossiper.GetFilesIndexed()
+	var payload = gossiper.GetFilesList(webserver.Gossiper.GetIndexedFiles())
 	writeJSON(w, payload)
 }
 
 func (webserver *Webserver) getMessageHandler(w http.ResponseWriter, r *http.Request) {
-	var payload = webserver.Gossiper.GetMessages()
+	var payload = gossiper.GetMessagesList(webserver.Gossiper.GetLatestMessages())
 	writeJSON(w, payload)
 }
 
