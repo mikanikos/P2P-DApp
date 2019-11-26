@@ -14,6 +14,7 @@ var simpleMode = false
 var hw3ex2Mode = false
 var hw3ex3Mode = false
 var hw3ex4Mode = false
+var ackAllMode = false
 
 var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck"}
 

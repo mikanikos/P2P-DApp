@@ -9,7 +9,7 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
+func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket, origin string, id uint32) {
 	peersWithRumor := []*net.UDPAddr{extPacket.SenderAddr}
 	peers := gossiper.GetPeersAtomic()
 	availablePeers := helpers.DifferenceString(peers, peersWithRumor)
@@ -19,7 +19,7 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 		randomPeer := getRandomPeer(availablePeers)
 		coin := 0
 		for coin == 0 {
-			statusReceived := gossiper.sendRumorWithTimeout(extPacket, randomPeer)
+			statusReceived := gossiper.sendRumorWithTimeout(extPacket, origin, id, randomPeer)
 			if statusReceived {
 				coin = rand.Int() % 2
 				flipped = true
@@ -45,10 +45,10 @@ func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket) {
 	}
 }
 
-func (gossiper *Gossiper) sendRumorWithTimeout(extPacket *ExtendedGossipPacket, peer *net.UDPAddr) bool {
+func (gossiper *Gossiper) sendRumorWithTimeout(extPacket *ExtendedGossipPacket, origin string, id uint32, peer *net.UDPAddr) bool {
 
-	rumorChan, _ := gossiper.getListenerForStatus(extPacket.Packet, peer.String())
-	defer gossiper.deleteListenerForStatus(extPacket.Packet, peer.String())
+	rumorChan, _ := gossiper.getListenerForStatus(origin, id, peer.String())
+	defer gossiper.deleteListenerForStatus(origin, id, peer.String())
 
 	if hw1 {
 		fmt.Println("MONGERING with " + peer.String())

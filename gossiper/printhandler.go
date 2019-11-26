@@ -66,3 +66,17 @@ func printPeers(peers []*net.UDPAddr) {
 		fmt.Println("PEERS " + strings.Join(listPeers, ","))
 	}
 }
+
+func printTLCMessage(tlc *TLCMessage) {
+	messageToPrint := "GOSSIP origin " + tlc.Origin +
+		" ID " + fmt.Sprint(tlc.ID) +
+		" filename " + tlc.TxBlock.Transaction.Name +
+		" size " + fmt.Sprint(tlc.TxBlock.Transaction.Size) +
+		" metahash " + hex.EncodeToString(tlc.TxBlock.Transaction.MetafileHash)
+
+	if tlc.Confirmed {
+		fmt.Println("CONFIRMED " + messageToPrint)
+	} else {
+		fmt.Println("UNCONFIRMED " + messageToPrint)
+	}
+}

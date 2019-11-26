@@ -12,9 +12,13 @@ import (
 func (gossiper *Gossiper) processTLCMessage() {
 	for extPacket := range gossiper.channels["tlcMes"] {
 
+		if hw3ex2Mode {
+			printTLCMessage(extPacket.Packet.TLCMessage)
+		}
+
 		gossiper.updateRoutingTable(extPacket.Packet.TLCMessage.Origin, "", extPacket.Packet.TLCMessage.ID, extPacket.SenderAddr)
 
-		//isMessageKnown := gossiper.addMessage(extPacket.Packet)
+		isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
 		// if isTXValid(extPacket.Packet.TLCMessage.TxBlock) {
 		// }
@@ -22,13 +26,18 @@ func (gossiper *Gossiper) processTLCMessage() {
 		statusToSend := gossiper.getStatusToSend()
 		gossiper.sendPacket(statusToSend, extPacket.SenderAddr)
 
-		// if !isMessageKnown {
-		// 	go gossiper.startRumorMongering(extPacket)
-		// }
+		if !isMessageKnown {
+			go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
-		// Ack message
-		privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
-		go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
+			// Ack message
+			if !extPacket.Packet.TLCMessage.Confirmed && (ackAllMode || extPacket.Packet.TLCMessage.ID >= gossiper.myTime) {
+				privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
+				if hw3ex2Mode {
+					fmt.Println("SENDING ACK origin " + gossiper.name + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
+				}
+				go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
+			}
+		}
 	}
 }
 
@@ -36,7 +45,6 @@ func (gossiper *Gossiper) processTLCAck() {
 	for extPacket := range gossiper.channels["tlcAck"] {
 
 		if extPacket.Packet.Ack.Destination == gossiper.name {
-
 			value, loaded := gossiper.tlcChannels.Load(extPacket.Packet.Ack.ID)
 			if loaded {
 				tlcChan := value.(chan *TLCAck)
@@ -227,8 +235,15 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			rumorPacket := &RumorMessage{ID: id, Origin: gossiper.name, Text: message.Text}
 			packet.Packet = &GossipPacket{Rumor: rumorPacket}
 
-			gossiper.storeRumorMessage(packet.Packet.Rumor)
-			go gossiper.startRumorMongering(packet)
+			loaded := gossiper.storeMessage(packet.Packet, gossiper.name, id)
+
+			if !loaded {
+				go func(r *RumorMessage) {
+					gossiper.uiHandler.latestRumors <- r
+				}(packet.Packet.Rumor)
+			}
+
+			go gossiper.startRumorMongering(packet, gossiper.name, id)
 
 		case "file":
 			go gossiper.indexFile(message.File)
@@ -279,14 +294,21 @@ func (gossiper *Gossiper) processRumorMessages() {
 
 		gossiper.updateRoutingTable(extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.Text, extPacket.Packet.Rumor.ID, extPacket.SenderAddr)
 
-		isMessageKnown := gossiper.storeRumorMessage(extPacket.Packet.Rumor)
+		isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.ID)
 
 		// send status
 		statusToSend := gossiper.getStatusToSend()
 		gossiper.sendPacket(statusToSend, extPacket.SenderAddr)
 
 		if !isMessageKnown {
-			go gossiper.startRumorMongering(extPacket)
+
+			if extPacket.Packet.Rumor.Text != "" {
+				go func(r *RumorMessage) {
+					gossiper.uiHandler.latestRumors <- r
+				}(extPacket.Packet.Rumor)
+			}
+
+			go gossiper.startRumorMongering(extPacket, extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.ID)
 		}
 	}
 }

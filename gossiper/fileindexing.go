@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -47,14 +48,12 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	gossiper.fileHandler.myFiles.Store(keyHash, fileMetadata)
 	gossiper.fileHandler.filesList.LoadOrStore(keyHash+*fileName, &FileIDPair{FileName: *fileName, EncMetaHash: keyHash})
 
-	go func(f *FileMetadata) {
-		gossiper.uiHandler.filesIndexed <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
-	}(fileMetadata)
-
 	if hw3ex2Mode {
-		tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
-		block := BlockPublish{Transaction: tx}
-		go gossiper.mongerTLCMessage(block)
+		go gossiper.publishBlock(fileMetadata)
+	} else {
+		go func(f *FileMetadata) {
+			gossiper.uiHandler.filesIndexed <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
+		}(fileMetadata)
 	}
 
 	if debug {
@@ -63,40 +62,55 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	}
 }
 
-func (gossiper *Gossiper) mongerTLCMessage(block BlockPublish) {
+func (gossiper *Gossiper) publishBlock(fileMetadata *FileMetadata) {
 
-	id := atomic.LoadUint32(&gossiper.tlcID)
-	atomic.AddUint32(&gossiper.tlcID, uint32(1))
+	tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
+	block := BlockPublish{Transaction: tx}
 
-	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block}
+	id := atomic.LoadUint32(&gossiper.seqID)
+	atomic.AddUint32(&gossiper.seqID, uint32(1))
+
+	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: gossiper.getStatusToSend().Status}
 	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.gossiperData.Addr}
 
-	// save message !!!!!
-	//gossiper.addMessage(extPacket)
+	gossiper.storeMessage(extPacket.Packet, gossiper.name, id)
 
 	value, _ := gossiper.tlcChannels.LoadOrStore(id, make(chan *TLCAck))
-	tlcChan := value.(chan *TLCMessage)
+	tlcChan := value.(chan *TLCAck)
 
-	numAcks := uint64(1)
+	witnsesses := []string{gossiper.name}
 
-	gossiper.startRumorMongering(extPacket)
+	if hw3ex2Mode {
+		printTLCMessage(extPacket.Packet.TLCMessage)
+	}
+	gossiper.startRumorMongering(extPacket, gossiper.name, id)
 
 	if stubbornTimeout > 0 {
 		timer := time.NewTicker(time.Duration(stubbornTimeout) * time.Second)
 		for {
 			select {
-			case <-tlcChan:
-				numAcks++
-				if numAcks > gossiper.peersNumber/2 {
+			case tlcAck := <-tlcChan:
+				witnsesses = append(witnsesses, tlcAck.Origin)
+				witnsesses = helpers.RemoveDuplicatesFromSlice(witnsesses)
+				if uint64(len(witnsesses)) > gossiper.peersNumber/2 {
 					timer.Stop()
 					gossiper.tlcChannels.Delete(id)
 					tlcPacket.Confirmed = true
-					gossiper.startRumorMongering(extPacket)
+					if hw3ex2Mode {
+						fmt.Println("RE-BROADCAST ID " + fmt.Sprint(id) + " WITNESSES " + strings.Join(witnsesses, ","))
+					}
+					go gossiper.startRumorMongering(extPacket, gossiper.name, id)
+					go func(f *FileMetadata) {
+						gossiper.uiHandler.filesIndexed <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
+					}(fileMetadata)
 					return
 				}
 
 			case <-timer.C:
-				go gossiper.startRumorMongering(extPacket)
+				if hw3ex2Mode {
+					printTLCMessage(extPacket.Packet.TLCMessage)
+				}
+				go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 			}
 		}
 	}

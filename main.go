@@ -20,6 +20,7 @@ func main() {
 	hw3ex2 := flag.Bool("hw3ex2", false, "enable gossiper mode for knowing the transactions from other peers")
 	hw3ex3 := flag.Bool("hw3ex3", false, "enable gossiper mode for round based gossiping")
 	hw3ex4 := flag.Bool("hw3ex4", false, "enable gossiper mode for consensus agreement")
+	ackAll := flag.Bool("ackAll", false, "enable gossiper to ack all tlc messages regardless of the ID")
 	antiEntropy := flag.Uint("antiEntropy", 10, "timeout in seconds for anti-entropy")
 	rtimer := flag.Uint("rtimer", 0, "timeout in seconds to send route rumors")
 	hopLimit := flag.Uint("hopLimit", 10, "hop limit value (TTL) for a packet")
@@ -32,7 +33,7 @@ func main() {
 		peersList = strings.Split(*peers, ",")
 	}
 
-	gossiper.SetConstantValues(*simple, *hw3ex2, *hw3ex3, *hw3ex4, *hopLimit, *stubbornTimeout)
+	gossiper.SetConstantValues(*simple, *hw3ex2, *hw3ex3, *hw3ex4, *hopLimit, *stubbornTimeout, *ackAll)
 
 	gossiper := gossiper.NewGossiper(*gossipName, *gossipAddr, peersList, *uiPort, *peersNumber)
 

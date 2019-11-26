@@ -10,15 +10,15 @@ type MessageUniqueIdentifier struct {
 	ID     uint32
 }
 
-func (gossiper *Gossiper) getListenerForStatus(packet *GossipPacket, peer string) (chan bool, bool) {
+func (gossiper *Gossiper) getListenerForStatus(origin string, id uint32, peer string) (chan bool, bool) {
 	msgChan, _ := gossiper.mongeringChannels.LoadOrStore(peer, &sync.Map{})
-	channel, loaded := msgChan.(*sync.Map).LoadOrStore(MessageUniqueIdentifier{Origin: packet.Rumor.Origin, ID: packet.Rumor.ID}, make(chan bool))
+	channel, loaded := msgChan.(*sync.Map).LoadOrStore(MessageUniqueIdentifier{Origin: origin, ID: id}, make(chan bool))
 	return channel.(chan bool), loaded
 }
 
-func (gossiper *Gossiper) deleteListenerForStatus(packet *GossipPacket, peer string) {
+func (gossiper *Gossiper) deleteListenerForStatus(origin string, id uint32, peer string) {
 	msgChan, _ := gossiper.mongeringChannels.LoadOrStore(peer, &sync.Map{})
-	msgChan.(*sync.Map).Delete(MessageUniqueIdentifier{Origin: packet.Rumor.Origin, ID: packet.Rumor.ID})
+	msgChan.(*sync.Map).Delete(MessageUniqueIdentifier{Origin: origin, ID: id})
 }
 
 func (gossiper *Gossiper) notifyListenersForStatus(extpacket *ExtendedGossipPacket) {

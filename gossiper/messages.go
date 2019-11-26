@@ -4,47 +4,42 @@ import (
 	"sync"
 )
 
-func (gossiper *Gossiper) storeRumorMessage(rumor *RumorMessage) bool {
+func (gossiper *Gossiper) storeMessage(packet *GossipPacket, origin string, id uint32) bool {
 
-	value, _ := gossiper.rumorMessages.LoadOrStore(rumor.Origin, &sync.Map{})
+	value, _ := gossiper.messageStorage.LoadOrStore(origin, &sync.Map{})
 	mapValue := value.(*sync.Map)
 
-	_, loaded := mapValue.LoadOrStore(rumor.ID, rumor)
-	if !loaded && rumor.Text != "" {
-		go func(r *RumorMessage) {
-			gossiper.uiHandler.latestRumors <- r
-		}(rumor)
-	}
+	_, loaded := mapValue.LoadOrStore(id, packet)
 
-	gossiper.updateStatus(rumor, mapValue)
+	gossiper.updateStatus(origin, id, mapValue)
 
 	return loaded
 }
 
-func (gossiper *Gossiper) updateStatus(rumor *RumorMessage, mapValue *sync.Map) {
+func (gossiper *Gossiper) updateStatus(origin string, id uint32, mapValue *sync.Map) {
 
-	gossiper.myRumorStatus.Mutex.Lock()
-	defer gossiper.myRumorStatus.Mutex.Unlock()
+	gossiper.myStatus.Mutex.Lock()
+	defer gossiper.myStatus.Mutex.Unlock()
 
-	value, peerExists := gossiper.myRumorStatus.Status[rumor.Origin]
+	value, peerExists := gossiper.myStatus.Status[origin]
 	maxID := uint32(1)
 	if peerExists {
 		maxID = uint32(value)
 	}
 
-	if maxID <= rumor.ID {
+	if maxID <= id {
 		_, found := mapValue.Load(maxID)
 		for found {
 			maxID++
 			_, found = mapValue.Load(maxID)
-			gossiper.myRumorStatus.Status[rumor.Origin] = maxID
+			gossiper.myStatus.Status[origin] = maxID
 		}
 	}
 }
 
 func (gossiper *Gossiper) getPacketFromPeerStatus(ps PeerStatus) *GossipPacket {
-	value, _ := gossiper.rumorMessages.Load(ps.Identifier)
+	value, _ := gossiper.messageStorage.Load(ps.Identifier)
 	idMessages := value.(*sync.Map)
 	message, _ := idMessages.Load(ps.NextID)
-	return &GossipPacket{Rumor: message.(*RumorMessage)}
+	return message.(*GossipPacket)
 }

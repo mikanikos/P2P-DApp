@@ -46,9 +46,9 @@ func (gossiper *Gossiper) mongerRouteRumor() {
 	atomic.AddUint32(&gossiper.seqID, uint32(1))
 	rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
 	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
-	gossiper.storeRumorMessage(extPacket.Packet.Rumor)
+	gossiper.storeMessage(extPacket.Packet, gossiper.name, id)
 
-	go gossiper.startRumorMongering(extPacket)
+	go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 }
 
 func (gossiper *Gossiper) updateRoutingTable(origin, textPacket string, idPacket uint32, address *net.UDPAddr) {

@@ -22,14 +22,11 @@ type Gossiper struct {
 	peersNumber uint64
 	origins     MutexOrigins
 
-	rumorMessages sync.Map
-	myRumorStatus MutexStatus
+	messageStorage sync.Map
+	myStatus       MutexStatus
 
-	tlcMessages sync.Map
-	myTLCStatus MutexStatus
-
-	seqID uint32
-	tlcID uint32
+	seqID  uint32
+	myTime uint32
 
 	statusChannels    sync.Map
 	mongeringChannels sync.Map
@@ -71,13 +68,11 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		peers:             MutexPeers{Peers: peers},
 		peersNumber:       peersNum,
 		origins:           MutexOrigins{Origins: make([]string, 0)},
-		rumorMessages:     sync.Map{},
-		myRumorStatus:     MutexStatus{Status: make(map[string]uint32)},
-		tlcMessages:       sync.Map{},
-		myTLCStatus:       MutexStatus{Status: make(map[string]uint32)},
+		messageStorage:    sync.Map{},
+		myStatus:          MutexStatus{Status: make(map[string]uint32)},
 		originLastID:      MutexStatus{Status: make(map[string]uint32)},
 		seqID:             1,
-		tlcID:             1,
+		myTime:            0,
 		statusChannels:    sync.Map{},
 		mongeringChannels: sync.Map{},
 		routingTable:      MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
@@ -88,13 +83,14 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 }
 
 // SetConstantValues based on parameters
-func SetConstantValues(simple, hw3ex2, hw3ex3, hw3ex4 bool, hopLimitVal, stubbornTimeoutVal uint) {
+func SetConstantValues(simple, hw3ex2, hw3ex3, hw3ex4 bool, hopLimitVal, stubbornTimeoutVal uint, ackAll bool) {
 	simpleMode = simple
 	hw3ex2Mode = hw3ex2
 	hw3ex3Mode = hw3ex3
 	hw3ex4Mode = hw3ex4
 	hopLimit = int(hopLimitVal)
 	stubbornTimeout = int(stubbornTimeoutVal)
+	ackAllMode = ackAll
 }
 
 // Run method

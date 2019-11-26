@@ -13,7 +13,6 @@ type UIHandler struct {
 	filesDownloaded chan *FileGUI
 	filesSearched   []FileGUI
 	latestRumors    chan *RumorMessage
-	latestTLC       chan *TLCMessage
 }
 
 // NewUIHandler create new file handler
@@ -23,7 +22,6 @@ func NewUIHandler() *UIHandler {
 		filesDownloaded: make(chan *FileGUI, 3),
 		filesSearched:   make([]FileGUI, 0),
 		latestRumors:    make(chan *RumorMessage, latestMessagesBuffer),
-		latestTLC:       make(chan *TLCMessage, latestMessagesBuffer),
 	}
 }
 
