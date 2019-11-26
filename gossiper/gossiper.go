@@ -39,6 +39,8 @@ type Gossiper struct {
 
 	fileHandler *FileHandler
 	uiHandler   *UIHandler
+
+	tlcChannels sync.Map
 }
 
 // NewGossiper function
@@ -81,6 +83,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		routingTable:      MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		fileHandler:       NewFileHandler(),
 		uiHandler:         NewUIHandler(),
+		tlcChannels:       sync.Map{},
 	}
 }
 

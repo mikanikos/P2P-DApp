@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
@@ -73,6 +74,31 @@ func (gossiper *Gossiper) mongerTLCMessage(block BlockPublish) {
 	// save message !!!!!
 	//gossiper.addMessage(extPacket)
 
-	go gossiper.startRumorMongering(extPacket)
+	value, _ := gossiper.tlcChannels.LoadOrStore(id, make(chan *TLCAck))
+	tlcChan := value.(chan *TLCMessage)
+
+	numAcks := uint64(1)
+
+	gossiper.startRumorMongering(extPacket)
+
+	if stubbornTimeout > 0 {
+		timer := time.NewTicker(time.Duration(stubbornTimeout) * time.Second)
+		for {
+			select {
+			case <-tlcChan:
+				numAcks++
+				if numAcks > gossiper.peersNumber/2 {
+					timer.Stop()
+					gossiper.tlcChannels.Delete(id)
+					tlcPacket.Confirmed = true
+					gossiper.startRumorMongering(extPacket)
+					return
+				}
+
+			case <-timer.C:
+				go gossiper.startRumorMongering(extPacket)
+			}
+		}
+	}
 
 }

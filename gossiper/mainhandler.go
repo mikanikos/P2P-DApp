@@ -17,7 +17,6 @@ func (gossiper *Gossiper) processTLCMessage() {
 		//isMessageKnown := gossiper.addMessage(extPacket.Packet)
 
 		// if isTXValid(extPacket.Packet.TLCMessage.TxBlock) {
-
 		// }
 
 		statusToSend := gossiper.getStatusToSend()
@@ -37,10 +36,14 @@ func (gossiper *Gossiper) processTLCAck() {
 	for extPacket := range gossiper.channels["tlcAck"] {
 
 		if extPacket.Packet.Ack.Destination == gossiper.name {
-			if hw2 {
-				printPeerMessage(extPacket, gossiper.GetPeersAtomic())
-			}
 
+			value, loaded := gossiper.tlcChannels.Load(extPacket.Packet.Ack.ID)
+			if loaded {
+				tlcChan := value.(chan *TLCAck)
+				go func(c chan *TLCAck, v *TLCAck) {
+					c <- v
+				}(tlcChan, extPacket.Packet.Ack)
+			}
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet, &extPacket.Packet.Ack.HopLimit, extPacket.Packet.Ack.Destination)
 		}
