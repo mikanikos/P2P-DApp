@@ -12,7 +12,7 @@ import (
 func (gossiper *Gossiper) downloadMetafile(destination string, fileMetadata *FileMetadata) {
 
 	metaHashEnc := hex.EncodeToString(fileMetadata.MetafileHash)
-	value, loaded := gossiper.hashChannels.LoadOrStore(metaHashEnc+destination, make(chan *DataReply))
+	value, loaded := gossiper.fileHandler.hashChannels.LoadOrStore(metaHashEnc+destination, make(chan *DataReply))
 	metaFileChan := value.(chan *DataReply)
 
 	if loaded {
@@ -39,7 +39,7 @@ func (gossiper *Gossiper) downloadMetafile(destination string, fileMetadata *Fil
 
 				timer.Stop()
 				close(metaFileChan)
-				gossiper.hashChannels.Delete(metaHashEnc + destination)
+				gossiper.fileHandler.hashChannels.Delete(metaHashEnc + destination)
 
 				fileMetadata.MetaFile = &replyPacket.Data
 				fileMetadata.ChunkCount = uint64(len(replyPacket.Data) / 32)
@@ -61,7 +61,7 @@ func (gossiper *Gossiper) downloadMetafile(destination string, fileMetadata *Fil
 
 func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destination string) {
 
-	value, loaded := gossiper.myFiles.Load(hex.EncodeToString(metaHash))
+	value, loaded := gossiper.fileHandler.myFiles.Load(hex.EncodeToString(metaHash))
 
 	if !loaded {
 		if destination == "" {
@@ -70,8 +70,8 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 			}
 			return
 		}
-		value, _ = gossiper.myFiles.LoadOrStore(hex.EncodeToString(metaHash), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0)})
-		gossiper.filesList.LoadOrStore(hex.EncodeToString(metaHash)+fileName, &FileIDPair{FileName: fileName, EncMetaHash: hex.EncodeToString(metaHash)})
+		value, _ = gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(metaHash), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0)})
+		gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(metaHash)+fileName, &FileIDPair{FileName: fileName, EncMetaHash: hex.EncodeToString(metaHash)})
 		fileMetadata := value.(*FileMetadata)
 		gossiper.downloadMetafile(destination, fileMetadata)
 	}
@@ -95,7 +95,7 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 
 	for i := uint64(0); i < fileMetadata.ChunkCount; i++ {
 		hashChunk := metafile[i*32 : (i+1)*32]
-		chunkLoaded, _ := gossiper.myFileChunks.LoadOrStore(hex.EncodeToString(hashChunk), &ChunkOwners{})
+		chunkLoaded, _ := gossiper.fileHandler.myFileChunks.LoadOrStore(hex.EncodeToString(hashChunk), &ChunkOwners{})
 		chunkOwner := chunkLoaded.(*ChunkOwners)
 		gossiper.downloadChunk(fileMetadata, chunkOwner, uint64(i+1), destination)
 	}
@@ -112,7 +112,7 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 		}
 
 		go func(f *FileMetadata) {
-			gossiper.filesDownloaded <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
+			gossiper.uiHandler.filesDownloaded <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
 
 		}(fileMetadata)
 	}
@@ -139,7 +139,7 @@ func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *
 		peersWithChunk[randIndex] = peersWithChunk[peersLength-1]
 		peersWithChunk = peersWithChunk[:peersLength-1]
 
-		value, loaded := gossiper.hashChannels.LoadOrStore(hashChunkEnc+destination, make(chan *DataReply))
+		value, loaded := gossiper.fileHandler.hashChannels.LoadOrStore(hashChunkEnc+destination, make(chan *DataReply))
 		if loaded {
 			if debug {
 				fmt.Println("Already requesting this chunk")
@@ -167,7 +167,7 @@ func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *
 
 					timer.Stop()
 					close(chunkIn)
-					gossiper.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
+					gossiper.fileHandler.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
 
 					chunkOwner.Data = &replyPacket.Data
 					if destination != "" {
@@ -195,7 +195,7 @@ func (gossiper *Gossiper) reconstructFileFromChunks(fileMetadata *FileMetadata) 
 
 	for i := 0; i < int(fileMetadata.ChunkCount); i++ {
 		hChunk := metafile[i*32 : (i+1)*32]
-		value, loaded := gossiper.myFileChunks.Load(hex.EncodeToString(hChunk))
+		value, loaded := gossiper.fileHandler.myFileChunks.Load(hex.EncodeToString(hChunk))
 
 		if !loaded {
 			if debug {

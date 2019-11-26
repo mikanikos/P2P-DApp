@@ -73,7 +73,7 @@ func (webserver *Webserver) getFileHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (webserver *Webserver) getMessageHandler(w http.ResponseWriter, r *http.Request) {
-	var payload = gossiper.GetMessagesList(webserver.Gossiper.GetLatestMessages())
+	var payload = gossiper.GetMessagesList(webserver.Gossiper.GetLatestRumorMessages())
 	writeJSON(w, payload)
 }
 

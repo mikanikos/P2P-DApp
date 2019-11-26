@@ -14,7 +14,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 
 		gossiper.updateRoutingTable(extPacket.Packet.TLCMessage.Origin, "", extPacket.Packet.TLCMessage.ID, extPacket.SenderAddr)
 
-		isMessageKnown := gossiper.addMessage(extPacket)
+		//isMessageKnown := gossiper.addMessage(extPacket.Packet)
 
 		// if isTXValid(extPacket.Packet.TLCMessage.TxBlock) {
 
@@ -23,9 +23,9 @@ func (gossiper *Gossiper) processTLCMessage() {
 		statusToSend := gossiper.getStatusToSend()
 		gossiper.sendPacket(statusToSend, extPacket.SenderAddr)
 
-		if !isMessageKnown {
-			go gossiper.startRumorMongering(extPacket)
-		}
+		// if !isMessageKnown {
+		// 	go gossiper.startRumorMongering(extPacket)
+		// }
 
 		// Ack message
 		privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
@@ -72,8 +72,8 @@ func (gossiper *Gossiper) processSearchReply() {
 
 				printSearchMatchMessage(extPacket.Packet.SearchReply.Origin, res)
 
-				value, loaded := gossiper.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
-				gossiper.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
+				value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
+				gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
 				fileMetadata := value.(*FileMetadata)
 
 				if !loaded {
@@ -103,7 +103,7 @@ func (gossiper *Gossiper) processDataRequest() {
 			packetToSend := &GossipPacket{DataReply: &DataReply{Origin: gossiper.name, Destination: extPacket.Packet.DataRequest.Origin, HopLimit: uint32(hopLimit), HashValue: extPacket.Packet.DataRequest.HashValue}}
 
 			// try loading from metafiles
-			fileValue, loaded := gossiper.myFiles.Load(keyHash)
+			fileValue, loaded := gossiper.fileHandler.myFiles.Load(keyHash)
 
 			if loaded {
 
@@ -117,7 +117,7 @@ func (gossiper *Gossiper) processDataRequest() {
 			} else {
 
 				// try loading from chunks
-				chunkData, loaded := gossiper.myFileChunks.Load(keyHash)
+				chunkData, loaded := gossiper.fileHandler.myFileChunks.Load(keyHash)
 
 				if loaded {
 
@@ -148,7 +148,7 @@ func (gossiper *Gossiper) processDataReply() {
 		if extPacket.Packet.DataReply.Destination == gossiper.name {
 
 			if extPacket.Packet.DataReply.Data != nil && checkHash(extPacket.Packet.DataReply.HashValue, extPacket.Packet.DataReply.Data) {
-				value, loaded := gossiper.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin)
+				value, loaded := gossiper.fileHandler.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin)
 
 				if debug {
 					fmt.Println("Found channel?")
@@ -176,7 +176,7 @@ func (gossiper *Gossiper) processPrivateMessages() {
 				printPeerMessage(extPacket, gossiper.GetPeersAtomic())
 			}
 			go func(p *PrivateMessage) {
-				gossiper.originPackets.LatestMessages <- &RumorMessage{Text: p.Text, Origin: p.Origin}
+				gossiper.uiHandler.latestRumors <- &RumorMessage{Text: p.Text, Origin: p.Origin}
 			}(extPacket.Packet.Private)
 
 		} else {
@@ -211,7 +211,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			packet.Packet = &GossipPacket{Private: privatePacket}
 
 			go func(p *PrivateMessage) {
-				gossiper.originPackets.LatestMessages <- &RumorMessage{Text: p.Text, Origin: p.Origin}
+				gossiper.uiHandler.latestRumors <- &RumorMessage{Text: p.Text, Origin: p.Origin}
 			}(privatePacket)
 
 			go gossiper.forwardPrivateMessage(packet.Packet, &packet.Packet.Private.HopLimit, packet.Packet.Private.Destination)
@@ -224,7 +224,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			rumorPacket := &RumorMessage{ID: id, Origin: gossiper.name, Text: message.Text}
 			packet.Packet = &GossipPacket{Rumor: rumorPacket}
 
-			gossiper.addMessage(packet)
+			gossiper.storeRumorMessage(packet.Packet.Rumor)
 			go gossiper.startRumorMongering(packet)
 
 		case "file":
@@ -276,7 +276,7 @@ func (gossiper *Gossiper) processRumorMessages() {
 
 		gossiper.updateRoutingTable(extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.Text, extPacket.Packet.Rumor.ID, extPacket.SenderAddr)
 
-		isMessageKnown := gossiper.addMessage(extPacket)
+		isMessageKnown := gossiper.storeRumorMessage(extPacket.Packet.Rumor)
 
 		// send status
 		statusToSend := gossiper.getStatusToSend()

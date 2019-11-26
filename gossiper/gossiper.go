@@ -22,8 +22,11 @@ type Gossiper struct {
 	peersNumber uint64
 	origins     MutexOrigins
 
-	originPackets PacketsStorage
-	myStatus      MutexStatus
+	rumorMessages sync.Map
+	myRumorStatus MutexStatus
+
+	tlcMessages sync.Map
+	myTLCStatus MutexStatus
 
 	seqID uint32
 	tlcID uint32
@@ -34,16 +37,8 @@ type Gossiper struct {
 	routingTable MutexRoutingTable
 	originLastID MutexStatus
 
-	myFileChunks sync.Map
-	myFiles      sync.Map
-	hashChannels sync.Map
-	filesList    sync.Map
-
-	filesIndexed    chan *FileGUI
-	filesDownloaded chan *FileGUI
-	filesSearched   []FileGUI
-
-	lastSearchRequests MutexSearchResult
+	fileHandler *FileHandler
+	uiHandler   *UIHandler
 }
 
 // NewGossiper function
@@ -74,23 +69,18 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		peers:             MutexPeers{Peers: peers},
 		peersNumber:       peersNum,
 		origins:           MutexOrigins{Origins: make([]string, 0)},
-		originPackets:     PacketsStorage{OriginPacketsMap: sync.Map{}, LatestMessages: make(chan *RumorMessage, latestMessagesBuffer)},
-		myStatus:          MutexStatus{Status: make(map[string]uint32)},
+		rumorMessages:     sync.Map{},
+		myRumorStatus:     MutexStatus{Status: make(map[string]uint32)},
+		tlcMessages:       sync.Map{},
+		myTLCStatus:       MutexStatus{Status: make(map[string]uint32)},
 		originLastID:      MutexStatus{Status: make(map[string]uint32)},
 		seqID:             1,
 		tlcID:             1,
 		statusChannels:    sync.Map{},
 		mongeringChannels: sync.Map{},
 		routingTable:      MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
-		myFileChunks:      sync.Map{},
-		//mySharedFiles:      sync.Map{},
-		myFiles:            sync.Map{},
-		hashChannels:       sync.Map{},
-		filesList:          sync.Map{},
-		filesIndexed:       make(chan *FileGUI, 3),
-		filesDownloaded:    make(chan *FileGUI, 3),
-		filesSearched:      make([]FileGUI, 0),
-		lastSearchRequests: MutexSearchResult{SearchResults: make(map[string]time.Time)},
+		fileHandler:       NewFileHandler(),
+		uiHandler:         NewUIHandler(),
 	}
 }
 
@@ -139,20 +129,20 @@ func (gossiper *Gossiper) GetName() string {
 
 // GetSearchedFiles util
 func (gossiper *Gossiper) GetSearchedFiles() []FileGUI {
-	return gossiper.filesSearched
+	return gossiper.uiHandler.filesSearched
 }
 
 // GetIndexedFiles util
 func (gossiper *Gossiper) GetIndexedFiles() chan *FileGUI {
-	return gossiper.filesIndexed
+	return gossiper.uiHandler.filesIndexed
 }
 
 // GetDownloadedFiles util
 func (gossiper *Gossiper) GetDownloadedFiles() chan *FileGUI {
-	return gossiper.filesDownloaded
+	return gossiper.uiHandler.filesDownloaded
 }
 
-// GetLatestMessages util
-func (gossiper *Gossiper) GetLatestMessages() chan *RumorMessage {
-	return gossiper.originPackets.LatestMessages
+// GetLatestRumorMessages util
+func (gossiper *Gossiper) GetLatestRumorMessages() chan *RumorMessage {
+	return gossiper.uiHandler.latestRumors
 }

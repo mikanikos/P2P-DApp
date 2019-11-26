@@ -10,12 +10,12 @@ type MutexStatus struct {
 
 func (gossiper *Gossiper) getStatusToSend() *GossipPacket {
 
-	gossiper.myStatus.Mutex.RLock()
-	defer gossiper.myStatus.Mutex.RUnlock()
+	gossiper.myRumorStatus.Mutex.RLock()
+	defer gossiper.myRumorStatus.Mutex.RUnlock()
 
 	myStatus := make([]PeerStatus, 0)
 
-	for origin, nextID := range gossiper.myStatus.Status {
+	for origin, nextID := range gossiper.myRumorStatus.Status {
 		myStatus = append(myStatus, PeerStatus{Identifier: origin, NextID: nextID})
 	}
 
@@ -30,10 +30,10 @@ func (gossiper *Gossiper) getPeerStatusForPeer(otherStatus []PeerStatus) *PeerSt
 		originIDMap[elem.Identifier] = elem.NextID
 	}
 
-	gossiper.myStatus.Mutex.RLock()
-	defer gossiper.myStatus.Mutex.RUnlock()
+	gossiper.myRumorStatus.Mutex.RLock()
+	defer gossiper.myRumorStatus.Mutex.RUnlock()
 
-	for origin, nextID := range gossiper.myStatus.Status {
+	for origin, nextID := range gossiper.myRumorStatus.Status {
 		id, isOriginKnown := originIDMap[origin]
 		if !isOriginKnown {
 			return &PeerStatus{Identifier: origin, NextID: 1}
@@ -47,11 +47,11 @@ func (gossiper *Gossiper) getPeerStatusForPeer(otherStatus []PeerStatus) *PeerSt
 
 func (gossiper *Gossiper) isPeerStatusNeeded(otherStatus []PeerStatus) bool {
 
-	gossiper.myStatus.Mutex.RLock()
-	defer gossiper.myStatus.Mutex.RUnlock()
+	gossiper.myRumorStatus.Mutex.RLock()
+	defer gossiper.myRumorStatus.Mutex.RUnlock()
 
 	for _, elem := range otherStatus {
-		id, isOriginKnown := gossiper.myStatus.Status[elem.Identifier]
+		id, isOriginKnown := gossiper.myRumorStatus.Status[elem.Identifier]
 		if !isOriginKnown {
 			return true
 		} else if elem.NextID > id {

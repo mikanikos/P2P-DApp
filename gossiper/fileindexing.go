@@ -11,39 +11,6 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-// FileMetadata struct
-type FileMetadata struct {
-	FileName     string
-	MetafileHash []byte
-	ChunkMap     []uint64
-	ChunkCount   uint64
-	MetaFile     *[]byte
-	Size         int64
-}
-
-// FileIDPair struct
-type FileIDPair struct {
-	FileName    string
-	EncMetaHash string
-}
-
-// ChunkOwners struct
-type ChunkOwners struct {
-	Data   *[]byte
-	Owners []string
-}
-
-func initializeDirectories() {
-	wd, err := os.Getwd()
-	helpers.ErrorCheck(err)
-
-	shareFolder = wd + shareFolder
-	downloadFolder = wd + downloadFolder
-
-	os.Mkdir(shareFolder, os.ModePerm)
-	os.Mkdir(downloadFolder, os.ModePerm)
-}
-
 func (gossiper *Gossiper) indexFile(fileName *string) {
 
 	file, err := os.Open(shareFolder + *fileName)
@@ -64,7 +31,7 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 		hash32 := sha256.Sum256(partBuffer)
 		hash := hash32[:]
 
-		gossiper.myFileChunks.Store(hex.EncodeToString(hash), &ChunkOwners{Data: &partBuffer, Owners: make([]string, 0)})
+		gossiper.fileHandler.myFileChunks.Store(hex.EncodeToString(hash), &ChunkOwners{Data: &partBuffer, Owners: make([]string, 0)})
 		copy(hashes[i*32:(i+1)*32], hash)
 
 		chunkMap[i] = i + 1
@@ -76,16 +43,18 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 
 	fileMetadata := &FileMetadata{FileName: *fileName, MetafileHash: metahash, ChunkMap: chunkMap, ChunkCount: numFileChunks, MetaFile: &hashes, Size: fileSize}
 
-	gossiper.myFiles.Store(keyHash, fileMetadata)
-	gossiper.filesList.LoadOrStore(keyHash+*fileName, &FileIDPair{FileName: *fileName, EncMetaHash: keyHash})
+	gossiper.fileHandler.myFiles.Store(keyHash, fileMetadata)
+	gossiper.fileHandler.filesList.LoadOrStore(keyHash+*fileName, &FileIDPair{FileName: *fileName, EncMetaHash: keyHash})
 
 	go func(f *FileMetadata) {
-		gossiper.filesIndexed <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
+		gossiper.uiHandler.filesIndexed <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
 	}(fileMetadata)
 
-	// tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
-	// block := BlockPublish{Transaction: tx}
-	// go gossiper.mongerTLCMessage(block)
+	if hw3ex2Mode {
+		tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
+		block := BlockPublish{Transaction: tx}
+		go gossiper.mongerTLCMessage(block)
+	}
 
 	if debug {
 		fmt.Println("File " + *fileName + " indexed: " + keyHash)

@@ -4,54 +4,46 @@ import (
 	"sync"
 )
 
-// PacketsStorage struct
-type PacketsStorage struct {
-	OriginPacketsMap sync.Map
-	LatestMessages   chan *RumorMessage
-}
+func (gossiper *Gossiper) storeRumorMessage(rumor *RumorMessage) bool {
 
-func (gossiper *Gossiper) addMessage(extPacket *ExtendedGossipPacket) bool {
-
-	var origin string
-	var id uint32
-
-	origin = extPacket.Packet.Rumor.Origin
-	id = extPacket.Packet.Rumor.ID
-
-	value, _ := gossiper.originPackets.OriginPacketsMap.LoadOrStore(origin, &sync.Map{})
+	value, _ := gossiper.rumorMessages.LoadOrStore(rumor.Origin, &sync.Map{})
 	mapValue := value.(*sync.Map)
 
-	_, loaded := mapValue.LoadOrStore(id, extPacket.Packet.Rumor)
-	if !loaded && extPacket.Packet.Rumor.Text != "" {
+	_, loaded := mapValue.LoadOrStore(rumor.ID, rumor)
+	if !loaded && rumor.Text != "" {
 		go func(r *RumorMessage) {
-			gossiper.originPackets.LatestMessages <- r
-		}(extPacket.Packet.Rumor)
+			gossiper.uiHandler.latestRumors <- r
+		}(rumor)
 	}
 
-	// Update status
-	gossiper.myStatus.Mutex.Lock()
-	defer gossiper.myStatus.Mutex.Unlock()
-
-	value, peerExists := gossiper.myStatus.Status[extPacket.Packet.Rumor.Origin]
-	maxID := uint32(1)
-	if peerExists {
-		maxID = value.(uint32)
-	}
-
-	if maxID <= extPacket.Packet.Rumor.ID {
-		_, found := mapValue.Load(maxID)
-		for found {
-			maxID++
-			_, found = mapValue.Load(maxID)
-			gossiper.myStatus.Status[origin] = maxID
-		}
-	}
+	gossiper.updateStatus(rumor, mapValue)
 
 	return loaded
 }
 
+func (gossiper *Gossiper) updateStatus(rumor *RumorMessage, mapValue *sync.Map) {
+
+	gossiper.myRumorStatus.Mutex.Lock()
+	defer gossiper.myRumorStatus.Mutex.Unlock()
+
+	value, peerExists := gossiper.myRumorStatus.Status[rumor.Origin]
+	maxID := uint32(1)
+	if peerExists {
+		maxID = uint32(value)
+	}
+
+	if maxID <= rumor.ID {
+		_, found := mapValue.Load(maxID)
+		for found {
+			maxID++
+			_, found = mapValue.Load(maxID)
+			gossiper.myRumorStatus.Status[rumor.Origin] = maxID
+		}
+	}
+}
+
 func (gossiper *Gossiper) getPacketFromPeerStatus(ps PeerStatus) *GossipPacket {
-	value, _ := gossiper.originPackets.OriginPacketsMap.Load(ps.Identifier)
+	value, _ := gossiper.rumorMessages.Load(ps.Identifier)
 	idMessages := value.(*sync.Map)
 	message, _ := idMessages.Load(ps.NextID)
 	return &GossipPacket{Rumor: message.(*RumorMessage)}

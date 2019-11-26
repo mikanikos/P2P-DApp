@@ -7,6 +7,26 @@ type FileGUI struct {
 	Size     int64
 }
 
+// UIHandler struct
+type UIHandler struct {
+	filesIndexed    chan *FileGUI
+	filesDownloaded chan *FileGUI
+	filesSearched   []FileGUI
+	latestRumors    chan *RumorMessage
+	latestTLC       chan *TLCMessage
+}
+
+// NewUIHandler create new file handler
+func NewUIHandler() *UIHandler {
+	return &UIHandler{
+		filesIndexed:    make(chan *FileGUI, 3),
+		filesDownloaded: make(chan *FileGUI, 3),
+		filesSearched:   make([]FileGUI, 0),
+		latestRumors:    make(chan *RumorMessage, latestMessagesBuffer),
+		latestTLC:       make(chan *TLCMessage, latestMessagesBuffer),
+	}
+}
+
 // GetMessagesList for GUI
 func GetMessagesList(channel chan *RumorMessage) []RumorMessage {
 
