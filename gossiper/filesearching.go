@@ -51,7 +51,7 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 	keywords := extPacket.Packet.SearchRequest.Keywords
 	budget := extPacket.Packet.SearchRequest.Budget
 
-	extPacket.Packet.SearchRequest.Budget = budget - 1
+	//extPacket.Packet.SearchRequest.Budget = budget - 1
 
 	if budget <= 0 {
 		if debug {
@@ -90,7 +90,7 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 			if debug {
 				fmt.Println("Sending request")
 			}
-			extPacket.Packet.SearchRequest.Budget = budget - 1
+			//extPacket.Packet.SearchRequest.Budget = budget - 1
 			gossiper.broadcastToPeers(extPacket)
 		}
 	}
@@ -141,8 +141,17 @@ func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 					}
 				}
 			}
+
+			if len(matches) == matchThreshold {
+				return false
+			}
+
 			return true
 		})
+
+		if len(matches) == matchThreshold {
+			break
+		}
 	}
 
 	return len(matches)
@@ -203,8 +212,7 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 		budgetForEach := budget / uint64(numberPeers)
 		budgetToShare := budget % uint64(numberPeers)
 
-		peersChosen := make([]*net.UDPAddr, 0)
-		peersChosen = append(peersChosen, extPacket.SenderAddr)
+		peersChosen := []*net.UDPAddr{extPacket.SenderAddr}
 		availablePeers := helpers.DifferenceString(peers, peersChosen)
 
 		for len(availablePeers) != 0 || (budgetToShare != 0 && budgetForEach == 0) {

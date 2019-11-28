@@ -262,7 +262,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 				requestPacket.Budget = *message.Budget
 				go gossiper.searchFilePeriodically(packet, false)
 			} else {
-				requestPacket.Budget = uint64(2)
+				requestPacket.Budget = uint64(defaultBudget)
 				go gossiper.searchFilePeriodically(packet, true)
 			}
 

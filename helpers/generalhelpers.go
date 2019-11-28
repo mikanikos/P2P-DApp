@@ -21,6 +21,7 @@ type Message struct {
 func ErrorCheck(err error) {
 	if err != nil {
 		panic(err)
+		//os.Exit(1)
 	}
 }
 

@@ -38,6 +38,8 @@ type Gossiper struct {
 	uiHandler   *UIHandler
 
 	tlcChannels sync.Map
+
+	clientBlockBuffer chan BlockPublish
 }
 
 // NewGossiper function
@@ -61,17 +63,18 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 	}
 
 	return &Gossiper{
-		name:              name,
-		channels:          initializeChannels(modeTypes),
-		clientData:        &NetworkData{Conn: connUI, Addr: addressUI},
-		gossiperData:      &NetworkData{Conn: connGossiper, Addr: addressGossiper},
-		peers:             MutexPeers{Peers: peers},
-		peersNumber:       peersNum,
-		origins:           MutexOrigins{Origins: make([]string, 0)},
-		messageStorage:    sync.Map{},
-		myStatus:          MutexStatus{Status: make(map[string]uint32)},
-		originLastID:      MutexStatus{Status: make(map[string]uint32)},
-		seqID:             1,
+		name:           name,
+		channels:       initializeChannels(modeTypes),
+		clientData:     &NetworkData{Conn: connUI, Addr: addressUI},
+		gossiperData:   &NetworkData{Conn: connGossiper, Addr: addressGossiper},
+		peers:          MutexPeers{Peers: peers},
+		peersNumber:    peersNum,
+		origins:        MutexOrigins{Origins: make([]string, 0)},
+		messageStorage: sync.Map{},
+		myStatus:       MutexStatus{Status: make(map[string]uint32)},
+		originLastID:   MutexStatus{Status: make(map[string]uint32)},
+		seqID:          1,
+		// 1 or 0 ????
 		myTime:            0,
 		statusChannels:    sync.Map{},
 		mongeringChannels: sync.Map{},
@@ -79,6 +82,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		fileHandler:       NewFileHandler(),
 		uiHandler:         NewUIHandler(),
 		tlcChannels:       sync.Map{},
+		clientBlockBuffer: make(chan BlockPublish),
 	}
 }
 
@@ -115,6 +119,9 @@ func (gossiper *Gossiper) Run() {
 		go gossiper.processSearchReply()
 		go gossiper.processTLCMessage()
 		go gossiper.processTLCAck()
+		if hw3ex2Mode {
+			go gossiper.processClientBlocks()
+		}
 	}
 
 	go gossiper.receivePacketsFromClient(clientChannel)

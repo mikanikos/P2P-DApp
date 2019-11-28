@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-var hw1 = true
+var hw1 = false
 var hw2 = true
 var hw3 = true
 var debug = true
@@ -30,6 +30,7 @@ var latestMessagesBuffer = 30
 var hopLimit = 10
 var matchThreshold = 2
 var maxBudget = 32
+var defaultBudget = 2
 
 const fileChunk = 8192
 
