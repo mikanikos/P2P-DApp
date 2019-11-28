@@ -81,19 +81,21 @@ func (gossiper *Gossiper) processSearchReply() {
 
 			for _, res := range searchResults {
 
-				printSearchMatchMessage(extPacket.Packet.SearchReply.Origin, res)
+				go gossiper.handleSearchResult(extPacket.Packet.SearchReply.Origin, res)
 
-				value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
-				gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
-				fileMetadata := value.(*FileMetadata)
+				// printSearchMatchMessage(extPacket.Packet.SearchReply.Origin, res)
 
-				if !loaded {
-					gossiper.downloadMetafile(extPacket.Packet.SearchReply.Origin, fileMetadata)
-				}
+				// value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
+				// //gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
+				// fileMetadata := value.(*FileMetadata)
 
-				gossiper.storeChunksOwner(extPacket.Packet.SearchReply.Origin, res.ChunkMap, fileMetadata)
+				// if !loaded {
+				// 	gossiper.downloadMetafile(extPacket.Packet.SearchReply.Origin, fileMetadata)
+				// }
 
-				gossiper.addSearchFileForGUI(fileMetadata)
+				// gossiper.storeChunksOwner(extPacket.Packet.SearchReply.Origin, res.ChunkMap, fileMetadata)
+
+				// gossiper.addSearchFileForGUI(fileMetadata)
 			}
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet, &extPacket.Packet.SearchReply.HopLimit, extPacket.Packet.SearchReply.Destination)

@@ -18,17 +18,29 @@ type MutexSearchResult struct {
 	Mutex         sync.RWMutex
 }
 
+func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
+
+	value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
+	//gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
+	fileMetadata := value.(*FileMetadata)
+
+	if !loaded {
+		printSearchMatchMessage(origin, res)
+		gossiper.downloadMetafile(origin, fileMetadata)
+	}
+
+	gossiper.storeChunksOwner(origin, res.ChunkMap, fileMetadata)
+
+	gossiper.addSearchFileForGUI(fileMetadata)
+}
+
 func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bool {
 
 	sort.Strings(searchRequest.Keywords)
 	identifier := searchRequest.Origin + strings.Join(searchRequest.Keywords, "")
-	gossiper.fileHandler.lastSearchRequests.Mutex.RLock()
 	stored := gossiper.fileHandler.lastSearchRequests.SearchResults[identifier]
-	gossiper.fileHandler.lastSearchRequests.Mutex.RUnlock()
 
-	if stored.IsZero() || stored.Add(searchRequestDuplicate).Before(time.Now()) {
-		gossiper.fileHandler.lastSearchRequests.Mutex.Lock()
-		defer gossiper.fileHandler.lastSearchRequests.Mutex.Unlock()
+	if stored.IsZero() || stored.Add(searchRequestDuplicateTimeout).Before(time.Now()) {
 
 		if gossiper.fileHandler.lastSearchRequests.SearchResults[identifier].IsZero() {
 			gossiper.fileHandler.lastSearchRequests.SearchResults[identifier] = time.Now()
@@ -51,7 +63,7 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 	keywords := extPacket.Packet.SearchRequest.Keywords
 	budget := extPacket.Packet.SearchRequest.Budget
 
-	//extPacket.Packet.SearchRequest.Budget = budget - 1
+	extPacket.Packet.SearchRequest.Budget = budget - 1
 
 	if budget <= 0 {
 		if debug {
@@ -60,14 +72,14 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 		return
 	}
 
-	gossiper.broadcastToPeers(extPacket)
+	gossiper.forwardSearchRequestWithBudget(extPacket)
 
 	timer := time.NewTicker(time.Duration(searchTimeout) * time.Second)
 	for {
 		select {
 		case <-timer.C:
 
-			if extPacket.Packet.SearchRequest.Budget >= uint64(maxBudget) {
+			if budget > uint64(maxBudget) {
 				timer.Stop()
 				if debug {
 					fmt.Println("Search timeout")
@@ -90,8 +102,8 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 			if debug {
 				fmt.Println("Sending request")
 			}
-			//extPacket.Packet.SearchRequest.Budget = budget - 1
-			gossiper.broadcastToPeers(extPacket)
+			extPacket.Packet.SearchRequest.Budget = budget - 1
+			gossiper.forwardSearchRequestWithBudget(extPacket)
 		}
 	}
 }
@@ -100,58 +112,35 @@ func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 
 	matches := make([]string, 0)
 
-	for _, k := range keywords {
-		if debug {
-			fmt.Println("Looking for " + k)
+	gossiper.fileHandler.myFiles.Range(func(key interface{}, value interface{}) bool {
+		fileMetadata := value.(*FileMetadata)
+		if containsKeyword(fileMetadata.FileName, keywords) {
+			// valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
+			// if !loaded {
+			// 	if debug {
+			// 		panic("Error: file not found when searching for search results")
+			// 	}
+			// 	return false
+			// }
+			// fileMetadata := valueFile.(*FileMetadata)
+			metaFile := *fileMetadata.MetaFile
+
+			if len(fileMetadata.ChunkMap) == 0 && gossiper.checkAllChunksLocation(metaFile, fileMetadata.ChunkCount) {
+				//hashName := key.(string)
+				matches = append(matches, fileMetadata.FileName)
+				matches = helpers.RemoveDuplicatesFromSlice(matches)
+			}
 		}
-
-		gossiper.fileHandler.filesList.Range(func(key interface{}, value interface{}) bool {
-			id := value.(*FileIDPair)
-			if strings.Contains(id.FileName, k) {
-				valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
-				if !loaded {
-					if debug {
-						fmt.Println("Error: file not found when searching for search results")
-					}
-					return false
-				}
-				fileMetadata := valueFile.(*FileMetadata)
-				metaFile := *fileMetadata.MetaFile
-
-				if fileMetadata.Size == 0 {
-					knowAllTheChunks := true
-					for i := uint64(0); i < fileMetadata.ChunkCount; i++ {
-						hash := metaFile[i*32 : (i+1)*32]
-						chunkValue, loaded := gossiper.fileHandler.myFileChunks.Load(hex.EncodeToString(hash))
-						if loaded {
-							chunkOwnerEntry := chunkValue.(*ChunkOwners)
-							if len(chunkOwnerEntry.Owners) == 0 {
-								knowAllTheChunks = false
-								break
-							}
-						} else {
-							knowAllTheChunks = false
-							break
-						}
-					}
-					if knowAllTheChunks {
-						hashName := key.(string)
-						matches = append(matches, hashName)
-						matches = helpers.RemoveDuplicatesFromSlice(matches)
-					}
-				}
-			}
-
-			if len(matches) == matchThreshold {
-				return false
-			}
-
-			return true
-		})
 
 		if len(matches) == matchThreshold {
-			break
+			return false
 		}
+
+		return true
+	})
+
+	if debug {
+		fmt.Println("Got " + fmt.Sprint(len(matches)))
 	}
 
 	return len(matches)
@@ -162,23 +151,23 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 	keywords := extPacket.Packet.SearchRequest.Keywords
 	searchResults := make([]*SearchResult, 0)
 
-	for _, k := range keywords {
-		gossiper.fileHandler.filesList.Range(func(key interface{}, value interface{}) bool {
-			id := value.(*FileIDPair)
-			if strings.Contains(id.FileName, k) {
-				valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
-				if !loaded {
-					if debug {
-						fmt.Println("Error: file not found when searching for search results")
-					}
-					return false
-				}
-				fileMetadata := valueFile.(*FileMetadata)
-				searchResults = append(searchResults, &SearchResult{FileName: id.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: fileMetadata.ChunkMap})
+	gossiper.fileHandler.myFiles.Range(func(key interface{}, value interface{}) bool {
+		fileMetadata := value.(*FileMetadata)
+		if containsKeyword(fileMetadata.FileName, keywords) {
+			// valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
+			// if !loaded {
+			// 	if debug {
+			// 		panic("Error: file not found when searching for search results")
+			// 	}
+			// 	return false
+			// }
+			// fileMetadata := valueFile.(*FileMetadata)
+			if len(fileMetadata.ChunkMap) != 0 {
+				searchResults = append(searchResults, &SearchResult{FileName: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: fileMetadata.ChunkMap})
 			}
-			return true
-		})
-	}
+		}
+		return true
+	})
 
 	if len(searchResults) != 0 {
 		if debug {
@@ -190,32 +179,31 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 		go gossiper.forwardPrivateMessage(packetToSend, &packetToSend.SearchReply.HopLimit, packetToSend.SearchReply.Destination)
 	}
 
+	extPacket.Packet.SearchRequest.Budget = extPacket.Packet.SearchRequest.Budget - 1
 	gossiper.forwardSearchRequestWithBudget(extPacket)
 
 }
 
 func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGossipPacket) {
 
-	extPacket.Packet.SearchRequest.Budget = extPacket.Packet.SearchRequest.Budget - 1
+	peers := gossiper.GetPeersAtomic()
+	peersChosen := []*net.UDPAddr{extPacket.SenderAddr}
+	availablePeers := helpers.DifferenceString(peers, peersChosen)
 
-	if extPacket.Packet.SearchRequest.Budget > 0 {
+	if extPacket.Packet.SearchRequest.Budget > 0 && len(availablePeers) != 0 {
 
 		if debug {
-			fmt.Println("Forwarding request from " + extPacket.SenderAddr.String())
+			fmt.Println("Handling request from " + extPacket.SenderAddr.String() + " with total budget " + fmt.Sprint(extPacket.Packet.SearchRequest.Budget))
 		}
 
-		budget := extPacket.Packet.SearchRequest.Budget
+		budgetForEach := extPacket.Packet.SearchRequest.Budget / uint64(len(availablePeers))
+		budgetToShare := extPacket.Packet.SearchRequest.Budget % uint64(len(availablePeers))
 
-		peers := gossiper.GetPeersAtomic()
-		numberPeers := len(peers)
+		for len(availablePeers) != 0 {
 
-		budgetForEach := budget / uint64(numberPeers)
-		budgetToShare := budget % uint64(numberPeers)
-
-		peersChosen := []*net.UDPAddr{extPacket.SenderAddr}
-		availablePeers := helpers.DifferenceString(peers, peersChosen)
-
-		for len(availablePeers) != 0 || (budgetToShare != 0 && budgetForEach == 0) {
+			if budgetToShare == 0 && budgetForEach == 0 {
+				return
+			}
 
 			randomPeer := getRandomPeer(availablePeers)
 			if budgetToShare > 0 {
@@ -225,6 +213,9 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 				extPacket.Packet.SearchRequest.Budget = budgetForEach
 			}
 
+			if debug {
+				fmt.Println("Sending request to " + randomPeer.String() + " with budget " + fmt.Sprint(extPacket.Packet.SearchRequest.Budget))
+			}
 			gossiper.sendPacket(extPacket.Packet, randomPeer)
 			peersChosen = append(peersChosen, randomPeer)
 			availablePeers = helpers.DifferenceString(gossiper.GetPeersAtomic(), peersChosen)

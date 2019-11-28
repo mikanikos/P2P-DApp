@@ -24,7 +24,7 @@ var rumorTimeout = 10
 var stubbornTimeout = 10
 var requestTimeout = 5
 var searchTimeout = 1
-var searchRequestDuplicate = 500 * time.Millisecond
+var searchRequestDuplicateTimeout = 500 * time.Millisecond
 
 var latestMessagesBuffer = 30
 var hopLimit = 10
