@@ -103,7 +103,11 @@ sleep 2
 
 ./client/client -UIPort="$cUIPort" -file="$sharedFileName1"
 
-sleep 10
+sleep 2
+
+./client/client -UIPort="$dUIPort" -file="$sharedFileName3"
+
+sleep 3
 
 echo "Kill all the peerster processes..."
 #kill $(ps aux | grep '\.\/[P]eerster' | awk '{print $2}')

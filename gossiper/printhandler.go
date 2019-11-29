@@ -90,6 +90,6 @@ func printRoundMessage(round uint32, confirmations map[string]uint32) {
 		i++
 	}
 	if hw3ex3Mode {
-		fmt.Println(message[:len(message)-1])
+		fmt.Println(message[:len(message)-2])
 	}
 }

@@ -45,7 +45,7 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	gossiper.fileHandler.myFiles.Store(keyHash, fileMetadata)
 	//gossiper.fileHandler.filesList.LoadOrStore(keyHash+*fileName, &FileIDPair{FileName: *fileName, EncMetaHash: keyHash})
 
-	if hw3ex2Mode {
+	if hw3ex2Mode || hw3ex3Mode {
 		tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
 		block := BlockPublish{Transaction: tx}
 		go func(b BlockPublish) {

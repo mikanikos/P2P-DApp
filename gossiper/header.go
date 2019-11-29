@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-var hw1 = false
+var hw1 = true
 var hw2 = true
 var hw3 = true
 var debug = true

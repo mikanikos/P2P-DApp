@@ -37,7 +37,7 @@ func getPeerStatusForPeer(otherStatus []PeerStatus, status *MutexStatus) *PeerSt
 
 	for origin, nextID := range status.Status {
 		id, isOriginKnown := originIDMap[origin]
-		if !isOriginKnown && nextID != 0 {
+		if !isOriginKnown {
 			return &PeerStatus{Identifier: origin, NextID: 1}
 		} else if nextID > id {
 			return &PeerStatus{Identifier: origin, NextID: id}
@@ -53,7 +53,7 @@ func isPeerStatusNeeded(otherStatus []PeerStatus, status *MutexStatus) bool {
 
 	for _, elem := range otherStatus {
 		id, isOriginKnown := status.Status[elem.Identifier]
-		if !isOriginKnown && elem.NextID != 0 {
+		if !isOriginKnown {
 			return true
 		} else if elem.NextID > id {
 			return true
