@@ -37,7 +37,8 @@ type Gossiper struct {
 	fileHandler *FileHandler
 	uiHandler   *UIHandler
 
-	tlcChannels sync.Map
+	tlcAckChan     chan *TLCAck
+	tlcConfirmChan chan bool
 
 	clientBlockBuffer chan BlockPublish
 	tlcStatus         MutexStatus
@@ -84,8 +85,9 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		routingTable:      MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
 		fileHandler:       NewFileHandler(),
 		uiHandler:         NewUIHandler(),
-		tlcChannels:       sync.Map{},
-		clientBlockBuffer: make(chan BlockPublish),
+		tlcAckChan:        make(chan *TLCAck, maxChannelSize),
+		tlcConfirmChan:    make(chan bool),
+		clientBlockBuffer: make(chan BlockPublish, maxChannelSize),
 		tlcStatus:         MutexStatus{Status: make(map[string]uint32)},
 		firstTLCDone:      false,
 		confirmations:     make(map[string]uint32),
@@ -108,7 +110,7 @@ func (gossiper *Gossiper) Run() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	clientChannel := make(chan *helpers.Message)
+	clientChannel := make(chan *helpers.Message, maxChannelSize)
 	go gossiper.processClientMessages(clientChannel)
 
 	if simpleMode {

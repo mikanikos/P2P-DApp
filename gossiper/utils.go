@@ -16,7 +16,7 @@ func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedG
 	channels = make(map[string]chan *ExtendedGossipPacket)
 	for _, t := range modeTypes {
 		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
-			channels[t] = make(chan *ExtendedGossipPacket)
+			channels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
 		}
 	}
 	return channels

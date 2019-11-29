@@ -19,6 +19,7 @@ var ackAllMode = false
 var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck"}
 
 var maxBufferSize = 60000
+var maxChannelSize = 100
 
 var rumorTimeout = 10
 var stubbornTimeout = 10

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
@@ -12,30 +13,39 @@ import (
 func (gossiper *Gossiper) processTLCMessage() {
 	for extPacket := range gossiper.channels["tlcMes"] {
 
+		if debug {
+			fmt.Println("Got TLC message!!!!!!")
+		}
+
 		if extPacket.Packet.TLCMessage.Origin != gossiper.name {
-			if peerRound := gossiper.canAcceptTLCMessage(extPacket.Packet.TLCMessage); peerRound > -1 {
 
-				if extPacket.Packet.TLCMessage.Confirmed > -1 && uint32(peerRound) == gossiper.myTime {
-					gossiper.confirmations[extPacket.Packet.TLCMessage.Origin] = extPacket.Packet.TLCMessage.ID
-					gossiper.checkAndIncrementRound()
-				}
+			if hw3ex2Mode {
+				printTLCMessage(extPacket.Packet.TLCMessage)
+			}
 
-				if hw3ex2Mode {
-					printTLCMessage(extPacket.Packet.TLCMessage)
-				}
+			gossiper.updateRoutingTable(extPacket.Packet.TLCMessage.Origin, "", extPacket.Packet.TLCMessage.ID, extPacket.SenderAddr)
 
-				gossiper.updateRoutingTable(extPacket.Packet.TLCMessage.Origin, "", extPacket.Packet.TLCMessage.ID, extPacket.SenderAddr)
+			isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
-				isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
+			// if isTXValid(extPacket.Packet.TLCMessage.TxBlock) {
+			// }
 
-				// if isTXValid(extPacket.Packet.TLCMessage.TxBlock) {
-				// }
+			statusToSend := getStatusToSend(&gossiper.myStatus)
+			gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 
-				statusToSend := getStatusToSend(&gossiper.myStatus)
-				gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
+			if !isMessageKnown {
+				go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
-				if !isMessageKnown {
-					go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
+				if peerRound := gossiper.canAcceptTLCMessage(extPacket.Packet.TLCMessage); peerRound > -1 {
+
+					if extPacket.Packet.TLCMessage.Confirmed > -1 && uint32(peerRound) == gossiper.myTime {
+						gossiper.confirmations[extPacket.Packet.TLCMessage.Origin] = extPacket.Packet.TLCMessage.ID
+						if gossiper.checkAndIncrementRound() {
+							go func() {
+								gossiper.tlcConfirmChan <- true
+							}()
+						}
+					}
 
 					// Ack message
 					if !(extPacket.Packet.TLCMessage.Confirmed > -1) && (ackAllMode || uint32(peerRound) >= gossiper.myTime) {
@@ -45,11 +55,12 @@ func (gossiper *Gossiper) processTLCMessage() {
 						}
 						go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
 					}
+				} else {
+					go func(ext *ExtendedGossipPacket) {
+						time.Sleep(time.Duration(500) * time.Millisecond)
+						gossiper.channels["tlcMes"] <- ext
+					}(extPacket)
 				}
-			} else {
-				go func(ext *ExtendedGossipPacket) {
-					gossiper.channels["tlcMes"] <- ext
-				}(extPacket)
 			}
 		}
 	}
@@ -57,15 +68,15 @@ func (gossiper *Gossiper) processTLCMessage() {
 
 func (gossiper *Gossiper) processTLCAck() {
 	for extPacket := range gossiper.channels["tlcAck"] {
-
 		if extPacket.Packet.Ack.Destination == gossiper.name {
-			value, loaded := gossiper.tlcChannels.Load(extPacket.Packet.Ack.ID)
-			if loaded {
-				tlcChan := value.(chan *TLCAck)
-				go func(c chan *TLCAck, v *TLCAck) {
-					c <- v
-				}(tlcChan, extPacket.Packet.Ack)
+
+			if debug {
+				fmt.Println("Got TLC ACK!!!!!")
 			}
+
+			go func(v *TLCAck) {
+				gossiper.tlcAckChan <- v
+			}(extPacket.Packet.Ack)
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet, &extPacket.Packet.Ack.HopLimit, extPacket.Packet.Ack.Destination)
 		}
@@ -336,7 +347,7 @@ func (gossiper *Gossiper) processStatusMessages() {
 			printStatusMessage(extPacket, gossiper.GetPeersAtomic())
 		}
 
-		value, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket))
+		value, exists := gossiper.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket, maxChannelSize))
 		channelPeer := value.(chan *ExtendedGossipPacket)
 		if !exists {
 			go gossiper.handlePeerStatus(channelPeer)

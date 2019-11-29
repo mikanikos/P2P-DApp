@@ -14,6 +14,10 @@ func (gossiper *Gossiper) processClientBlocks() {
 
 	for block := range gossiper.clientBlockBuffer {
 
+		if debug {
+			fmt.Println("Processing new file block")
+		}
+
 		id := atomic.LoadUint32(&gossiper.seqID)
 		atomic.AddUint32(&gossiper.seqID, uint32(1))
 
@@ -25,45 +29,64 @@ func (gossiper *Gossiper) processClientBlocks() {
 
 		gossiper.storeMessage(extPacket.Packet, gossiper.name, id)
 
-		value, _ := gossiper.tlcChannels.LoadOrStore(id, make(chan *TLCAck))
-		tlcChan := value.(chan *TLCAck)
-
-		witnesses := []string{gossiper.name}
-
 		if hw3ex2Mode {
 			printTLCMessage(extPacket.Packet.TLCMessage)
 		}
-		gossiper.startRumorMongering(extPacket, gossiper.name, id)
+
+		go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 
 		if stubbornTimeout > 0 {
+
+			if debug {
+				fmt.Println("Start waiting for gossiping with confirmation")
+			}
+
 			timer := time.NewTicker(time.Duration(stubbornTimeout) * time.Second)
 			keepWaiting := true
+			witnesses := []string{gossiper.name}
+
 			for keepWaiting {
 				select {
-				case tlcAck := <-tlcChan:
-					witnesses = append(witnesses, tlcAck.Origin)
-					witnesses = helpers.RemoveDuplicatesFromSlice(witnesses)
-					if uint64(len(witnesses)) > gossiper.peersNumber/2 && !gossiper.firstTLCDone {
+				case tlcAck := <-gossiper.tlcAckChan:
+					if tlcAck.ID == id {
+
+						if debug {
+							fmt.Println("Got ack from " + tlcAck.Origin)
+						}
+
+						witnesses = append(witnesses, tlcAck.Origin)
+						witnesses = helpers.RemoveDuplicatesFromSlice(witnesses)
+						if uint64(len(witnesses)) > gossiper.peersNumber/2 && !gossiper.firstTLCDone {
+							timer.Stop()
+							gossiper.tlcAckChan = make(chan *TLCAck, maxChannelSize)
+							gossiper.sendGossipWithConfirmation(extPacket, id, witnesses)
+							gossiper.confirmations[gossiper.name] = id
+							keepWaiting = false
+							gossiper.firstTLCDone = true
+
+							if debug {
+								fmt.Println("Sent confirmed, done with this block")
+							}
+
+						}
+					}
+
+				case <-gossiper.tlcConfirmChan:
+					if gossiper.firstTLCDone {
 						timer.Stop()
-						gossiper.tlcChannels.Delete(id)
 						gossiper.sendGossipWithConfirmation(extPacket, id, witnesses)
 						keepWaiting = false
-						gossiper.firstTLCDone = true
+
+						if debug {
+							fmt.Println("Sent confirmed, done with this block")
+						}
 					}
 
 				case <-timer.C:
 					if hw3ex2Mode {
 						printTLCMessage(extPacket.Packet.TLCMessage)
 					}
-					if gossiper.checkAndIncrementRound() {
-						timer.Stop()
-						gossiper.tlcChannels.Delete(id)
-						gossiper.sendGossipWithConfirmation(extPacket, id, witnesses)
-						keepWaiting = false
-					} else {
-						gossiper.updateMyTLCStatusEntry()
-						go gossiper.startRumorMongering(extPacket, gossiper.name, id)
-					}
+					go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 				}
 			}
 		}
@@ -91,20 +114,34 @@ func (gossiper *Gossiper) sendGossipWithConfirmation(extPacket *ExtendedGossipPa
 }
 
 func (gossiper *Gossiper) canAcceptTLCMessage(tlc *TLCMessage) int {
-	gossiper.tlcStatus.Mutex.Lock()
-	defer gossiper.tlcStatus.Mutex.Unlock()
 
-	forPeer := getPeerStatusForPeer(tlc.VectorClock.Want, &gossiper.tlcStatus)
-	if forPeer == nil {
-		forMe := isPeerStatusNeeded(tlc.VectorClock.Want, &gossiper.tlcStatus)
-		if !forMe {
-			value, loaded := gossiper.tlcStatus.Status[tlc.Origin]
-			if !loaded {
-				value = 0
-			}
-			gossiper.tlcStatus.Status[tlc.Origin] = value + 1
-			return int(value)
+	// gossiper.tlcStatus.Mutex.Lock()
+	// defer gossiper.tlcStatus.Mutex.Unlock()
+
+	forMe := isPeerStatusNeeded(tlc.VectorClock.Want, &gossiper.tlcStatus)
+
+	if debug && forMe {
+		fmt.Println("I need")
+	}
+
+	if !forMe {
+		gossiper.tlcStatus.Mutex.Lock()
+		defer gossiper.tlcStatus.Mutex.Unlock()
+		value, loaded := gossiper.tlcStatus.Status[tlc.Origin]
+		if !loaded {
+			value = 0
 		}
+		gossiper.tlcStatus.Status[tlc.Origin] = value + 1
+
+		if debug {
+			fmt.Println("Vector clock OOOOOOOOOOOOOOOOKKKK!!!")
+		}
+
+		return int(value)
+	}
+
+	if debug {
+		fmt.Println("Vector clock NOOO")
 	}
 
 	return -1

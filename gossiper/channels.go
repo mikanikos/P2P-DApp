@@ -12,7 +12,7 @@ type MessageUniqueIdentifier struct {
 
 func (gossiper *Gossiper) getListenerForStatus(origin string, id uint32, peer string) (chan bool, bool) {
 	msgChan, _ := gossiper.mongeringChannels.LoadOrStore(peer, &sync.Map{})
-	channel, loaded := msgChan.(*sync.Map).LoadOrStore(MessageUniqueIdentifier{Origin: origin, ID: id}, make(chan bool))
+	channel, loaded := msgChan.(*sync.Map).LoadOrStore(MessageUniqueIdentifier{Origin: origin, ID: id}, make(chan bool, maxChannelSize))
 	return channel.(chan bool), loaded
 }
 
