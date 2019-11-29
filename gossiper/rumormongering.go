@@ -82,16 +82,15 @@ func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPac
 
 		go gossiper.notifyListenersForStatus(extPacket)
 
-		toSend := gossiper.getPeerStatusForPeer(extPacket.Packet.Status.Want)
-
+		toSend := getPeerStatusForPeer(extPacket.Packet.Status.Want, &gossiper.myStatus)
 		if toSend != nil {
 			packetToSend := gossiper.getPacketFromPeerStatus(*toSend)
 			gossiper.sendPacket(packetToSend, extPacket.SenderAddr)
 		} else {
-			wanted := gossiper.isPeerStatusNeeded(extPacket.Packet.Status.Want)
+			wanted := isPeerStatusNeeded(extPacket.Packet.Status.Want, &gossiper.myStatus)
 			if wanted {
-				statusToSend := gossiper.getStatusToSend()
-				gossiper.sendPacket(statusToSend, extPacket.SenderAddr)
+				statusToSend := getStatusToSend(&gossiper.myStatus)
+				gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 			} else {
 				if hw1 {
 					fmt.Println("IN SYNC WITH " + extPacket.SenderAddr.String())

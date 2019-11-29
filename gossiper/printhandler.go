@@ -74,9 +74,22 @@ func printTLCMessage(tlc *TLCMessage) {
 		" size " + fmt.Sprint(tlc.TxBlock.Transaction.Size) +
 		" metahash " + hex.EncodeToString(tlc.TxBlock.Transaction.MetafileHash)
 
-	if tlc.Confirmed {
+	if tlc.Confirmed > -1 {
 		fmt.Println("CONFIRMED " + messageToPrint)
 	} else {
 		fmt.Println("UNCONFIRMED " + messageToPrint)
+	}
+}
+
+func printRoundMessage(round uint32, confirmations map[string]uint32) {
+	message := "ADVANCING TO round " + fmt.Sprint(round) + " BASED ON CONFIRMED MESSAGES "
+
+	i := 1
+	for key, value := range confirmations {
+		message = message + "origin" + fmt.Sprint(i) + " " + key + " ID" + fmt.Sprint(i) + " " + fmt.Sprint(value) + ", "
+		i++
+	}
+	if hw3ex3Mode {
+		fmt.Println(message[:len(message)-1])
 	}
 }

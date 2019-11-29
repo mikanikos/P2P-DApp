@@ -58,6 +58,12 @@ type GossipPacket struct {
 	Ack           *TLCAck
 }
 
+// OriginID struct
+type OriginID struct {
+	Origin string
+	ID     uint32
+}
+
 // NetworkData struct
 type NetworkData struct {
 	Conn *net.UDPConn
@@ -148,7 +154,7 @@ type BlockPublish struct {
 type TLCMessage struct {
 	Origin      string
 	ID          uint32
-	Confirmed   bool
+	Confirmed   int
 	TxBlock     BlockPublish
 	VectorClock *StatusPacket // (used in Exercise 3, for now nil)
 	Fitness     float32       // (used in Exercise 4, for now 0)

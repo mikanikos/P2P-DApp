@@ -40,6 +40,10 @@ type Gossiper struct {
 	tlcChannels sync.Map
 
 	clientBlockBuffer chan BlockPublish
+	tlcStatus         MutexStatus
+
+	firstTLCDone  bool
+	confirmations map[string]uint32
 }
 
 // NewGossiper function
@@ -63,18 +67,17 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 	}
 
 	return &Gossiper{
-		name:           name,
-		channels:       initializeChannels(modeTypes),
-		clientData:     &NetworkData{Conn: connUI, Addr: addressUI},
-		gossiperData:   &NetworkData{Conn: connGossiper, Addr: addressGossiper},
-		peers:          MutexPeers{Peers: peers},
-		peersNumber:    peersNum,
-		origins:        MutexOrigins{Origins: make([]string, 0)},
-		messageStorage: sync.Map{},
-		myStatus:       MutexStatus{Status: make(map[string]uint32)},
-		originLastID:   MutexStatus{Status: make(map[string]uint32)},
-		seqID:          1,
-		// 1 or 0 ????
+		name:              name,
+		channels:          initializeChannels(modeTypes),
+		clientData:        &NetworkData{Conn: connUI, Addr: addressUI},
+		gossiperData:      &NetworkData{Conn: connGossiper, Addr: addressGossiper},
+		peers:             MutexPeers{Peers: peers},
+		peersNumber:       peersNum,
+		origins:           MutexOrigins{Origins: make([]string, 0)},
+		messageStorage:    sync.Map{},
+		myStatus:          MutexStatus{Status: make(map[string]uint32)},
+		originLastID:      MutexStatus{Status: make(map[string]uint32)},
+		seqID:             1,
 		myTime:            0,
 		statusChannels:    sync.Map{},
 		mongeringChannels: sync.Map{},
@@ -83,6 +86,9 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		uiHandler:         NewUIHandler(),
 		tlcChannels:       sync.Map{},
 		clientBlockBuffer: make(chan BlockPublish),
+		tlcStatus:         MutexStatus{Status: make(map[string]uint32)},
+		firstTLCDone:      false,
+		confirmations:     make(map[string]uint32),
 	}
 }
 
