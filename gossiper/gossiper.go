@@ -127,8 +127,8 @@ func (gossiper *Gossiper) Run() {
 		go gossiper.processSearchReply()
 		go gossiper.processTLCMessage()
 		go gossiper.processTLCAck()
-		if hw3ex2Mode || hw3ex3Mode {
-			go gossiper.processClientBlocks()
+		if hw3ex3Mode {
+			go gossiper.handleTLCRoundGossiping()
 		}
 	}
 

@@ -93,3 +93,14 @@ func printRoundMessage(round uint32, confirmations map[string]uint32) {
 		fmt.Println(message[:len(message)-2])
 	}
 }
+
+func printConfirmMessage(id uint32, witnesses map[string]uint32) {
+	message := "RE-BROADCAST ID " + fmt.Sprint(id) + " WITNESSES "
+
+	for key := range witnesses {
+		message = message + key + ", "
+	}
+	if hw3ex2Mode {
+		fmt.Println(message[:len(message)-2])
+	}
+}

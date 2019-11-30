@@ -19,7 +19,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 
 		if extPacket.Packet.TLCMessage.Origin != gossiper.name {
 
-			if hw3ex2Mode || hw3ex3Mode {
+			if hw3ex2Mode {
 				printTLCMessage(extPacket.Packet.TLCMessage)
 			}
 
@@ -33,32 +33,35 @@ func (gossiper *Gossiper) processTLCMessage() {
 			statusToSend := getStatusToSend(&gossiper.myStatus)
 			gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 
-			peerRound, canTake := gossiper.canAcceptTLCMessage(extPacket.Packet.TLCMessage)
+			if !isMessageKnown {
+				go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
+			}
+
+			peerRound, canTake := gossiper.canAcceptTLCMessage(extPacket.Packet.TLCMessage, isMessageKnown)
 
 			if debug {
 				fmt.Println(extPacket.Packet.TLCMessage.Origin + " is at round " + fmt.Sprint(peerRound))
 			}
 
-			if !isMessageKnown {
-				go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
-
-				// Ack message
-				if !(extPacket.Packet.TLCMessage.Confirmed > -1) && (!hw3ex3Mode || ackAllMode || uint32(peerRound) >= gossiper.myTime) {
-					privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
-					if hw3ex2Mode || hw3ex3Mode {
-						fmt.Println("SENDING ACK origin " + gossiper.name + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
-					}
-					go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
+			// Ack message
+			if !(extPacket.Packet.TLCMessage.Confirmed > -1) && (!hw3ex3Mode || ackAllMode || uint32(peerRound) >= gossiper.myTime) {
+				privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
+				if hw3ex2Mode || hw3ex3Mode {
+					fmt.Println("SENDING ACK origin " + gossiper.name + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
 				}
+				go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
 			}
 
 			if hw3ex3Mode {
-				if canTake {
-					if uint32(peerRound) == gossiper.myTime {
-						go func(tlc *TLCMessage) {
-							gossiper.tlcConfirmChan <- tlc
-						}(extPacket.Packet.TLCMessage)
+				if canTake && uint32(peerRound) == gossiper.myTime {
+
+					if debug {
+						fmt.Println("Got confirm for " + fmt.Sprint(extPacket.Packet.TLCMessage.Confirmed) + " from " + extPacket.Packet.TLCMessage.Origin)
 					}
+
+					go func(tlc *TLCMessage) {
+						gossiper.tlcConfirmChan <- tlc
+					}(extPacket.Packet.TLCMessage)
 				} else {
 					if !isMessageKnown && extPacket.Packet.TLCMessage.Confirmed > -1 {
 						go func(ext *ExtendedGossipPacket) {
@@ -77,7 +80,7 @@ func (gossiper *Gossiper) processTLCAck() {
 		if extPacket.Packet.Ack.Destination == gossiper.name {
 
 			if debug {
-				fmt.Println("Got TLC ACK!!!!!")
+				fmt.Println("Got ack for " + fmt.Sprint(extPacket.Packet.Ack.ID) + " from " + extPacket.Packet.Ack.Origin)
 			}
 
 			go func(v *TLCAck) {
@@ -93,8 +96,7 @@ func (gossiper *Gossiper) processSearchRequest() {
 	for extPacket := range gossiper.channels["searchRequest"] {
 
 		if !gossiper.isRecentSearchRequest(extPacket.Packet.SearchRequest) {
-
-			go gossiper.sendMatchingLocalFiles(extPacket)
+			gossiper.sendMatchingLocalFiles(extPacket)
 		} else {
 			if debug {
 				fmt.Println("Too recent request!!!!")
@@ -109,24 +111,8 @@ func (gossiper *Gossiper) processSearchReply() {
 		if extPacket.Packet.SearchReply.Destination == gossiper.name {
 
 			searchResults := extPacket.Packet.SearchReply.Results
-
 			for _, res := range searchResults {
-
-				go gossiper.handleSearchResult(extPacket.Packet.SearchReply.Origin, res)
-
-				// printSearchMatchMessage(extPacket.Packet.SearchReply.Origin, res)
-
-				// value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
-				// //gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
-				// fileMetadata := value.(*FileMetadata)
-
-				// if !loaded {
-				// 	gossiper.downloadMetafile(extPacket.Packet.SearchReply.Origin, fileMetadata)
-				// }
-
-				// gossiper.storeChunksOwner(extPacket.Packet.SearchReply.Origin, res.ChunkMap, fileMetadata)
-
-				// gossiper.addSearchFileForGUI(fileMetadata)
+				gossiper.handleSearchResult(extPacket.Packet.SearchReply.Origin, res)
 			}
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet, &extPacket.Packet.SearchReply.HopLimit, extPacket.Packet.SearchReply.Destination)

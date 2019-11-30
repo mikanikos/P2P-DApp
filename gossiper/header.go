@@ -5,10 +5,10 @@ import (
 	"time"
 )
 
-var hw1 = true
+var hw1 = false
 var hw2 = true
 var hw3 = true
-var debug = true
+var debug = false
 
 var simpleMode = false
 var hw3ex2Mode = false

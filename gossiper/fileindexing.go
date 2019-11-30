@@ -48,10 +48,14 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	if hw3ex2Mode || hw3ex3Mode {
 		tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
 		block := BlockPublish{Transaction: tx}
-		go func(b BlockPublish) {
-			gossiper.clientBlockBuffer <- b
-		}(block)
 
+		if hw3ex2Mode && !hw3ex3Mode {
+			gossiper.processClientBlock(block, false, make(map[string]uint32))
+		} else if hw3ex3Mode {
+			go func(b BlockPublish) {
+				gossiper.clientBlockBuffer <- b
+			}(block)
+		}
 	} else {
 		go func(f *FileMetadata) {
 			gossiper.uiHandler.filesIndexed <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
