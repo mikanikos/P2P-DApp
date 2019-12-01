@@ -38,7 +38,7 @@ type Gossiper struct {
 	uiHandler   *UIHandler
 
 	tlcAckChan     chan *TLCAck
-	tlcConfirmChan chan *TLCMessage
+	tlcConfirmChan sync.Map
 
 	blockBuffer chan *ExtendedGossipPacket
 	tlcStatus   sync.Map
@@ -90,7 +90,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		fileHandler:       NewFileHandler(),
 		uiHandler:         NewUIHandler(),
 		tlcAckChan:        make(chan *TLCAck, maxChannelSize),
-		tlcConfirmChan:    make(chan *TLCMessage, maxChannelSize),
+		tlcConfirmChan:    sync.Map{}, //make(chan *TLCMessage, maxChannelSize),
 		blockBuffer:       make(chan *ExtendedGossipPacket, maxChannelSize),
 		tlcStatus:         sync.Map{}, //MutexStatus{Status: make(map[string]uint32)},
 		// firstTLCDone:      false,
@@ -98,7 +98,7 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 
 		committedHistory: sync.Map{},
 
-		//topBlockchainHash: [32]byte(0),
+		topBlockchainHash: [32]byte{},
 	}
 }
 

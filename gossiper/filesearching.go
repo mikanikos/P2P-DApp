@@ -239,7 +239,7 @@ func (gossiper *Gossiper) storeChunksOwner(destination string, chunkMap []uint64
 		if !loaded {
 			chunkOwner.Owners = make([]string, 0)
 		}
-		chunkOwner.Owners = append(chunkOwner.Owners, destination)
+		chunkOwner.Owners = helpers.RemoveDuplicatesFromSlice(append(chunkOwner.Owners, destination))
 	}
 }
 

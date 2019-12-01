@@ -28,17 +28,25 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket) {
 				go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
 			}
 		}
+	} else {
+		if debug {
+			fmt.Println("ERROR IN TX VALIDATION ")
+		}
 	}
 
 	if hw3ex3Mode {
 		if canTake && uint32(messageRound) == gossiper.myTime {
 
 			if debug {
-				fmt.Println("Got confirm for " + fmt.Sprint(extPacket.Packet.TLCMessage.Confirmed) + " from " + extPacket.Packet.TLCMessage.Origin)
+				fmt.Println("Got confirm for " + fmt.Sprint(extPacket.Packet.TLCMessage.Confirmed) + " from " + extPacket.Packet.TLCMessage.Origin + " " + fmt.Sprint(extPacket.Packet.TLCMessage.Fitness))
 			}
 
+			round := atomic.LoadUint32(&gossiper.myTime)
+			valueChan, _ := gossiper.tlcConfirmChan.LoadOrStore(round, make(chan *TLCMessage, maxChannelSize))
+			tlcChan := valueChan.(chan *TLCMessage)
+
 			go func(tlc *TLCMessage) {
-				gossiper.tlcConfirmChan <- tlc
+				tlcChan <- tlc
 			}(extPacket.Packet.TLCMessage)
 		} else {
 			if extPacket.Packet.TLCMessage.Confirmed > -1 {
@@ -52,7 +60,9 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket) {
 }
 
 func (gossiper *Gossiper) tlcRound(extPacket *ExtendedGossipPacket) {
-	gossiper.confirmations.Store(gossiper.myTime, make(map[string]*TLCMessage))
+	round := atomic.LoadUint32(&gossiper.myTime)
+	gossiper.confirmations.LoadOrStore(round, make(map[string]*TLCMessage))
+	gossiper.tlcConfirmChan.LoadOrStore(round, make(chan *TLCMessage, maxChannelSize))
 	gossiper.gossipWithConfirmation(extPacket, true)
 }
 
@@ -75,8 +85,14 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 		witnesses := make(map[string]uint32)
 		witnesses[gossiper.name] = 0
 
-		value, _ := gossiper.confirmations.Load(gossiper.myTime)
+		round := atomic.LoadUint32(&gossiper.myTime)
+
+		value, _ := gossiper.confirmations.Load(round)
 		confirmations := value.(map[string]*TLCMessage)
+
+		valueChan, _ := gossiper.tlcConfirmChan.Load(round)
+		tlcChan := valueChan.(chan *TLCMessage)
+
 		delivered := false
 
 		for {
@@ -91,13 +107,13 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 
 						gossiper.tlcAckChan = make(chan *TLCAck, maxChannelSize)
 
-						packet := gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id))
+						packet := gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id), extPacket.Packet.TLCMessage.Fitness)
 						gossiper.sendGossipWithConfirmation(packet, witnesses)
 						delivered = true
 
 						if waitConfirmations {
 							go func(tlc *TLCMessage) {
-								gossiper.tlcConfirmChan <- tlc
+								tlcChan <- tlc
 							}(packet.Packet.TLCMessage)
 						} else {
 							return
@@ -105,18 +121,18 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 					}
 				}
 
-			case tlcConfirm := <-gossiper.tlcConfirmChan:
+			case tlcConfirm := <-tlcChan:
 
 				if waitConfirmations {
 					confirmations[tlcConfirm.Origin] = tlcConfirm
 					if gossiper.checkAndIncrementRound(confirmations) {
 						timer.Stop()
 
-						gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
+						//gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
 						gossiper.tlcAckChan = make(chan *TLCAck, maxChannelSize)
 
 						if !delivered {
-							gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id)), getIDForConfirmations(confirmations))
+							gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id), extPacket.Packet.TLCMessage.Fitness), getIDForConfirmations(confirmations))
 						}
 						return
 					}
@@ -140,11 +156,11 @@ func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint
 	return originIDMap
 }
 
-func (gossiper *Gossiper) createTLCMessage(block BlockPublish, confirmedFlag int) *ExtendedGossipPacket {
+func (gossiper *Gossiper) createTLCMessage(block BlockPublish, confirmedFlag int, fitness float32) *ExtendedGossipPacket {
 	id := atomic.LoadUint32(&gossiper.seqID)
 	atomic.AddUint32(&gossiper.seqID, uint32(1))
 
-	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: getStatusToSend(&gossiper.myStatus), Confirmed: confirmedFlag}
+	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: getStatusToSend(&gossiper.myStatus), Confirmed: confirmedFlag, Fitness: fitness}
 	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.gossiperData.Addr}
 
 	gossiper.storeMessage(extPacket.Packet, gossiper.name, id)

@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"math/rand"
 )
 
 // Hash function of BlockPublish
@@ -30,11 +29,20 @@ func (t *TxPublish) Hash() (out [32]byte) {
 
 func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
-	extPacket.Packet.TLCMessage.Fitness = rand.Float32()
+	//extPacket.Packet.TLCMessage.TxBlock.PrevHash = gossiper.topBlockchainHash
+	//extPacket.Packet.TLCMessage.Fitness = rand.Float32()
 	roundS := gossiper.myTime
 
+	if debug {
+		fmt.Println("FITNESS: " + fmt.Sprint(extPacket.Packet.TLCMessage.Fitness))
+	}
+
+	if debug {
+		fmt.Println("ROUND S")
+	}
+
 	// round s
-	gossiper.qscRound(extPacket)
+	gossiper.tlcRound(extPacket)
 
 	value, loaded := gossiper.confirmations.Load(roundS)
 	if !loaded {
@@ -46,8 +54,16 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
 	highestTLCRoundS := gossiper.getTLCWithHighestFitness(confirmationsRoundS)
 
+	if debug {
+		fmt.Println("Highest in round s : " + highestTLCRoundS.Origin + " " + fmt.Sprint(highestTLCRoundS.ID) + " " + fmt.Sprint(highestTLCRoundS.Fitness))
+	}
+
+	if debug {
+		fmt.Println("ROUND S+1")
+	}
+
 	// round s + 1
-	gossiper.qscRound(gossiper.createTLCMessage(highestTLCRoundS.TxBlock, -1))
+	gossiper.tlcRound(gossiper.createTLCMessage(highestTLCRoundS.TxBlock, -1, highestTLCRoundS.Fitness))
 
 	value, loaded = gossiper.confirmations.Load(roundS + 1)
 	if !loaded {
@@ -59,8 +75,16 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
 	highestTLCRoundS1 := gossiper.getTLCWithHighestFitness(confirmationsRoundS1)
 
+	if debug {
+		fmt.Println("Highest in round s : " + highestTLCRoundS1.Origin + " " + fmt.Sprint(highestTLCRoundS1.ID) + " " + fmt.Sprint(highestTLCRoundS1.Fitness))
+	}
+
+	if debug {
+		fmt.Println("ROUND S+2")
+	}
+
 	// round s + 2
-	gossiper.qscRound(gossiper.createTLCMessage(highestTLCRoundS1.TxBlock, -1))
+	gossiper.tlcRound(gossiper.createTLCMessage(highestTLCRoundS1.TxBlock, -1, highestTLCRoundS1.Fitness))
 
 	value, loaded = gossiper.confirmations.Load(roundS + 2)
 	if !loaded {
@@ -68,15 +92,29 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		return
 	}
 
+	if debug {
+		fmt.Println("CHECKING IF CONSENSUS REACHED")
+	}
+
 	if messageConsensus := checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1); messageConsensus != nil {
+
+		if debug {
+			fmt.Println("CAZZO")
+		}
 
 		chosenBlock := messageConsensus.TxBlock
 		chosenBlock.PrevHash = gossiper.topBlockchainHash
+		gossiper.committedHistory.Store(chosenBlock.Hash(), chosenBlock)
 		gossiper.topBlockchainHash = chosenBlock.Hash()
 
 		gossiper.printConsensusMessage(messageConsensus)
 
 	} else {
+
+		if debug {
+			fmt.Println("PORCO")
+		}
+
 		chosenBlock := highestTLCRoundS1.TxBlock
 		chosenBlock.PrevHash = gossiper.topBlockchainHash
 		gossiper.topBlockchainHash = chosenBlock.Hash()
@@ -85,12 +123,18 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
 func (gossiper *Gossiper) getTLCWithHighestFitness(confirmations map[string]*TLCMessage) *TLCMessage {
 
-	maxBlock := confirmations[gossiper.name]
+	maxBlock := &TLCMessage{Fitness: 0}
 	for _, value := range confirmations {
+
+		if debug {
+			fmt.Println(value.Origin + " " + fmt.Sprint(value.ID) + " " + fmt.Sprint(value.Fitness))
+		}
+
 		if value.Fitness > maxBlock.Fitness {
 			maxBlock = value
 		}
 	}
+
 	return maxBlock
 }
 
@@ -135,7 +179,12 @@ func checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1 map[strin
 
 		// second condition: m witnessed by majority by round s+2
 		for _, m := range confirmationsRoundS1 {
-			if m.Origin == message.Origin && m.Confirmed == message.Confirmed {
+			// if m.TxBlock.Transaction.Name == message.TxBlock.Transaction.Name &&
+			// 	m.TxBlock.Transaction.Size == message.TxBlock.Transaction.Size &&
+			// 	hex.EncodeToString(m.TxBlock.Transaction.MetafileHash) == hex.EncodeToString(message.TxBlock.Transaction.MetafileHash) &&
+			// 	m.TxBlock.PrevHash == message.TxBlock.PrevHash &&
+			if m.Fitness == message.Fitness {
+
 				condition = true
 				break
 			}

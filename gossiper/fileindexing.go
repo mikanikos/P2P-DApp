@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 
 	"github.com/mikanikos/Peerster/helpers"
@@ -47,8 +48,8 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 
 	if hw3ex2Mode || hw3ex3Mode || hw3ex4Mode {
 		tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
-		block := BlockPublish{Transaction: tx}
-		extPacket := gossiper.createTLCMessage(block, -1)
+		block := BlockPublish{Transaction: tx, PrevHash: gossiper.topBlockchainHash}
+		extPacket := gossiper.createTLCMessage(block, -1, rand.Float32())
 
 		if hw3ex2Mode && !hw3ex3Mode && !hw3ex4Mode {
 			gossiper.gossipWithConfirmation(extPacket, false)
@@ -70,7 +71,6 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 }
 
 func (gossiper *Gossiper) processClientBlocks() {
-
 	for extPacket := range gossiper.blockBuffer {
 
 		if hw3ex4Mode {
