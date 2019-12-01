@@ -51,14 +51,10 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 		extPacket := gossiper.createTLCMessage(block, -1)
 
 		if hw3ex2Mode && !hw3ex3Mode && !hw3ex4Mode {
-			gossiper.processClientBlock(extPacket, false)
-		} else if hw3ex3Mode && !hw3ex4Mode {
+			gossiper.gossipWithConfirmation(extPacket, false)
+		} else {
 			go func(e *ExtendedGossipPacket) {
-				gossiper.tlcBuffer <- e
-			}(extPacket)
-		} else if hw3ex4Mode {
-			go func(e *ExtendedGossipPacket) {
-				gossiper.qscBuffer <- e
+				gossiper.blockBuffer <- e
 			}(extPacket)
 		}
 	} else {
@@ -70,5 +66,17 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	if debug {
 		fmt.Println("File " + *fileName + " indexed: " + keyHash)
 		fmt.Println(fileSize)
+	}
+}
+
+func (gossiper *Gossiper) processClientBlocks() {
+
+	for extPacket := range gossiper.blockBuffer {
+
+		if hw3ex4Mode {
+			gossiper.qscRound(extPacket)
+		} else {
+			gossiper.tlcRound(extPacket)
+		}
 	}
 }

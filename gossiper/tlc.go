@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket, isMessageKnown bool) {
+func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket) {
 	messageRound, canTake := gossiper.canAcceptTLCMessage(extPacket.Packet.TLCMessage)
 
 	if debug {
@@ -18,12 +18,16 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket, isMe
 	// SHOULD I FILTER MESSAGES BEFORE, ACCORDING TO THE PEER ROUND / VECTOR CLOCK?
 
 	// Ack message
-	if !(extPacket.Packet.TLCMessage.Confirmed > -1) && (!hw3ex3Mode || ackAllMode || uint32(messageRound) >= gossiper.myTime) {
-		privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
-		if hw3ex2Mode || hw3ex3Mode {
-			fmt.Println("SENDING ACK origin " + extPacket.Packet.TLCMessage.Origin + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
+	if !hw3ex4Mode || gossiper.isTxBlockValid(extPacket.Packet.TLCMessage.TxBlock) {
+		if !hw3ex3Mode || ackAllMode || uint32(messageRound) >= gossiper.myTime {
+			if !(extPacket.Packet.TLCMessage.Confirmed > -1) {
+				privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
+				if hw3ex2Mode || hw3ex3Mode {
+					fmt.Println("SENDING ACK origin " + extPacket.Packet.TLCMessage.Origin + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
+				}
+				go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
+			}
 		}
-		go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
 	}
 
 	if hw3ex3Mode {
@@ -37,7 +41,7 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket, isMe
 				gossiper.tlcConfirmChan <- tlc
 			}(extPacket.Packet.TLCMessage)
 		} else {
-			if !isMessageKnown && extPacket.Packet.TLCMessage.Confirmed > -1 {
+			if extPacket.Packet.TLCMessage.Confirmed > -1 {
 				go func(ext *ExtendedGossipPacket) {
 					time.Sleep(time.Duration(500) * time.Millisecond)
 					gossiper.channels["tlcMes"] <- ext
@@ -47,46 +51,22 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket, isMe
 	}
 }
 
-func (gossiper *Gossiper) handleTLCRoundGossiping() {
-
-	// confirmations := make(map[string]uint32)
-	// firstRequestDone := false
-
-	for extPacket := range gossiper.tlcBuffer {
-
-		// if gossiper.checkAndIncrementRound(confirmations, firstRequestDone) {
-		// 	firstRequestDone = false
-
-		// 	for key := range confirmations {
-		// 		delete(confirmations, key)
-		// 	}
-
-		// 	gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
-		// }
-
-		fmt.Println(gossiper.myTime)
-		gossiper.confirmations.Store(gossiper.myTime, make(map[string]uint32))
-		gossiper.processClientBlock(extPacket, true)
-
-		// if !firstRequestDone {
-		// 	firstRequestDone = true
-		// }
-	}
+func (gossiper *Gossiper) tlcRound(extPacket *ExtendedGossipPacket) {
+	gossiper.confirmations.Store(gossiper.myTime, make(map[string]*TLCMessage))
+	gossiper.gossipWithConfirmation(extPacket, true)
 }
 
-func (gossiper *Gossiper) processClientBlock(extPacket *ExtendedGossipPacket, waitConfirmations bool) {
+func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket, waitConfirmations bool) {
 
 	if debug {
-		fmt.Println("Processing new block")
+		fmt.Println("Start gossip with confirmation")
 	}
-
-	//extPacket := gossiper.createTLCMessage(block, -1)
-	id := extPacket.Packet.TLCMessage.ID
 
 	if hw3ex2Mode {
 		printTLCMessage(extPacket.Packet.TLCMessage)
 	}
 
+	id := extPacket.Packet.TLCMessage.ID
 	go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 
 	if stubbornTimeout > 0 {
@@ -96,7 +76,7 @@ func (gossiper *Gossiper) processClientBlock(extPacket *ExtendedGossipPacket, wa
 		witnesses[gossiper.name] = 0
 
 		value, _ := gossiper.confirmations.Load(gossiper.myTime)
-		confirmations := value.(map[string]uint32)
+		confirmations := value.(map[string]*TLCMessage)
 		delivered := false
 
 		for {
@@ -128,8 +108,7 @@ func (gossiper *Gossiper) processClientBlock(extPacket *ExtendedGossipPacket, wa
 			case tlcConfirm := <-gossiper.tlcConfirmChan:
 
 				if waitConfirmations {
-					fmt.Println(confirmations)
-					confirmations[tlcConfirm.Origin] = tlcConfirm.ID
+					confirmations[tlcConfirm.Origin] = tlcConfirm
 					if gossiper.checkAndIncrementRound(confirmations) {
 						timer.Stop()
 
@@ -137,12 +116,8 @@ func (gossiper *Gossiper) processClientBlock(extPacket *ExtendedGossipPacket, wa
 						gossiper.tlcAckChan = make(chan *TLCAck, maxChannelSize)
 
 						if !delivered {
-							gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id)), confirmations)
+							gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id)), getIDForConfirmations(confirmations))
 						}
-						// for key := range confirmations {
-						// 	delete(confirmations, key)
-						// }
-
 						return
 					}
 				}
@@ -155,6 +130,14 @@ func (gossiper *Gossiper) processClientBlock(extPacket *ExtendedGossipPacket, wa
 			}
 		}
 	}
+}
+
+func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint32 {
+	originIDMap := make(map[string]uint32)
+	for key, value := range confirmations {
+		originIDMap[key] = value.ID
+	}
+	return originIDMap
 }
 
 func (gossiper *Gossiper) createTLCMessage(block BlockPublish, confirmedFlag int) *ExtendedGossipPacket {
@@ -230,7 +213,7 @@ func (gossiper *Gossiper) canAcceptTLCMessage(tlc *TLCMessage) (uint32, bool) {
 	return messageRound, false
 }
 
-func (gossiper *Gossiper) checkAndIncrementRound(confirmations map[string]uint32) bool {
+func (gossiper *Gossiper) checkAndIncrementRound(confirmations map[string]*TLCMessage) bool {
 	if uint64(len(confirmations)) > gossiper.peersNumber/2 {
 		atomic.AddUint32(&gossiper.myTime, uint32(1))
 		printRoundMessage(gossiper.myTime, confirmations)

@@ -36,7 +36,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 				go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 			}
 
-			gossiper.handleTLCMessage(extPacket, isMessageKnown)
+			go gossiper.handleTLCMessage(extPacket)
 		}
 	}
 }

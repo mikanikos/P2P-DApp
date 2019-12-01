@@ -40,12 +40,15 @@ type Gossiper struct {
 	tlcAckChan     chan *TLCAck
 	tlcConfirmChan chan *TLCMessage
 
-	tlcBuffer chan *ExtendedGossipPacket
-	qscBuffer chan *ExtendedGossipPacket
-	tlcStatus sync.Map
+	blockBuffer chan *ExtendedGossipPacket
+	tlcStatus   sync.Map
 
 	// firstTLCDone  bool
 	confirmations sync.Map
+
+	committedHistory sync.Map
+
+	topBlockchainHash [32]byte
 }
 
 // NewGossiper function
@@ -88,11 +91,14 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		uiHandler:         NewUIHandler(),
 		tlcAckChan:        make(chan *TLCAck, maxChannelSize),
 		tlcConfirmChan:    make(chan *TLCMessage, maxChannelSize),
-		tlcBuffer:         make(chan *ExtendedGossipPacket, maxChannelSize),
-		qscBuffer:         make(chan *ExtendedGossipPacket, maxChannelSize),
+		blockBuffer:       make(chan *ExtendedGossipPacket, maxChannelSize),
 		tlcStatus:         sync.Map{}, //MutexStatus{Status: make(map[string]uint32)},
 		// firstTLCDone:      false,
 		confirmations: sync.Map{}, //make(map[string]uint32),
+
+		committedHistory: sync.Map{},
+
+		//topBlockchainHash: [32]byte(0),
 	}
 }
 
@@ -129,8 +135,8 @@ func (gossiper *Gossiper) Run() {
 		go gossiper.processSearchReply()
 		go gossiper.processTLCMessage()
 		go gossiper.processTLCAck()
-		if hw3ex3Mode {
-			go gossiper.handleTLCRoundGossiping()
+		if hw3ex3Mode || hw3ex4Mode {
+			go gossiper.processClientBlocks()
 		}
 	}
 

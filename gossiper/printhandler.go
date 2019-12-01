@@ -81,12 +81,12 @@ func printTLCMessage(tlc *TLCMessage) {
 	}
 }
 
-func printRoundMessage(round uint32, confirmations map[string]uint32) {
+func printRoundMessage(round uint32, confirmations map[string]*TLCMessage) {
 	message := "ADVANCING TO round " + fmt.Sprint(round) + " BASED ON CONFIRMED MESSAGES "
 
 	i := 1
 	for key, value := range confirmations {
-		message = message + "origin" + fmt.Sprint(i) + " " + key + " ID" + fmt.Sprint(i) + " " + fmt.Sprint(value) + ", "
+		message = message + "origin" + fmt.Sprint(i) + " " + key + " ID" + fmt.Sprint(i) + " " + fmt.Sprint(value.ID) + ", "
 		i++
 	}
 	if hw3ex3Mode {
@@ -103,4 +103,23 @@ func printConfirmMessage(id uint32, witnesses map[string]uint32) {
 	if hw3ex2Mode {
 		fmt.Println(message[:len(message)-2])
 	}
+}
+
+func (gossiper *Gossiper) printConsensusMessage(tlcChosen *TLCMessage) {
+
+	message := "CONSENSUS ON QSC round " + fmt.Sprint(gossiper.myTime) + " message origin " + tlcChosen.Origin + " ID " + fmt.Sprint(tlcChosen.ID) + " filenames" //+ <name_oldest> ... <name_newest>​ size <size> metahash <metahash>"
+
+	filenames := ""
+
+	blockHash := gossiper.topBlockchainHash
+	for blockHash != [32]byte{} {
+		value, _ := gossiper.committedHistory.Load(blockHash)
+		block := value.(BlockPublish)
+		filenames = filenames + " " + block.Transaction.Name
+		blockHash = block.PrevHash
+	}
+
+	message = message + filenames + " size " + fmt.Sprint(tlcChosen.TxBlock.Transaction.Size) + " metahash " + hex.EncodeToString(tlcChosen.TxBlock.Transaction.MetafileHash)
+
+	fmt.Println(message)
 }
