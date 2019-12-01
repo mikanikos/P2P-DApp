@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
@@ -37,40 +36,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 				go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 			}
 
-			peerRound, canTake := gossiper.canAcceptTLCMessage(extPacket.Packet.TLCMessage, isMessageKnown)
-
-			if debug {
-				fmt.Println(extPacket.Packet.TLCMessage.Origin + " is at round " + fmt.Sprint(peerRound))
-			}
-
-			// Ack message
-			if !(extPacket.Packet.TLCMessage.Confirmed > -1) && (!hw3ex3Mode || ackAllMode || uint32(peerRound) >= gossiper.myTime) {
-				privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
-				if hw3ex2Mode || hw3ex3Mode {
-					fmt.Println("SENDING ACK origin " + gossiper.name + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
-				}
-				go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
-			}
-
-			if hw3ex3Mode {
-				if canTake && uint32(peerRound) == gossiper.myTime {
-
-					if debug {
-						fmt.Println("Got confirm for " + fmt.Sprint(extPacket.Packet.TLCMessage.Confirmed) + " from " + extPacket.Packet.TLCMessage.Origin)
-					}
-
-					go func(tlc *TLCMessage) {
-						gossiper.tlcConfirmChan <- tlc
-					}(extPacket.Packet.TLCMessage)
-				} else {
-					if !isMessageKnown && extPacket.Packet.TLCMessage.Confirmed > -1 {
-						go func(ext *ExtendedGossipPacket) {
-							time.Sleep(time.Duration(500) * time.Millisecond)
-							gossiper.channels["tlcMes"] <- ext
-						}(extPacket)
-					}
-				}
-			}
+			gossiper.handleTLCMessage(extPacket, isMessageKnown)
 		}
 	}
 }
@@ -115,7 +81,7 @@ func (gossiper *Gossiper) processSearchReply() {
 				gossiper.handleSearchResult(extPacket.Packet.SearchReply.Origin, res)
 			}
 		} else {
-			go gossiper.forwardPrivateMessage(extPacket.Packet, &extPacket.Packet.SearchReply.HopLimit, extPacket.Packet.SearchReply.Destination)
+			gossiper.forwardPrivateMessage(extPacket.Packet, &extPacket.Packet.SearchReply.HopLimit, extPacket.Packet.SearchReply.Destination)
 		}
 	}
 }

@@ -38,10 +38,10 @@ cd client
 go build
 cd ..
 
-./Peerster -name=a -peers="$bAddr"        -UIPort=$aUIPort -gossipAddr=$aAddr -rtimer=3 -antiEntropy=5 -hw3ex2=true -hw3ex3=true -N=4 -hopLimit=5 -stubbornTimeout=3 > "./tests/out/A.out" &
-./Peerster -name=b -peers="$aAddr,$cAddr" -UIPort=$bUIPort -gossipAddr=$bAddr -rtimer=3 -antiEntropy=5 -hw3ex2=true -hw3ex3=true -N=4 -hopLimit=5 -stubbornTimeout=3 > "./tests/out/B.out" &
-./Peerster -name=c -peers="$bAddr,$dAddr" -UIPort=$cUIPort -gossipAddr=$cAddr -rtimer=3 -antiEntropy=5 -hw3ex2=true -hw3ex3=true -N=4 -hopLimit=5 -stubbornTimeout=3 > "./tests/out/C.out" &
-./Peerster -name=d -peers="$cAddr"        -UIPort=$dUIPort -gossipAddr=$dAddr -rtimer=3 -antiEntropy=5 -hw3ex2=true -hw3ex3=true -N=4 -hopLimit=5 -stubbornTimeout=3 > "./tests/out/D.out" &
+./Peerster -name=a -peers="$bAddr"        -UIPort=$aUIPort -gossipAddr=$aAddr -rtimer=5 -antiEntropy=5 -hopLimit=5 -stubbornTimeout=10 -hw3ex2=true -hw3ex3=true -N=4 > "./tests/out/A.out" &
+./Peerster -name=b -peers="$aAddr,$cAddr" -UIPort=$bUIPort -gossipAddr=$bAddr -rtimer=5 -antiEntropy=5 -hopLimit=5 -stubbornTimeout=10 -hw3ex2=true -hw3ex3=true -N=4 > "./tests/out/B.out" &
+./Peerster -name=c -peers="$bAddr,$dAddr" -UIPort=$cUIPort -gossipAddr=$cAddr -rtimer=5 -antiEntropy=5 -hopLimit=5 -stubbornTimeout=10 -hw3ex2=true -hw3ex3=true -N=4 > "./tests/out/C.out" &
+./Peerster -name=d -peers="$cAddr"        -UIPort=$dUIPort -gossipAddr=$dAddr -rtimer=5 -antiEntropy=5 -hopLimit=5 -stubbornTimeout=10 -hw3ex2=true -hw3ex3=true -N=4 > "./tests/out/D.out" &
 
 # let the gossipers initialize
 sleep 1
@@ -114,6 +114,8 @@ sleep 3
 sleep 2
 
 ./client/client -UIPort="$dUIPort" -file="$sharedFileName1"
+
+./client/client -UIPort="$aUIPort" -file="$sharedFileName3"
 
 sleep 3
 

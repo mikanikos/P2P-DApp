@@ -40,11 +40,12 @@ type Gossiper struct {
 	tlcAckChan     chan *TLCAck
 	tlcConfirmChan chan *TLCMessage
 
-	clientBlockBuffer chan BlockPublish
-	tlcStatus         MutexStatus
+	tlcBuffer chan *ExtendedGossipPacket
+	qscBuffer chan *ExtendedGossipPacket
+	tlcStatus sync.Map
 
 	// firstTLCDone  bool
-	// confirmations map[string]uint32
+	confirmations sync.Map
 }
 
 // NewGossiper function
@@ -87,10 +88,11 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		uiHandler:         NewUIHandler(),
 		tlcAckChan:        make(chan *TLCAck, maxChannelSize),
 		tlcConfirmChan:    make(chan *TLCMessage, maxChannelSize),
-		clientBlockBuffer: make(chan BlockPublish, maxChannelSize),
-		tlcStatus:         MutexStatus{Status: make(map[string]uint32)},
+		tlcBuffer:         make(chan *ExtendedGossipPacket, maxChannelSize),
+		qscBuffer:         make(chan *ExtendedGossipPacket, maxChannelSize),
+		tlcStatus:         sync.Map{}, //MutexStatus{Status: make(map[string]uint32)},
 		// firstTLCDone:      false,
-		// confirmations:     make(map[string]uint32),
+		confirmations: sync.Map{}, //make(map[string]uint32),
 	}
 }
 

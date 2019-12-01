@@ -12,20 +12,20 @@ import (
 
 // FileHandler struct
 type FileHandler struct {
-	myFileChunks sync.Map
-	myFiles      sync.Map
-	hashChannels sync.Map
-	//filesList          sync.Map
+	myFileChunks       sync.Map
+	myFiles            sync.Map
+	hashChannels       sync.Map
+	filesList          sync.Map
 	lastSearchRequests MutexSearchResult
 }
 
 // NewFileHandler create new file handler
 func NewFileHandler() *FileHandler {
 	return &FileHandler{
-		myFileChunks: sync.Map{},
-		myFiles:      sync.Map{},
-		hashChannels: sync.Map{},
-		//filesList:          sync.Map{},
+		myFileChunks:       sync.Map{},
+		myFiles:            sync.Map{},
+		hashChannels:       sync.Map{},
+		filesList:          sync.Map{},
 		lastSearchRequests: MutexSearchResult{SearchResults: make(map[string]time.Time)},
 	}
 }

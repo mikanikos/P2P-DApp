@@ -25,3 +25,19 @@ func (t *TxPublish) Hash() (out [32]byte) {
 	copy(out[:], h.Sum(nil))
 	return
 }
+
+// func (gossiper *Gossiper) handleQSCRound() {
+
+// 	for extPacket := range gossiper.qscBuffer {
+
+// 		extPacket.Packet.TLCMessage.Fitness = rand.Float32()
+
+// 		round_s := gossiper.myTime
+
+// 		go func(e *ExtendedGossipPacket) {
+// 			gossiper.tlcBuffer <- e
+// 		}(extPacket)
+
+// 		for round_s + 1 != gossiper.myTime
+// 	}
+// }

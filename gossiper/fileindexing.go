@@ -43,18 +43,23 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	fileMetadata := &FileMetadata{FileName: *fileName, MetafileHash: metahash, ChunkMap: chunkMap, ChunkCount: numFileChunks, MetaFile: &hashes, Size: fileSize}
 
 	gossiper.fileHandler.myFiles.Store(keyHash, fileMetadata)
-	//gossiper.fileHandler.filesList.LoadOrStore(keyHash+*fileName, &FileIDPair{FileName: *fileName, EncMetaHash: keyHash})
+	gossiper.fileHandler.filesList.LoadOrStore(keyHash+*fileName, &FileIDPair{FileName: *fileName, EncMetaHash: keyHash})
 
-	if hw3ex2Mode || hw3ex3Mode {
+	if hw3ex2Mode || hw3ex3Mode || hw3ex4Mode {
 		tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
 		block := BlockPublish{Transaction: tx}
+		extPacket := gossiper.createTLCMessage(block, -1)
 
-		if hw3ex2Mode && !hw3ex3Mode {
-			gossiper.processClientBlock(block, false, make(map[string]uint32))
-		} else if hw3ex3Mode {
-			go func(b BlockPublish) {
-				gossiper.clientBlockBuffer <- b
-			}(block)
+		if hw3ex2Mode && !hw3ex3Mode && !hw3ex4Mode {
+			gossiper.processClientBlock(extPacket, false)
+		} else if hw3ex3Mode && !hw3ex4Mode {
+			go func(e *ExtendedGossipPacket) {
+				gossiper.tlcBuffer <- e
+			}(extPacket)
+		} else if hw3ex4Mode {
+			go func(e *ExtendedGossipPacket) {
+				gossiper.qscBuffer <- e
+			}(extPacket)
 		}
 	} else {
 		go func(f *FileMetadata) {

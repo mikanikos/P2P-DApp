@@ -3,42 +3,84 @@ package gossiper
 import (
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
-func (gossiper *Gossiper) handleTLCRoundGossiping() {
+func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket, isMessageKnown bool) {
+	messageRound, canTake := gossiper.canAcceptTLCMessage(extPacket.Packet.TLCMessage)
 
-	confirmations := make(map[string]uint32)
-	firstRequestDone := false
+	if debug {
+		fmt.Println(extPacket.Packet.TLCMessage.Origin + " is at round " + fmt.Sprint(messageRound))
+	}
 
-	for block := range gossiper.clientBlockBuffer {
+	// SHOULD I FILTER MESSAGES BEFORE, ACCORDING TO THE PEER ROUND / VECTOR CLOCK?
 
-		if gossiper.checkAndIncrementRound(confirmations, firstRequestDone) {
-			firstRequestDone = false
+	// Ack message
+	if !(extPacket.Packet.TLCMessage.Confirmed > -1) && (!hw3ex3Mode || ackAllMode || uint32(messageRound) >= gossiper.myTime) {
+		privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
+		if hw3ex2Mode || hw3ex3Mode {
+			fmt.Println("SENDING ACK origin " + extPacket.Packet.TLCMessage.Origin + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
+		}
+		go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
+	}
 
-			for key := range confirmations {
-				delete(confirmations, key)
+	if hw3ex3Mode {
+		if canTake && uint32(messageRound) == gossiper.myTime {
+
+			if debug {
+				fmt.Println("Got confirm for " + fmt.Sprint(extPacket.Packet.TLCMessage.Confirmed) + " from " + extPacket.Packet.TLCMessage.Origin)
 			}
 
-			gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
-		}
-
-		gossiper.processClientBlock(block, firstRequestDone, confirmations)
-
-		if !firstRequestDone {
-			firstRequestDone = true
+			go func(tlc *TLCMessage) {
+				gossiper.tlcConfirmChan <- tlc
+			}(extPacket.Packet.TLCMessage)
+		} else {
+			if !isMessageKnown && extPacket.Packet.TLCMessage.Confirmed > -1 {
+				go func(ext *ExtendedGossipPacket) {
+					time.Sleep(time.Duration(500) * time.Millisecond)
+					gossiper.channels["tlcMes"] <- ext
+				}(extPacket)
+			}
 		}
 	}
 }
 
-func (gossiper *Gossiper) processClientBlock(block BlockPublish, firstRequestDone bool, confirmations map[string]uint32) {
+func (gossiper *Gossiper) handleTLCRoundGossiping() {
+
+	// confirmations := make(map[string]uint32)
+	// firstRequestDone := false
+
+	for extPacket := range gossiper.tlcBuffer {
+
+		// if gossiper.checkAndIncrementRound(confirmations, firstRequestDone) {
+		// 	firstRequestDone = false
+
+		// 	for key := range confirmations {
+		// 		delete(confirmations, key)
+		// 	}
+
+		// 	gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
+		// }
+
+		fmt.Println(gossiper.myTime)
+		gossiper.confirmations.Store(gossiper.myTime, make(map[string]uint32))
+		gossiper.processClientBlock(extPacket, true)
+
+		// if !firstRequestDone {
+		// 	firstRequestDone = true
+		// }
+	}
+}
+
+func (gossiper *Gossiper) processClientBlock(extPacket *ExtendedGossipPacket, waitConfirmations bool) {
 
 	if debug {
 		fmt.Println("Processing new block")
 	}
 
-	extPacket := gossiper.createTLCMessage(block, -1)
+	//extPacket := gossiper.createTLCMessage(block, -1)
 	id := extPacket.Packet.TLCMessage.ID
 
 	if hw3ex2Mode {
@@ -53,41 +95,56 @@ func (gossiper *Gossiper) processClientBlock(block BlockPublish, firstRequestDon
 		witnesses := make(map[string]uint32)
 		witnesses[gossiper.name] = 0
 
+		value, _ := gossiper.confirmations.Load(gossiper.myTime)
+		confirmations := value.(map[string]uint32)
+		delivered := false
+
 		for {
 			select {
 			case tlcAck := <-gossiper.tlcAckChan:
 
-				if tlcAck.ID == id {
+				if tlcAck.ID == id && !delivered {
 
 					witnesses[tlcAck.Origin] = 0
-					if uint64(len(witnesses)) > gossiper.peersNumber/2 && !firstRequestDone {
+					if uint64(len(witnesses)) > gossiper.peersNumber/2 {
 						timer.Stop()
 
 						gossiper.tlcAckChan = make(chan *TLCAck, maxChannelSize)
-						gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(block, int(id)), witnesses)
 
-						confirmations[gossiper.name] = id
+						packet := gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id))
+						gossiper.sendGossipWithConfirmation(packet, witnesses)
+						delivered = true
 
-						return
+						if waitConfirmations {
+							go func(tlc *TLCMessage) {
+								gossiper.tlcConfirmChan <- tlc
+							}(packet.Packet.TLCMessage)
+						} else {
+							return
+						}
 					}
 				}
 
 			case tlcConfirm := <-gossiper.tlcConfirmChan:
 
-				confirmations[tlcConfirm.Origin] = tlcConfirm.ID
-				if gossiper.checkAndIncrementRound(confirmations, firstRequestDone) {
-					timer.Stop()
+				if waitConfirmations {
+					fmt.Println(confirmations)
+					confirmations[tlcConfirm.Origin] = tlcConfirm.ID
+					if gossiper.checkAndIncrementRound(confirmations) {
+						timer.Stop()
 
-					gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
-					gossiper.tlcAckChan = make(chan *TLCAck, maxChannelSize)
+						gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
+						gossiper.tlcAckChan = make(chan *TLCAck, maxChannelSize)
 
-					gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(block, int(id)), confirmations)
+						if !delivered {
+							gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id)), confirmations)
+						}
+						// for key := range confirmations {
+						// 	delete(confirmations, key)
+						// }
 
-					for key := range confirmations {
-						delete(confirmations, key)
+						return
 					}
-
-					return
 				}
 
 			case <-timer.C:
@@ -126,16 +183,35 @@ func (gossiper *Gossiper) sendGossipWithConfirmation(extPacket *ExtendedGossipPa
 	}(&extPacket.Packet.TLCMessage.TxBlock)
 }
 
-func (gossiper *Gossiper) canAcceptTLCMessage(tlc *TLCMessage, isMessageKnown bool) (uint32, bool) {
+// SafeTLCMap struct
+type SafeTLCMap struct {
+	MessagedIDs map[int]bool
+	Mutex       sync.RWMutex
+}
 
-	gossiper.tlcStatus.Mutex.RLock()
-	value, _ := gossiper.tlcStatus.Status[tlc.Origin]
-	gossiper.tlcStatus.Mutex.RUnlock()
+func (gossiper *Gossiper) canAcceptTLCMessage(tlc *TLCMessage) (uint32, bool) {
 
-	// if debug {
-	// 	fmt.Println(tlc.VectorClock.Want)
-	// 	fmt.Println(gossiper.tlcStatus.Status)
-	// }
+	value, _ := gossiper.tlcStatus.LoadOrStore(tlc.Origin, &SafeTLCMap{MessagedIDs: make(map[int]bool)})
+	tlcMap := value.(*SafeTLCMap)
+
+	tlcMap.Mutex.RLock()
+
+	messageRound := uint32(0)
+	if tlc.Confirmed > -1 {
+		for key := range tlcMap.MessagedIDs {
+			if tlc.Confirmed > key {
+				messageRound++
+			}
+		}
+	} else {
+		for key := range tlcMap.MessagedIDs {
+			if tlc.ID > uint32(key) {
+				messageRound++
+			}
+		}
+	}
+
+	tlcMap.Mutex.RUnlock()
 
 	vectorClockHigher := isPeerStatusNeeded(tlc.VectorClock.Want, &gossiper.myStatus)
 	if !vectorClockHigher && tlc.Confirmed > -1 {
@@ -144,33 +220,19 @@ func (gossiper *Gossiper) canAcceptTLCMessage(tlc *TLCMessage, isMessageKnown bo
 			fmt.Println("Vector clock OOOOOOOOOOOOOOOOKKKK!!!")
 		}
 
-		if !isMessageKnown {
-			gossiper.tlcStatus.Mutex.Lock()
-			gossiper.tlcStatus.Status[tlc.Origin] = value + 1
-			gossiper.tlcStatus.Mutex.Unlock()
-		}
+		tlcMap.Mutex.Lock()
+		tlcMap.MessagedIDs[tlc.Confirmed] = true
+		tlcMap.Mutex.Unlock()
 
-		return value, true
+		return messageRound, true
 	}
 
-	if debug {
-		fmt.Println("Vector clock NOOO")
-	}
-
-	return value, false
+	return messageRound, false
 }
 
-func (gossiper *Gossiper) updateMyTLCStatusEntry() {
-	gossiper.tlcStatus.Mutex.Lock()
-	defer gossiper.tlcStatus.Mutex.Unlock()
-	gossiper.tlcStatus.Status[gossiper.name] = gossiper.myTime
-}
-
-func (gossiper *Gossiper) checkAndIncrementRound(confirmations map[string]uint32, firstTLCDone bool) bool {
-	if uint64(len(confirmations)) > gossiper.peersNumber/2 && firstTLCDone {
+func (gossiper *Gossiper) checkAndIncrementRound(confirmations map[string]uint32) bool {
+	if uint64(len(confirmations)) > gossiper.peersNumber/2 {
 		atomic.AddUint32(&gossiper.myTime, uint32(1))
-
-		gossiper.updateMyTLCStatusEntry()
 		printRoundMessage(gossiper.myTime, confirmations)
 		return true
 	}

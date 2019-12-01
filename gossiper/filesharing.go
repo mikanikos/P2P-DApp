@@ -71,7 +71,7 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 			return
 		}
 		value, _ = gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(metaHash), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0)})
-		//gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(metaHash)+fileName, &FileIDPair{FileName: fileName, EncMetaHash: hex.EncodeToString(metaHash)})
+		gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(metaHash)+fileName, &FileIDPair{FileName: fileName, EncMetaHash: hex.EncodeToString(metaHash)})
 		fileMetadata := value.(*FileMetadata)
 		gossiper.downloadMetafile(destination, fileMetadata)
 	}

@@ -20,8 +20,8 @@ type MutexSearchResult struct {
 
 func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
 
-	value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
-	//gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
+	value, _ := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
+	_, loaded := gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
 	fileMetadata := value.(*FileMetadata)
 
 	if !loaded {
@@ -112,20 +112,22 @@ func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 
 	matches := make([]string, 0)
 
-	gossiper.fileHandler.myFiles.Range(func(key interface{}, value interface{}) bool {
-		fileMetadata := value.(*FileMetadata)
-		if containsKeyword(fileMetadata.FileName, keywords) {
-			// valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
-			// if !loaded {
-			// 	if debug {
-			// 		panic("Error: file not found when searching for search results")
-			// 	}
-			// 	return false
-			// }
-			// fileMetadata := valueFile.(*FileMetadata)
-			metaFile := *fileMetadata.MetaFile
+	gossiper.fileHandler.filesList.Range(func(key interface{}, value interface{}) bool {
+		//fileMetadata := value.(*FileMetadata)
+		id := value.(*FileIDPair)
+		if containsKeyword(id.FileName, keywords) {
+			valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
+			if !loaded {
+				if debug {
+					panic("Error: file not found when searching for search results")
+				}
+				return false
+			}
+			fileMetadata := valueFile.(*FileMetadata)
 
-			if len(fileMetadata.ChunkMap) == 0 && gossiper.checkAllChunksLocation(metaFile, fileMetadata.ChunkCount) {
+			//metaFile := *fileMetadata.MetaFile
+
+			if len(fileMetadata.ChunkMap) == 0 { //&& gossiper.checkAllChunksLocation(metaFile, fileMetadata.ChunkCount) {
 				//hashName := key.(string)
 				matches = append(matches, fileMetadata.FileName)
 				matches = helpers.RemoveDuplicatesFromSlice(matches)
@@ -151,17 +153,18 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 	keywords := extPacket.Packet.SearchRequest.Keywords
 	searchResults := make([]*SearchResult, 0)
 
-	gossiper.fileHandler.myFiles.Range(func(key interface{}, value interface{}) bool {
-		fileMetadata := value.(*FileMetadata)
-		if containsKeyword(fileMetadata.FileName, keywords) {
-			// valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
-			// if !loaded {
-			// 	if debug {
-			// 		panic("Error: file not found when searching for search results")
-			// 	}
-			// 	return false
-			// }
-			// fileMetadata := valueFile.(*FileMetadata)
+	gossiper.fileHandler.filesList.Range(func(key interface{}, value interface{}) bool {
+		//fileMetadata := value.(*FileMetadata)
+		id := value.(*FileIDPair)
+		if containsKeyword(id.FileName, keywords) {
+			valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
+			if !loaded {
+				if debug {
+					panic("Error: file not found when searching for search results")
+				}
+				return false
+			}
+			fileMetadata := valueFile.(*FileMetadata)
 			if len(fileMetadata.ChunkMap) != 0 {
 				searchResults = append(searchResults, &SearchResult{FileName: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: fileMetadata.ChunkMap})
 			}

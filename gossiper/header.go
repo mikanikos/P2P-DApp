@@ -8,7 +8,7 @@ import (
 var hw1 = false
 var hw2 = true
 var hw3 = true
-var debug = false
+var debug = true
 
 var simpleMode = false
 var hw3ex2Mode = false
