@@ -18,10 +18,6 @@ func (gossiper *Gossiper) processTLCMessage() {
 
 		if extPacket.Packet.TLCMessage.Origin != gossiper.name {
 
-			if hw3ex2Mode {
-				printTLCMessage(extPacket.Packet.TLCMessage)
-			}
-
 			gossiper.updateRoutingTable(extPacket.Packet.TLCMessage.Origin, "", extPacket.Packet.TLCMessage.ID, extPacket.SenderAddr)
 
 			isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
@@ -33,6 +29,12 @@ func (gossiper *Gossiper) processTLCMessage() {
 			gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 
 			if !isMessageKnown {
+
+				// here or out?
+				if hw3ex2Mode {
+					gossiper.printTLCMessage(extPacket.Packet.TLCMessage)
+				}
+
 				go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 			}
 
@@ -50,7 +52,7 @@ func (gossiper *Gossiper) processTLCAck() {
 			}
 
 			go func(v *TLCAck) {
-				gossiper.tlcAckChan <- v
+				gossiper.blHandler.tlcAckChan <- v
 			}(extPacket.Packet.Ack)
 		} else {
 			go gossiper.forwardPrivateMessage(extPacket.Packet, &extPacket.Packet.Ack.HopLimit, extPacket.Packet.Ack.Destination)

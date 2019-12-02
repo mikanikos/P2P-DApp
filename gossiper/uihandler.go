@@ -1,5 +1,7 @@
 package gossiper
 
+import "encoding/hex"
+
 // FileGUI struct
 type FileGUI struct {
 	Name     string
@@ -13,6 +15,7 @@ type UIHandler struct {
 	filesDownloaded chan *FileGUI
 	filesSearched   []FileGUI
 	latestRumors    chan *RumorMessage
+	blockchainLogs  chan string
 }
 
 // NewUIHandler create new file handler
@@ -22,6 +25,7 @@ func NewUIHandler() *UIHandler {
 		filesDownloaded: make(chan *FileGUI, 3),
 		filesSearched:   make([]FileGUI, 0),
 		latestRumors:    make(chan *RumorMessage, latestMessagesBuffer),
+		blockchainLogs:  make(chan string, 20),
 	}
 }
 
@@ -48,4 +52,30 @@ func GetFilesList(channel chan *FileGUI) []FileGUI {
 		files[i] = *file
 	}
 	return files
+}
+
+// GetBlockchainList for GUI
+func GetBlockchainList(channel chan string) []string {
+
+	bufferLength := len(channel)
+	logs := make([]string, bufferLength)
+	for i := 0; i < bufferLength; i++ {
+		log := <-channel
+		logs[i] = log
+	}
+	return logs
+}
+
+// GetBlockchain for GUI
+func (gossiper *Gossiper) GetBlockchain() []FileGUI {
+
+	filesConsensus := make([]FileGUI, 0)
+	blockHash := gossiper.blHandler.topBlockchainHash
+	for blockHash != [32]byte{} {
+		value, _ := gossiper.blHandler.committedHistory.Load(gossiper.blHandler.topBlockchainHash)
+		block := value.(BlockPublish)
+		filesConsensus = append(filesConsensus, FileGUI{Name: block.Transaction.Name, MetaHash: hex.EncodeToString(block.Transaction.MetafileHash), Size: block.Transaction.Size})
+		blockHash = block.PrevHash
+	}
+	return filesConsensus
 }

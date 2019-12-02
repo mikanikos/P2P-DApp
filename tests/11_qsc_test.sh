@@ -85,17 +85,17 @@ sleep 1
 
 sleep 2
 
-# ./client/client -UIPort="$aUIPort" -file="$sharedFileName1"
+./client/client -UIPort="$aUIPort" -file="$sharedFileName3"
 
-# sleep 1
+sleep 1
 
-# ./client/client -UIPort="$bUIPort" -file="$sharedFileName2"
+./client/client -UIPort="$bUIPort" -file="$sharedFileName1"
 
-# ./client/client -UIPort="$dUIPort" -file="$sharedFileName1"
+./client/client -UIPort="$dUIPort" -file="$sharedFileName2"
 
-# sleep 2
+sleep 2
 
-# ./client/client -UIPort="$cUIPort" -file="$sharedFileName3"
+./client/client -UIPort="$cUIPort" -file="$sharedFileName2"
 
 sleep 5
 

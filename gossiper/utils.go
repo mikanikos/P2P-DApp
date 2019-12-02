@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
@@ -156,4 +157,21 @@ func chunksIntegrityCheck(fileMetadata *FileMetadata) bool {
 		}
 	}
 	return true
+}
+
+func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint32 {
+	originIDMap := make(map[string]uint32)
+	for key, value := range confirmations {
+		originIDMap[key] = value.ID
+	}
+	return originIDMap
+}
+
+func containsKeyword(fileName string, keywords []string) bool {
+	for _, keyword := range keywords {
+		if strings.Contains(fileName, keyword) {
+			return true
+		}
+	}
+	return false
 }

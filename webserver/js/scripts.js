@@ -117,6 +117,35 @@ $(document).ready(function () {
     });
 
     window.setInterval(function () {
+        
+        function updateBlockchainBox() {
+            $.get("/blockchain", function (data) {
+                var jsonData = JSON.parse(data);
+                var list = document.getElementById('blockchainList');
+
+                while (list.hasChildNodes()) {
+                    list.removeChild(list.firstChild)
+                }
+
+                for (el of jsonData) {
+                    var entry = document.createElement('li');
+                    var text = el["Name"] + " " + el["MetaHash"]
+                    entry.style.margin = "10px"
+                    entry.appendChild(document.createTextNode(text));
+                    list.appendChild(entry);
+                }
+            });
+        }
+        updateBlockchainBox()
+
+        function updateRound() {
+            $.get("/round", function (data) {
+                data = data.replace("\"", "").replace("\"", "")
+                document.getElementById('round').innerHTML = "Round: " + data;
+            });
+        }
+        updateRound()
+        
         function updateNodeBox() {
             $.get("/node", function (data) {
                 var array = JSON.parse(data);
@@ -152,6 +181,24 @@ $(document).ready(function () {
             });
         }
         updateOriginBox()
+
+
+        function updateBCLogs() {
+            $.get("/bcLogs", function (data) {
+                var jsonData = JSON.parse(data);
+                var list = document.getElementById('bcLogsList');
+
+                for (el of jsonData) {
+                    var entry = document.createElement('li');
+                    var text = el
+                    entry.style.margin = "10px"
+                    entry.appendChild(document.createTextNode(text));
+                    list.appendChild(entry);
+                }
+            });
+        }
+        updateBCLogs()
+
 
         function updateFileBox() {
             $.get("/file", function (data) {

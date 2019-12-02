@@ -36,19 +36,7 @@ type Gossiper struct {
 
 	fileHandler *FileHandler
 	uiHandler   *UIHandler
-
-	tlcAckChan     chan *TLCAck
-	tlcConfirmChan sync.Map
-
-	blockBuffer chan *ExtendedGossipPacket
-	tlcStatus   sync.Map
-
-	// firstTLCDone  bool
-	confirmations sync.Map
-
-	committedHistory sync.Map
-
-	topBlockchainHash [32]byte
+	blHandler   *BlockchainHandler
 }
 
 // NewGossiper function
@@ -87,18 +75,10 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		statusChannels:    sync.Map{},
 		mongeringChannels: sync.Map{},
 		routingTable:      MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
-		fileHandler:       NewFileHandler(),
-		uiHandler:         NewUIHandler(),
-		tlcAckChan:        make(chan *TLCAck, maxChannelSize),
-		tlcConfirmChan:    sync.Map{}, //make(chan *TLCMessage, maxChannelSize),
-		blockBuffer:       make(chan *ExtendedGossipPacket, maxChannelSize),
-		tlcStatus:         sync.Map{}, //MutexStatus{Status: make(map[string]uint32)},
-		// firstTLCDone:      false,
-		confirmations: sync.Map{}, //make(map[string]uint32),
 
-		committedHistory: sync.Map{},
-
-		topBlockchainHash: [32]byte{},
+		fileHandler: NewFileHandler(),
+		uiHandler:   NewUIHandler(),
+		blHandler:   NewBlockchainHandler(),
 	}
 }
 
@@ -149,6 +129,11 @@ func (gossiper *Gossiper) GetName() string {
 	return gossiper.name
 }
 
+// GetRound of the gossiper
+func (gossiper *Gossiper) GetRound() uint32 {
+	return gossiper.myTime
+}
+
 // GetSearchedFiles util
 func (gossiper *Gossiper) GetSearchedFiles() []FileGUI {
 	return gossiper.uiHandler.filesSearched
@@ -167,4 +152,9 @@ func (gossiper *Gossiper) GetDownloadedFiles() chan *FileGUI {
 // GetLatestRumorMessages util
 func (gossiper *Gossiper) GetLatestRumorMessages() chan *RumorMessage {
 	return gossiper.uiHandler.latestRumors
+}
+
+// GeBlockchainLogs util
+func (gossiper *Gossiper) GeBlockchainLogs() chan string {
+	return gossiper.uiHandler.blockchainLogs
 }

@@ -229,16 +229,10 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 func (gossiper *Gossiper) storeChunksOwner(destination string, chunkMap []uint64, fileMetadata *FileMetadata) {
 
 	metafile := *fileMetadata.MetaFile
-
 	for _, elem := range chunkMap {
-
 		chunkHash := metafile[(elem-1)*32 : elem*32]
-
-		value, loaded := gossiper.fileHandler.myFileChunks.LoadOrStore(hex.EncodeToString(chunkHash), &ChunkOwners{})
+		value, _ := gossiper.fileHandler.myFileChunks.LoadOrStore(hex.EncodeToString(chunkHash), &ChunkOwners{Owners: make([]string, 0)})
 		chunkOwner := value.(*ChunkOwners)
-		if !loaded {
-			chunkOwner.Owners = make([]string, 0)
-		}
 		chunkOwner.Owners = helpers.RemoveDuplicatesFromSlice(append(chunkOwner.Owners, destination))
 	}
 }
@@ -257,4 +251,20 @@ func (gossiper *Gossiper) addSearchFileForGUI(fileMetadata *FileMetadata) {
 	if !contains {
 		gossiper.uiHandler.filesSearched = append(gossiper.uiHandler.filesSearched, element)
 	}
+}
+
+func (gossiper *Gossiper) checkAllChunksLocation(metafile []byte, numChunks uint64) bool {
+	for i := uint64(0); i < numChunks; i++ {
+		hash := metafile[i*32 : (i+1)*32]
+		chunkValue, loaded := gossiper.fileHandler.myFileChunks.Load(hex.EncodeToString(hash))
+		if loaded {
+			chunkOwnerEntry := chunkValue.(*ChunkOwners)
+			if len(chunkOwnerEntry.Owners) == 0 {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	return true
 }

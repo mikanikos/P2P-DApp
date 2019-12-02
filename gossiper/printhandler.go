@@ -67,7 +67,7 @@ func printPeers(peers []*net.UDPAddr) {
 	}
 }
 
-func printTLCMessage(tlc *TLCMessage) {
+func (gossiper *Gossiper) printTLCMessage(tlc *TLCMessage) {
 	messageToPrint := "GOSSIP origin " + tlc.Origin +
 		" ID " + fmt.Sprint(tlc.ID) +
 		" filename " + tlc.TxBlock.Transaction.Name +
@@ -76,12 +76,15 @@ func printTLCMessage(tlc *TLCMessage) {
 
 	if tlc.Confirmed > -1 {
 		fmt.Println("CONFIRMED " + messageToPrint)
+
+		gossiper.uiHandler.blockchainLogs <- "CONFIRMED " + messageToPrint
+
 	} else {
 		fmt.Println("UNCONFIRMED " + messageToPrint)
 	}
 }
 
-func printRoundMessage(round uint32, confirmations map[string]*TLCMessage) {
+func (gossiper *Gossiper) printRoundMessage(round uint32, confirmations map[string]*TLCMessage) {
 	message := "ADVANCING TO round " + fmt.Sprint(round) + " BASED ON CONFIRMED MESSAGES "
 
 	i := 1
@@ -91,6 +94,7 @@ func printRoundMessage(round uint32, confirmations map[string]*TLCMessage) {
 	}
 	if hw3ex3Mode {
 		fmt.Println(message[:len(message)-2])
+		gossiper.uiHandler.blockchainLogs <- message[:len(message)-2]
 	}
 }
 
@@ -107,19 +111,20 @@ func printConfirmMessage(id uint32, witnesses map[string]uint32) {
 
 func (gossiper *Gossiper) printConsensusMessage(tlcChosen *TLCMessage) {
 
-	message := "CONSENSUS ON QSC round " + fmt.Sprint(gossiper.myTime) + " message origin " + tlcChosen.Origin + " ID " + fmt.Sprint(tlcChosen.ID) + " filenames" //+ <name_oldest> ... <name_newest>​ size <size> metahash <metahash>"
+	message := "CONSENSUS ON QSC round " + fmt.Sprint(gossiper.myTime) + " message origin " + tlcChosen.Origin + " ID " + fmt.Sprint(tlcChosen.ID) + " filenames " //+ <name_oldest> ... <name_newest>​ size <size> metahash <metahash>"
 
 	filenames := ""
 
-	blockHash := gossiper.topBlockchainHash
+	blockHash := gossiper.blHandler.topBlockchainHash
 	for blockHash != [32]byte{} {
-		value, _ := gossiper.committedHistory.Load(blockHash)
+		value, _ := gossiper.blHandler.committedHistory.Load(blockHash)
 		block := value.(BlockPublish)
-		filenames = filenames + " " + block.Transaction.Name
+		filenames = block.Transaction.Name + " " + filenames
 		blockHash = block.PrevHash
 	}
 
-	message = message + filenames + " size " + fmt.Sprint(tlcChosen.TxBlock.Transaction.Size) + " metahash " + hex.EncodeToString(tlcChosen.TxBlock.Transaction.MetafileHash)
+	message = message + filenames + "size " + fmt.Sprint(tlcChosen.TxBlock.Transaction.Size) + " metahash " + hex.EncodeToString(tlcChosen.TxBlock.Transaction.MetafileHash)
 
 	fmt.Println(message)
+	gossiper.uiHandler.blockchainLogs <- message
 }

@@ -42,6 +42,9 @@ func (webserver *Webserver) Run(portGUI string) {
 	r.HandleFunc("/file", webserver.getFileHandler).Methods("GET")
 	r.HandleFunc("/download", webserver.getDownloadHandler).Methods("GET")
 	r.HandleFunc("/search", webserver.getSearchHandler).Methods("GET")
+	r.HandleFunc("/round", webserver.getRoundHandler).Methods("GET")
+	r.HandleFunc("/bcLogs", webserver.getBCLogsHandler).Methods("GET")
+	r.HandleFunc("/blockchain", webserver.getBlockchainHandler).Methods("GET")
 
 	//r.Handle("/", http.FileServer(http.Dir("./webserver")))
 	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("./webserver"))))
@@ -55,6 +58,20 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(bytes)
+}
+
+func (webserver *Webserver) getBlockchainHandler(w http.ResponseWriter, r *http.Request) {
+	var payload = webserver.Gossiper.GetBlockchain()
+	writeJSON(w, payload)
+}
+
+func (webserver *Webserver) getBCLogsHandler(w http.ResponseWriter, r *http.Request) {
+	var payload = gossiper.GetBlockchainList(webserver.Gossiper.GeBlockchainLogs())
+	writeJSON(w, payload)
+}
+
+func (webserver *Webserver) getRoundHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, webserver.Gossiper.GetRound())
 }
 
 func (webserver *Webserver) getSearchHandler(w http.ResponseWriter, r *http.Request) {

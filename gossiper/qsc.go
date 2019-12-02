@@ -3,6 +3,7 @@ package gossiper
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 )
 
@@ -29,8 +30,8 @@ func (t *TxPublish) Hash() (out [32]byte) {
 
 func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
-	//extPacket.Packet.TLCMessage.TxBlock.PrevHash = gossiper.topBlockchainHash
-	//extPacket.Packet.TLCMessage.Fitness = rand.Float32()
+	// extPacket.Packet.TLCMessage.TxBlock.PrevHash = gossiper.blHandler.previousBlockHash
+	// extPacket.Packet.TLCMessage.Fitness = rand.Float32()
 	roundS := gossiper.myTime
 
 	if debug {
@@ -44,7 +45,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 	// round s
 	gossiper.tlcRound(extPacket)
 
-	value, loaded := gossiper.confirmations.Load(roundS)
+	value, loaded := gossiper.blHandler.confirmations.Load(roundS)
 	if !loaded {
 		fmt.Println("ERROR: no new round")
 		return
@@ -65,7 +66,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 	// round s + 1
 	gossiper.tlcRound(gossiper.createTLCMessage(highestTLCRoundS.TxBlock, -1, highestTLCRoundS.Fitness))
 
-	value, loaded = gossiper.confirmations.Load(roundS + 1)
+	value, loaded = gossiper.blHandler.confirmations.Load(roundS + 1)
 	if !loaded {
 		fmt.Println("ERROR: no new round")
 		return
@@ -86,7 +87,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 	// round s + 2
 	gossiper.tlcRound(gossiper.createTLCMessage(highestTLCRoundS1.TxBlock, -1, highestTLCRoundS1.Fitness))
 
-	value, loaded = gossiper.confirmations.Load(roundS + 2)
+	value, loaded = gossiper.blHandler.confirmations.Load(roundS + 2)
 	if !loaded {
 		fmt.Println("ERROR: no new round")
 		return
@@ -103,21 +104,23 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		}
 
 		chosenBlock := messageConsensus.TxBlock
-		chosenBlock.PrevHash = gossiper.topBlockchainHash
-		gossiper.committedHistory.Store(chosenBlock.Hash(), chosenBlock)
-		gossiper.topBlockchainHash = chosenBlock.Hash()
+		chosenBlock.PrevHash = gossiper.blHandler.topBlockchainHash
+		gossiper.blHandler.committedHistory.Store(chosenBlock.Hash(), chosenBlock)
+		gossiper.blHandler.topBlockchainHash = chosenBlock.Hash()
+		gossiper.blHandler.previousBlockHash = gossiper.blHandler.topBlockchainHash
+
+		if messageConsensus.Origin == gossiper.name {
+			go func(b *BlockPublish) {
+				gossiper.uiHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
+			}(&chosenBlock)
+		}
 
 		gossiper.printConsensusMessage(messageConsensus)
 
 	} else {
 
-		if debug {
-			fmt.Println("PORCO")
-		}
-
 		chosenBlock := highestTLCRoundS1.TxBlock
-		chosenBlock.PrevHash = gossiper.topBlockchainHash
-		gossiper.topBlockchainHash = chosenBlock.Hash()
+		gossiper.blHandler.previousBlockHash = chosenBlock.Hash()
 	}
 }
 
@@ -141,7 +144,7 @@ func (gossiper *Gossiper) getTLCWithHighestFitness(confirmations map[string]*TLC
 func (gossiper *Gossiper) isTxBlockValid(b BlockPublish) bool {
 
 	isValid := true
-	gossiper.committedHistory.Range(func(key interface{}, value interface{}) bool {
+	gossiper.blHandler.committedHistory.Range(func(key interface{}, value interface{}) bool {
 		block := value.(BlockPublish)
 
 		if block.Transaction.Name == b.Transaction.Name {
@@ -155,7 +158,7 @@ func (gossiper *Gossiper) isTxBlockValid(b BlockPublish) bool {
 	if isValid {
 		blockHash := b.PrevHash
 		for blockHash != [32]byte{} {
-			value, loaded := gossiper.committedHistory.Load(blockHash)
+			value, loaded := gossiper.blHandler.committedHistory.Load(blockHash)
 
 			if !loaded {
 				isValid = false
