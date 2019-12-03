@@ -8,9 +8,9 @@ import (
 )
 
 func (gossiper *Gossiper) tlcRound(extPacket *ExtendedGossipPacket) {
-	round := atomic.LoadUint32(&gossiper.myTime)
-	gossiper.blHandler.confirmations.LoadOrStore(round, make(map[string]*TLCMessage))
-	gossiper.blHandler.tlcConfirmChan.LoadOrStore(round, make(chan *TLCMessage, maxChannelSize))
+	// round := atomic.LoadUint32(&gossiper.myTime)
+	// gossiper.blHandler.confirmations.LoadOrStore(round, make(map[string]*TLCMessage))
+	// gossiper.blHandler.tlcConfirmChan.LoadOrStore(round, make(chan *TLCMessage, maxChannelSize))
 	gossiper.gossipWithConfirmation(extPacket, true)
 }
 
@@ -39,10 +39,10 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 
 			round := atomic.LoadUint32(&gossiper.myTime)
 
-			value, _ := gossiper.blHandler.confirmations.Load(round)
+			value, _ := gossiper.blHandler.confirmations.LoadOrStore(round, make(map[string]*TLCMessage))
 			confirmations = value.(map[string]*TLCMessage)
 
-			valueChan, _ := gossiper.blHandler.tlcConfirmChan.Load(round)
+			valueChan, _ := gossiper.blHandler.tlcConfirmChan.LoadOrStore(round, make(chan *TLCMessage, maxChannelSize))
 			tlcChan = valueChan.(chan *TLCMessage)
 		}
 

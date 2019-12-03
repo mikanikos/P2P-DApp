@@ -22,9 +22,6 @@ func (gossiper *Gossiper) processTLCMessage() {
 
 			isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
-			// if isTXValid(extPacket.Packet.TLCMessage.TxBlock) {
-			// }
-
 			statusToSend := getStatusToSend(&gossiper.myStatus)
 			gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 

@@ -8,7 +8,7 @@ import (
 var hw1 = false
 var hw2 = true
 var hw3 = true
-var debug = false
+var debug = true
 
 var simpleMode = false
 var hw3ex2Mode = false
@@ -141,13 +141,13 @@ type SearchResult struct {
 // TxPublish struct
 type TxPublish struct {
 	Name         string
-	Size         int64 // Size in bytes
+	Size         int64
 	MetafileHash []byte
 }
 
 // BlockPublish struct
 type BlockPublish struct {
-	PrevHash    [32]byte // (used in Exercise 4, for now 0)
+	PrevHash    [32]byte
 	Transaction TxPublish
 }
 
@@ -157,8 +157,8 @@ type TLCMessage struct {
 	ID          uint32
 	Confirmed   int
 	TxBlock     BlockPublish
-	VectorClock *StatusPacket // (used in Exercise 3, for now nil)
-	Fitness     float32       // (used in Exercise 4, for now 0)
+	VectorClock *StatusPacket
+	Fitness     float32
 }
 
 // TLCAck type

@@ -125,9 +125,9 @@ func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 			}
 			fileMetadata := valueFile.(*FileMetadata)
 
-			//metaFile := *fileMetadata.MetaFile
+			metaFile := *fileMetadata.MetaFile
 
-			if len(fileMetadata.ChunkMap) == 0 { //&& gossiper.checkAllChunksLocation(metaFile, fileMetadata.ChunkCount) {
+			if len(fileMetadata.ChunkMap) == 0 && gossiper.checkAllChunksLocation(metaFile, fileMetadata.ChunkCount) {
 				//hashName := key.(string)
 				matches = append(matches, fileMetadata.FileName)
 				matches = helpers.RemoveDuplicatesFromSlice(matches)
