@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 
 	"github.com/mikanikos/Peerster/gossiper"
@@ -25,6 +26,7 @@ func main() {
 	rtimer := flag.Uint("rtimer", 0, "timeout in seconds to send route rumors")
 	hopLimit := flag.Uint("hopLimit", 10, "hop limit value (TTL) for a packet")
 	stubbornTimeout := flag.Uint("stubbornTimeout", 5, "stubborn timeout to resend a txn BlockPublish until it receives a majority of acks")
+	verbose := flag.Bool("v", false, "verbosity of the program")
 
 	flag.Parse()
 
@@ -45,6 +47,10 @@ func main() {
 	if !*simple {
 		go gossiper.StartAntiEntropy(*antiEntropy)
 		go gossiper.StartRouteRumormongering(*rtimer)
+	}
+
+	if *verbose {
+		fmt.Println("Boh")
 	}
 
 	gossiper.Run()

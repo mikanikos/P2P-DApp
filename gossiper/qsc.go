@@ -97,10 +97,10 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		fmt.Println("CHECKING IF CONSENSUS REACHED")
 	}
 
-	if messageConsensus := checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1); messageConsensus != nil {
+	if messageConsensus := gossiper.checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1, roundS); messageConsensus != nil {
 
 		if debug {
-			fmt.Println("CAZZO")
+			fmt.Println("GOT CONSENSUS")
 		}
 
 		chosenBlock := messageConsensus.TxBlock
@@ -173,52 +173,76 @@ func (gossiper *Gossiper) isTxBlockValid(b BlockPublish) bool {
 	return isValid
 }
 
-func checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1 map[string]*TLCMessage) *TLCMessage {
+func (gossiper *Gossiper) checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1 map[string]*TLCMessage, initialRound uint32) *TLCMessage {
 
-	// first condition: m belongs to confirmationsRoundS, i.e. originated from s and was witnessed by round s+1
+	best := &TLCMessage{Fitness: 0}
 	for _, message := range confirmationsRoundS {
-
-		condition := false
-
-		// second condition: m witnessed by majority by round s+2
-		for _, m := range confirmationsRoundS1 {
-			// if m.TxBlock.Transaction.Name == message.TxBlock.Transaction.Name &&
-			// 	m.TxBlock.Transaction.Size == message.TxBlock.Transaction.Size &&
-			// 	hex.EncodeToString(m.TxBlock.Transaction.MetafileHash) == hex.EncodeToString(message.TxBlock.Transaction.MetafileHash) &&
-			// 	m.TxBlock.PrevHash == message.TxBlock.PrevHash &&
-			if m.Fitness == message.Fitness {
-
-				condition = true
-				break
-			}
+		if message.Fitness > best.Fitness {
+			best = message
 		}
+	}
 
-		if !condition {
-			continue
+	value, _ := gossiper.blHandler.messageSeen.Load(initialRound)
+	messageSeen := value.(map[string]*TLCMessage)
+
+	for _, saw := range messageSeen {
+		if saw.Fitness >= best.Fitness && saw.TxBlock.Hash() != best.TxBlock.Hash() {
+			return nil
 		}
+	}
 
-		for _, m0 := range confirmationsRoundS {
-			if m0.Fitness > message.Fitness {
-				condition = false
-				break
-			}
-		}
-
-		if !condition {
-			continue
-		}
-
-		for _, m1 := range confirmationsRoundS1 {
-			if m1.Fitness > message.Fitness {
-				condition = false
-				break
-			}
-		}
-
-		if condition {
-			return message
+	for _, m1 := range confirmationsRoundS1 {
+		if m1.TxBlock.Hash() == best.TxBlock.Hash() {
+			return best
 		}
 	}
 
 	return nil
+
+	// // first condition: m belongs to confirmationsRoundS, i.e. originated from s and was witnessed by round s+1
+	// for _, message := range confirmationsRoundS {
+
+	// 	condition := false
+
+	// 	// second condition: m witnessed by majority by round s+2
+	// 	for _, m := range confirmationsRoundS1 {
+	// 		// if m.TxBlock.Transaction.Name == message.TxBlock.Transaction.Name &&
+	// 		// 	m.TxBlock.Transaction.Size == message.TxBlock.Transaction.Size &&
+	// 		// 	hex.EncodeToString(m.TxBlock.Transaction.MetafileHash) == hex.EncodeToString(message.TxBlock.Transaction.MetafileHash) &&
+	// 		// 	m.TxBlock.PrevHash == message.TxBlock.PrevHash &&
+	// 		if m.Fitness == message.Fitness {
+
+	// 			condition = true
+	// 			break
+	// 		}
+	// 	}
+
+	// 	if !condition {
+	// 		continue
+	// 	}
+
+	// 	for _, m0 := range confirmationsRoundS {
+	// 		if m0.Fitness > message.Fitness {
+	// 			condition = false
+	// 			break
+	// 		}
+	// 	}
+
+	// 	if !condition {
+	// 		continue
+	// 	}
+
+	// 	for _, m1 := range confirmationsRoundS1 {
+	// 		if m1.Fitness > message.Fitness {
+	// 			condition = false
+	// 			break
+	// 		}
+	// 	}
+
+	// 	if condition {
+	// 		return message
+	// 	}
+	// }
+
+	// return nil
 }

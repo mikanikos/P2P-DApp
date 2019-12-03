@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -169,7 +170,7 @@ func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint
 
 func containsKeyword(fileName string, keywords []string) bool {
 	for _, keyword := range keywords {
-		if strings.Contains(fileName, keyword) {
+		if matched, _ := regexp.MatchString(keyword, fileName); matched || strings.Contains(fileName, keyword) { //strings.Contains(fileName, keyword) {
 			return true
 		}
 	}

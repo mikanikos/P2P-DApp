@@ -1,6 +1,7 @@
 package gossiper
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
 	"sync"
@@ -121,6 +122,11 @@ func (gossiper *Gossiper) Run() {
 	}
 
 	go gossiper.receivePacketsFromClient(clientChannel)
+
+	if debug {
+		fmt.Println("Gossiper running")
+	}
+
 	gossiper.receivePacketsFromPeers()
 }
 

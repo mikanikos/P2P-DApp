@@ -17,6 +17,7 @@ type BlockchainHandler struct {
 
 	// firstTLCDone  bool
 	confirmations sync.Map
+	messageSeen   sync.Map
 
 	committedHistory sync.Map
 
@@ -32,6 +33,7 @@ func NewBlockchainHandler() *BlockchainHandler {
 		blockBuffer:       make(chan *ExtendedGossipPacket, maxChannelSize),
 		tlcStatus:         sync.Map{}, //MutexStatus{Status: make(map[string]uint32)},
 		confirmations:     sync.Map{}, //make(map[string]uint32),
+		messageSeen:       sync.Map{},
 		committedHistory:  sync.Map{},
 		topBlockchainHash: [32]byte{},
 		previousBlockHash: [32]byte{},
@@ -45,12 +47,17 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket) {
 		fmt.Println(extPacket.Packet.TLCMessage.Origin + " is at round " + fmt.Sprint(messageRound))
 	}
 
-	// SHOULD I FILTER MESSAGES BEFORE, ACCORDING TO THE PEER ROUND / VECTOR CLOCK?
-
 	// Ack message
 	if !hw3ex4Mode || gossiper.isTxBlockValid(extPacket.Packet.TLCMessage.TxBlock) {
 		if !hw3ex3Mode || ackAllMode || uint32(messageRound) >= gossiper.myTime {
 			if !(extPacket.Packet.TLCMessage.Confirmed > -1) {
+
+				round := atomic.LoadUint32(&gossiper.myTime)
+
+				value, _ := gossiper.blHandler.messageSeen.LoadOrStore(round, make(map[string]*TLCMessage))
+				messages := value.(map[string]*TLCMessage)
+				messages[extPacket.Packet.TLCMessage.Origin] = extPacket.Packet.TLCMessage
+
 				privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
 				if hw3ex2Mode || hw3ex3Mode {
 					fmt.Println("SENDING ACK origin " + extPacket.Packet.TLCMessage.Origin + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
