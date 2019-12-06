@@ -49,6 +49,7 @@ func getTypeFromGossip(packet *GossipPacket) string {
 	} else if packet.Ack != nil {
 		return "tlcAck"
 	}
+
 	return "unknown"
 }
 
