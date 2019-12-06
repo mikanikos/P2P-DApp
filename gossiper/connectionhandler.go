@@ -55,13 +55,15 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 
 		modeType := getTypeFromGossip(packetFromPeer)
 
-		if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
-			packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
-			go func(p *ExtendedGossipPacket) {
-				gossiper.channels[modeType] <- p
-			}(packet)
-		} else {
-			fmt.Println("ERROR: message can't be accepted in this operation mode")
+		if modeType != "unknwon" {
+			if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
+				packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
+				go func(p *ExtendedGossipPacket) {
+					gossiper.channels[modeType] <- p
+				}(packet)
+			} else {
+				fmt.Println("ERROR: message can't be accepted in this operation mode")
+			}
 		}
 	}
 }

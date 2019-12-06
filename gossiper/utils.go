@@ -73,7 +73,11 @@ func getTypeFromMessage(message *helpers.Message) string {
 		return "searchRequest"
 	}
 
-	return "rumor"
+	if message.Text != "" && message.Destination == nil && message.File == nil && message.Request == nil && message.Keywords == nil {
+		return "rumor"
+	}
+
+	return "unknown"
 }
 
 func getRandomPeer(availablePeers []*net.UDPAddr) *net.UDPAddr {
