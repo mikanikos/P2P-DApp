@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/dedis/protobuf"
+	"github.com/go.dedis.ch/protobuf"
 	"github.com/mikanikos/Peerster/helpers"
 )
 
