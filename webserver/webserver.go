@@ -46,7 +46,6 @@ func (webserver *Webserver) Run(portGUI string) {
 	r.HandleFunc("/bcLogs", webserver.getBCLogsHandler).Methods("GET")
 	r.HandleFunc("/blockchain", webserver.getBlockchainHandler).Methods("GET")
 
-	//r.Handle("/", http.FileServer(http.Dir("./webserver")))
 	r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("./webserver"))))
 
 	log.Fatal(http.ListenAndServe(":"+portGUI, r))

@@ -14,6 +14,12 @@ type ExtendedGossipPacket struct {
 	SenderAddr *net.UDPAddr
 }
 
+// NetworkData struct
+type NetworkData struct {
+	Conn *net.UDPConn
+	Addr *net.UDPAddr
+}
+
 func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.Message) {
 	for {
 		messageFromClient := &helpers.Message{}
@@ -59,7 +65,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 			if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
 				packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
 				go func(p *ExtendedGossipPacket) {
-					gossiper.channels[modeType] <- p
+					gossiper.packetChannels[modeType] <- p
 				}(packet)
 			} else {
 				fmt.Println("ERROR: message can't be accepted in this operation mode")

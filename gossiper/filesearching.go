@@ -30,7 +30,6 @@ func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
 	}
 
 	gossiper.storeChunksOwner(origin, res.ChunkMap, fileMetadata)
-
 	gossiper.addSearchFileForGUI(fileMetadata)
 }
 

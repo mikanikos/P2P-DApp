@@ -111,13 +111,13 @@ func printConfirmMessage(id uint32, witnesses map[string]uint32) {
 
 func (gossiper *Gossiper) printConsensusMessage(tlcChosen *TLCMessage) {
 
-	message := "CONSENSUS ON QSC round " + fmt.Sprint(gossiper.myTime) + " message origin " + tlcChosen.Origin + " ID " + fmt.Sprint(tlcChosen.ID) + " filenames " //+ <name_oldest> ... <name_newest>​ size <size> metahash <metahash>"
+	message := "CONSENSUS ON QSC round " + fmt.Sprint(gossiper.blockchainHandler.myTime) + " message origin " + tlcChosen.Origin + " ID " + fmt.Sprint(tlcChosen.ID) + " filenames " //+ <name_oldest> ... <name_newest>​ size <size> metahash <metahash>"
 
 	filenames := ""
 
-	blockHash := gossiper.blHandler.topBlockchainHash
+	blockHash := gossiper.blockchainHandler.topBlockchainHash
 	for blockHash != [32]byte{} {
-		value, _ := gossiper.blHandler.committedHistory.Load(blockHash)
+		value, _ := gossiper.blockchainHandler.committedHistory.Load(blockHash)
 		block := value.(BlockPublish)
 		filenames = block.Transaction.Name + " " + filenames
 		blockHash = block.PrevHash

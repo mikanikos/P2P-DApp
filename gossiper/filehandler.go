@@ -105,14 +105,14 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 
 	if hw3ex2Mode || hw3ex3Mode || hw3ex4Mode {
 		tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
-		block := BlockPublish{Transaction: tx, PrevHash: gossiper.blHandler.previousBlockHash}
+		block := BlockPublish{Transaction: tx, PrevHash: gossiper.blockchainHandler.previousBlockHash}
 		extPacket := gossiper.createTLCMessage(block, -1, rand.Float32())
 
 		if hw3ex2Mode && !hw3ex3Mode && !hw3ex4Mode {
 			gossiper.gossipWithConfirmation(extPacket, false)
 		} else {
 			go func(e *ExtendedGossipPacket) {
-				gossiper.blHandler.blockBuffer <- e
+				gossiper.blockchainHandler.blockBuffer <- e
 			}(extPacket)
 		}
 	} else {
@@ -124,16 +124,5 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	if debug {
 		fmt.Println("File " + *fileName + " indexed: " + keyHash)
 		fmt.Println(fileSize)
-	}
-}
-
-func (gossiper *Gossiper) processClientBlocks() {
-	for extPacket := range gossiper.blHandler.blockBuffer {
-
-		if hw3ex4Mode {
-			gossiper.qscRound(extPacket)
-		} else {
-			gossiper.tlcRound(extPacket)
-		}
 	}
 }

@@ -70,9 +70,9 @@ func GetBlockchainList(channel chan string) []string {
 func (gossiper *Gossiper) GetBlockchain() []FileGUI {
 
 	filesConsensus := make([]FileGUI, 0)
-	blockHash := gossiper.blHandler.topBlockchainHash
+	blockHash := gossiper.blockchainHandler.topBlockchainHash
 	for blockHash != [32]byte{} {
-		value, _ := gossiper.blHandler.committedHistory.Load(gossiper.blHandler.topBlockchainHash)
+		value, _ := gossiper.blockchainHandler.committedHistory.Load(gossiper.blockchainHandler.topBlockchainHash)
 		block := value.(BlockPublish)
 		filesConsensus = append(filesConsensus, FileGUI{Name: block.Transaction.Name, MetaHash: hex.EncodeToString(block.Transaction.MetafileHash), Size: block.Transaction.Size})
 		blockHash = block.PrevHash

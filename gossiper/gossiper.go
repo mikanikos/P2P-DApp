@@ -14,30 +14,17 @@ import (
 type Gossiper struct {
 	name string
 
-	channels map[string]chan *ExtendedGossipPacket
+	packetChannels map[string]chan *ExtendedGossipPacket
 
 	clientData   *NetworkData
 	gossiperData *NetworkData
+	peersData    *PeersData
 
-	peers       MutexPeers
-	peersNumber uint64
-	origins     MutexOrigins
-
-	messageStorage sync.Map
-	myStatus       MutexStatus
-
-	seqID  uint32
-	myTime uint32
-
-	statusChannels    sync.Map
-	mongeringChannels sync.Map
-
-	routingTable MutexRoutingTable
-	originLastID MutexStatus
-
-	fileHandler *FileHandler
-	uiHandler   *UIHandler
-	blHandler   *BlockchainHandler
+	gossipHandler     *GossipHandler
+	routingHandler    *RoutingHandler
+	fileHandler       *FileHandler
+	uiHandler         *UIHandler
+	blockchainHandler *BlockchainHandler
 }
 
 // NewGossiper function
@@ -61,25 +48,19 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 	}
 
 	return &Gossiper{
-		name:              name,
-		channels:          initializeChannels(modeTypes),
-		clientData:        &NetworkData{Conn: connUI, Addr: addressUI},
-		gossiperData:      &NetworkData{Conn: connGossiper, Addr: addressGossiper},
-		peers:             MutexPeers{Peers: peers},
-		peersNumber:       peersNum,
-		origins:           MutexOrigins{Origins: make([]string, 0)},
-		messageStorage:    sync.Map{},
-		myStatus:          MutexStatus{Status: make(map[string]uint32)},
-		originLastID:      MutexStatus{Status: make(map[string]uint32)},
-		seqID:             1,
-		myTime:            0,
-		statusChannels:    sync.Map{},
-		mongeringChannels: sync.Map{},
-		routingTable:      MutexRoutingTable{RoutingTable: make(map[string]*net.UDPAddr)},
+		name: name,
 
-		fileHandler: NewFileHandler(),
-		uiHandler:   NewUIHandler(),
-		blHandler:   NewBlockchainHandler(),
+		packetChannels: initializeChannels(modeTypes),
+
+		clientData:   &NetworkData{Conn: connUI, Addr: addressUI},
+		gossiperData: &NetworkData{Conn: connGossiper, Addr: addressGossiper},
+		peersData:    &PeersData{Peers: peers, Size: peersNum},
+
+		gossipHandler:     NewGossipHandler(),
+		routingHandler:    NewRoutingHandler(),
+		fileHandler:       NewFileHandler(),
+		uiHandler:         NewUIHandler(),
+		blockchainHandler: NewBlockchainHandler(),
 	}
 }
 
@@ -92,6 +73,15 @@ func SetConstantValues(simple, hw3ex2, hw3ex3, hw3ex4 bool, hopLimitVal, stubbor
 	hopLimit = int(hopLimitVal)
 	stubbornTimeout = int(stubbornTimeoutVal)
 	ackAllMode = ackAll
+
+	if hw3ex4Mode {
+		hw3ex3Mode = true
+	}
+
+	if hw3ex3Mode {
+		hw3ex3Mode = true
+	}
+
 }
 
 // Run method
@@ -137,7 +127,7 @@ func (gossiper *Gossiper) GetName() string {
 
 // GetRound of the gossiper
 func (gossiper *Gossiper) GetRound() uint32 {
-	return gossiper.myTime
+	return gossiper.blockchainHandler.myTime
 }
 
 // GetSearchedFiles util
@@ -163,4 +153,36 @@ func (gossiper *Gossiper) GetLatestRumorMessages() chan *RumorMessage {
 // GeBlockchainLogs util
 func (gossiper *Gossiper) GeBlockchainLogs() chan string {
 	return gossiper.uiHandler.blockchainLogs
+}
+
+// PeersData struct
+type PeersData struct {
+	Peers []*net.UDPAddr
+	Size  uint64
+	Mutex sync.RWMutex
+}
+
+// AddPeer to peers list
+func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
+	gossiper.peersData.Mutex.Lock()
+	defer gossiper.peersData.Mutex.Unlock()
+	contains := false
+	for _, p := range gossiper.peersData.Peers {
+		if p.String() == peer.String() {
+			contains = true
+			break
+		}
+	}
+	if !contains {
+		gossiper.peersData.Peers = append(gossiper.peersData.Peers, peer)
+	}
+}
+
+// GetPeersAtomic in concurrent environment
+func (gossiper *Gossiper) GetPeersAtomic() []*net.UDPAddr {
+	gossiper.peersData.Mutex.RLock()
+	defer gossiper.peersData.Mutex.RUnlock()
+	peerCopy := make([]*net.UDPAddr, len(gossiper.peersData.Peers))
+	copy(peerCopy, gossiper.peersData.Peers)
+	return peerCopy
 }

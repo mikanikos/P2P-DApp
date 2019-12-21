@@ -9,6 +9,24 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
+// StartAntiEntropy with the specified timer
+func (gossiper *Gossiper) StartAntiEntropy(antiEntropyTimeout uint) {
+	if antiEntropyTimeout > 0 {
+		timer := time.NewTicker(time.Duration(antiEntropyTimeout) * time.Second)
+		for {
+			select {
+			case <-timer.C:
+				peersCopy := gossiper.GetPeersAtomic()
+				if len(peersCopy) != 0 {
+					randomPeer := getRandomPeer(peersCopy)
+					statusToSend := getStatusToSend(gossiper.gossipHandler.MyStatus)
+					gossiper.sendPacket(&GossipPacket{Status: statusToSend}, randomPeer)
+				}
+			}
+		}
+	}
+}
+
 func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket, origin string, id uint32) {
 	peersWithRumor := []*net.UDPAddr{extPacket.SenderAddr}
 	peers := gossiper.GetPeersAtomic()
@@ -82,14 +100,14 @@ func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPac
 
 		go gossiper.notifyListenersForStatus(extPacket)
 
-		toSend := getPeerStatusForPeer(extPacket.Packet.Status.Want, &gossiper.myStatus)
+		toSend := getPeerStatusForPeer(extPacket.Packet.Status.Want, gossiper.gossipHandler.MyStatus)
 		if toSend != nil {
 			packetToSend := gossiper.getPacketFromPeerStatus(*toSend)
 			gossiper.sendPacket(packetToSend, extPacket.SenderAddr)
 		} else {
-			wanted := isPeerStatusNeeded(extPacket.Packet.Status.Want, &gossiper.myStatus)
+			wanted := isPeerStatusNeeded(extPacket.Packet.Status.Want, gossiper.gossipHandler.MyStatus)
 			if wanted {
-				statusToSend := getStatusToSend(&gossiper.myStatus)
+				statusToSend := getStatusToSend(gossiper.gossipHandler.MyStatus)
 				gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 			} else {
 				if hw1 {

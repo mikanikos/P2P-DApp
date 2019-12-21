@@ -1,7 +1,6 @@
 package gossiper
 
 import (
-	"net"
 	"time"
 )
 
@@ -57,18 +56,6 @@ type GossipPacket struct {
 	SearchReply   *SearchReply
 	TLCMessage    *TLCMessage
 	Ack           *TLCAck
-}
-
-// OriginID struct
-type OriginID struct {
-	Origin string
-	ID     uint32
-}
-
-// NetworkData struct
-type NetworkData struct {
-	Conn *net.UDPConn
-	Addr *net.UDPAddr
 }
 
 // RumorMessage struct
