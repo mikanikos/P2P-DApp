@@ -6,7 +6,7 @@ import (
 	"net"
 	"os"
 
-	"go.dedis.ch/protobuf"
+	"github.com/dedis/protobuf"
 	"github.com/mikanikos/Peerster/helpers"
 )
 
