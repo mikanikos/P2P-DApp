@@ -11,17 +11,16 @@ import (
 // RoutingHandler struct
 type RoutingHandler struct {
 	RoutingTable map[string]*net.UDPAddr
-	Origins      []string
-	OriginLastID VectorClock
+	OriginLastID *VectorClock
 	Mutex        sync.RWMutex
 }
+
 
 // NewRoutingHandler create new routing handler
 func NewRoutingHandler() *RoutingHandler {
 	return &RoutingHandler{
 		RoutingTable: make(map[string]*net.UDPAddr),
-		Origins:      make([]string, 0),
-		OriginLastID: VectorClock{Entries: make(map[string]uint32)},
+		OriginLastID: &VectorClock{Entries: make(map[string]uint32)},
 	}
 }
 
@@ -71,12 +70,7 @@ func (gossiper *Gossiper) updateRoutingTable(origin, textPacket string, idPacket
 			}
 		}
 
-		_, loaded := gossiper.routingHandler.RoutingTable[origin]
 		gossiper.routingHandler.RoutingTable[origin] = address
-
-		if !loaded {
-			gossiper.addOrigin(origin)
-		}
 
 		if debug {
 			fmt.Println("Routing table updated")
@@ -116,27 +110,16 @@ func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket, hopLimit *
 	}
 }
 
-// AddOrigin to origins list
-func (gossiper *Gossiper) addOrigin(origin string) {
-	gossiper.routingHandler.Mutex.Lock()
-	defer gossiper.routingHandler.Mutex.Unlock()
-	contains := false
-	for _, o := range gossiper.routingHandler.Origins {
-		if o == origin {
-			contains = true
-			break
-		}
-	}
-	if !contains {
-		gossiper.routingHandler.Origins = append(gossiper.routingHandler.Origins, origin)
-	}
-}
-
 // GetOriginsAtomic in concurrent environment
 func (gossiper *Gossiper) GetOriginsAtomic() []string {
 	gossiper.routingHandler.Mutex.RLock()
 	defer gossiper.routingHandler.Mutex.RUnlock()
-	originsCopy := make([]string, len(gossiper.routingHandler.Origins))
-	copy(originsCopy, gossiper.routingHandler.Origins)
-	return originsCopy
+
+	origins := make([]string, len(gossiper.routingHandler.OriginLastID.Entries))
+	i := 0
+	for k := range gossiper.routingHandler.OriginLastID.Entries {
+    	origins[i] = k
+    	i++
+	}
+	return origins
 }
