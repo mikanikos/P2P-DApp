@@ -12,7 +12,7 @@ import (
 type RoutingHandler struct {
 	RoutingTable map[string]*net.UDPAddr
 	Origins      []string
-	OriginLastID *VectorClock
+	OriginLastID VectorClock
 	Mutex        sync.RWMutex
 }
 
@@ -21,7 +21,7 @@ func NewRoutingHandler() *RoutingHandler {
 	return &RoutingHandler{
 		RoutingTable: make(map[string]*net.UDPAddr),
 		Origins:      make([]string, 0),
-		OriginLastID: &VectorClock{Entries: make(map[string]uint32)},
+		OriginLastID: VectorClock{Entries: make(map[string]uint32)},
 	}
 }
 

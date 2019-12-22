@@ -118,11 +118,11 @@ func (gossiper *Gossiper) createTLCMessage(block BlockPublish, confirmedFlag int
 	id := atomic.LoadUint32(&gossiper.gossipHandler.SeqID)
 	atomic.AddUint32(&gossiper.gossipHandler.SeqID, uint32(1))
 
-	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: getStatusToSend(gossiper.gossipHandler.MyStatus), Confirmed: confirmedFlag, Fitness: fitness}
+	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: getStatusToSend(&gossiper.gossipHandler.MyStatus), Confirmed: confirmedFlag, Fitness: fitness}
 	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.gossiperData.Addr}
 
 	gossiper.storeMessage(extPacket.Packet, gossiper.name, id)
-	tlcPacket.VectorClock = getStatusToSend(gossiper.gossipHandler.MyStatus)
+	tlcPacket.VectorClock = getStatusToSend(&gossiper.gossipHandler.MyStatus)
 
 	return extPacket
 }
@@ -151,7 +151,7 @@ func (gossiper *Gossiper) canAcceptTLCMessage(tlc *TLCMessage) (uint32, bool) {
 
 	tlcMap.Mutex.RUnlock()
 
-	vectorClockHigher := isPeerStatusNeeded(tlc.VectorClock.Want, gossiper.gossipHandler.MyStatus)
+	vectorClockHigher := isPeerStatusNeeded(tlc.VectorClock.Want, &gossiper.gossipHandler.MyStatus)
 	if !vectorClockHigher && tlc.Confirmed > -1 {
 
 		if debug {

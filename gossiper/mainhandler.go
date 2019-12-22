@@ -22,7 +22,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 
 			isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
-			statusToSend := getStatusToSend(gossiper.gossipHandler.MyStatus)
+			statusToSend := getStatusToSend(&gossiper.gossipHandler.MyStatus)
 			gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 
 			if !isMessageKnown {
@@ -282,7 +282,7 @@ func (gossiper *Gossiper) processRumorMessages() {
 
 		isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.ID)
 
-		statusToSend := getStatusToSend(gossiper.gossipHandler.MyStatus)
+		statusToSend := getStatusToSend(&gossiper.gossipHandler.MyStatus)
 		gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 
 		if !isMessageKnown {

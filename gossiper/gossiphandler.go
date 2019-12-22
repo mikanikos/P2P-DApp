@@ -8,7 +8,7 @@ import (
 type GossipHandler struct {
 	SeqID             uint32
 	MessageStorage    sync.Map
-	MyStatus          *VectorClock
+	MyStatus          VectorClock
 	StatusChannels    sync.Map
 	MongeringChannels sync.Map
 }
@@ -18,7 +18,7 @@ func NewGossipHandler() *GossipHandler {
 	return &GossipHandler{
 		SeqID:             1,
 		MessageStorage:    sync.Map{},
-		MyStatus:          &VectorClock{Entries: make(map[string]uint32)},
+		MyStatus:          VectorClock{Entries: make(map[string]uint32)},
 		StatusChannels:    sync.Map{},
 		MongeringChannels: sync.Map{},
 	}
