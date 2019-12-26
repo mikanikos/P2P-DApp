@@ -1,4 +1,6 @@
 $(document).ready(function () {
+
+    // send message action: send post message with specified paramters 
     $("#sendForm").submit(function (event) {
 
         event.preventDefault();
@@ -17,6 +19,8 @@ $(document).ready(function () {
             data: { text: message, destination: "" },
         });
     });
+
+    // add peer action: send post message with peer address
     $("#peerForm").submit(function (event) {
 
         event.preventDefault();
@@ -37,6 +41,7 @@ $(document).ready(function () {
 
     });
 
+    // send private message with double click on origin
     $('#originList').dblclick(function (e) {
         var origin = e.target.textContent;
         var message = prompt("Enter the message to send to " + origin);
@@ -49,6 +54,7 @@ $(document).ready(function () {
         }
     });
 
+    // download file with double click on search result
     $('#searchList').dblclick(function (e) {
         var fileToDownload = e.target.textContent;
         var result = fileToDownload.split(" ");
@@ -60,6 +66,7 @@ $(document).ready(function () {
 
     });
 
+    // display prompt to download a file with parameters
     $('#buttonDownloadFile').click(function (e) {
         var requestHex = prompt("Enter the hexadecimal metahash of the file to download");
         if (requestHex != null && requestHex != "") {
@@ -78,6 +85,7 @@ $(document).ready(function () {
         }
     });
 
+    // display prompt to search for a file with parameters
     $('#buttonSearchFile').click(function (e) {
         var keywordsValue = prompt("Enter the keywords of the file you wanna search on the other nodes");
         if (keywordsValue != null && keywordsValue != "") {
@@ -94,13 +102,16 @@ $(document).ready(function () {
         }
     });
 
+    // hide file selected description of the picker
     $("#fileInput").css('opacity', '0');
 
+    // trigger event when file picked
     $("#buttonFile").click(function (e) {
         e.preventDefault();
         $("#fileInput").trigger('click');
     });
 
+    // send file indexed with post message
     $("#fileInput").change(function () {
         var input = $(this).val().split(/(\\|\/)/g).pop()
         $.ajax({
@@ -110,14 +121,16 @@ $(document).ready(function () {
         });
     });
 
-
+    // get gossiper name and modify title
     $.get("/id", function (data) {
         data = data.replace("\"", "").replace("\"", "")
         document.getElementById("peerID").innerHTML = "Peerster - ID: " + data;
     });
 
+    // do all the functions periodically (every second, see last parameter to change), in order to update the lists in the the user interface with the latest values
     window.setInterval(function () {
         
+        // update blockchain
         function updateBlockchainBox() {
             $.get("/blockchain", function (data) {
                 var jsonData = JSON.parse(data);
@@ -138,6 +151,7 @@ $(document).ready(function () {
         }
         updateBlockchainBox()
 
+        // update round number
         function updateRound() {
             $.get("/round", function (data) {
                 data = data.replace("\"", "").replace("\"", "")
@@ -146,6 +160,7 @@ $(document).ready(function () {
         }
         updateRound()
         
+        // update peers list
         function updateNodeBox() {
             $.get("/node", function (data) {
                 var array = JSON.parse(data);
@@ -164,6 +179,7 @@ $(document).ready(function () {
         }
         updateNodeBox()
 
+        // update origin list
         function updateOriginBox() {
             $.get("/origin", function (data) {
                 var array = JSON.parse(data);
@@ -182,7 +198,7 @@ $(document).ready(function () {
         }
         updateOriginBox()
 
-
+        // update blochain log messages
         function updateBCLogs() {
             $.get("/bcLogs", function (data) {
                 var jsonData = JSON.parse(data);
@@ -199,7 +215,7 @@ $(document).ready(function () {
         }
         updateBCLogs()
 
-
+        // update file indexed list
         function updateFileBox() {
             $.get("/file", function (data) {
                 var jsonData = JSON.parse(data);
@@ -216,6 +232,7 @@ $(document).ready(function () {
         }
         updateFileBox()
 
+        // update file downloaded list
         function updateDownloadBox() {
             $.get("/download", function (data) {
                 var jsonData = JSON.parse(data);
@@ -232,6 +249,7 @@ $(document).ready(function () {
         }
         updateDownloadBox()
 
+        // update search results
         function updateSearchBox() {
             $.get("/search", function (data) {
                 var jsonData = JSON.parse(data);
@@ -252,6 +270,7 @@ $(document).ready(function () {
         }
         updateSearchBox()
 
+        // get latest messages and add them to list
         $.get("/message", function (data) {
             var jsonData = JSON.parse(data);
             var list = document.getElementById('messageList');

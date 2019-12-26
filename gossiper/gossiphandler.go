@@ -13,7 +13,7 @@ type GossipHandler struct {
 	MongeringChannels sync.Map
 }
 
-// NewGossipHandler create new routing handler
+// NewGossipHandler create new gossip handler
 func NewGossipHandler() *GossipHandler {
 	return &GossipHandler{
 		SeqID:             1,
@@ -30,6 +30,7 @@ type VectorClock struct {
 	Mutex   sync.RWMutex
 }
 
+// store gossip message based on origin and seid 
 func (gossiper *Gossiper) storeMessage(packet *GossipPacket, origin string, id uint32) bool {
 
 	value, _ := gossiper.gossipHandler.MessageStorage.LoadOrStore(origin, &sync.Map{})
@@ -37,11 +38,13 @@ func (gossiper *Gossiper) storeMessage(packet *GossipPacket, origin string, id u
 
 	_, loaded := mapValue.LoadOrStore(id, packet)
 
+	// update status after storing message
 	gossiper.updateStatus(origin, id, mapValue)
 
 	return loaded
 }
 
+// update my vector clock based on current information of mapvalue
 func (gossiper *Gossiper) updateStatus(origin string, id uint32, mapValue *sync.Map) {
 
 	gossiper.gossipHandler.MyStatus.Mutex.Lock()
@@ -53,6 +56,7 @@ func (gossiper *Gossiper) updateStatus(origin string, id uint32, mapValue *sync.
 		maxID = uint32(value)
 	}
 
+	// increment up to the maximum consecutive known message, i.e. least unknown message 
 	if maxID <= id {
 		_, found := mapValue.Load(maxID)
 		for found {
@@ -63,6 +67,7 @@ func (gossiper *Gossiper) updateStatus(origin string, id uint32, mapValue *sync.
 	}
 }
 
+// get gossip packet from peer status
 func (gossiper *Gossiper) getPacketFromPeerStatus(ps PeerStatus) *GossipPacket {
 	value, _ := gossiper.gossipHandler.MessageStorage.Load(ps.Identifier)
 	idMessages := value.(*sync.Map)
@@ -70,6 +75,7 @@ func (gossiper *Gossiper) getPacketFromPeerStatus(ps PeerStatus) *GossipPacket {
 	return message.(*GossipPacket)
 }
 
+// create status packet from current vector clock
 func getStatusToSend(status *VectorClock) *StatusPacket {
 
 	status.Mutex.RLock()
@@ -85,6 +91,7 @@ func getStatusToSend(status *VectorClock) *StatusPacket {
 	return statusPacket
 }
 
+// compare peer status and current status and get an entry the other needs
 func getPeerStatusForPeer(otherStatus []PeerStatus, status *VectorClock) *PeerStatus {
 
 	originIDMap := make(map[string]uint32)
@@ -106,6 +113,7 @@ func getPeerStatusForPeer(otherStatus []PeerStatus, status *VectorClock) *PeerSt
 	return nil
 }
 
+// check if I need anything from the other peer status
 func isPeerStatusNeeded(otherStatus []PeerStatus, status *VectorClock) bool {
 
 	status.Mutex.RLock()
@@ -128,17 +136,20 @@ type MessageUniqueID struct {
 	ID     uint32
 }
 
+// get listener for incoming status
 func (gossiper *Gossiper) getListenerForStatus(origin string, id uint32, peer string) (chan bool, bool) {
 	msgChan, _ := gossiper.gossipHandler.MongeringChannels.LoadOrStore(peer, &sync.Map{})
 	channel, loaded := msgChan.(*sync.Map).LoadOrStore(MessageUniqueID{Origin: origin, ID: id}, make(chan bool, maxChannelSize))
 	return channel.(chan bool), loaded
 }
 
+// delete listener for incoming status
 func (gossiper *Gossiper) deleteListenerForStatus(origin string, id uint32, peer string) {
 	msgChan, _ := gossiper.gossipHandler.MongeringChannels.LoadOrStore(peer, &sync.Map{})
 	msgChan.(*sync.Map).Delete(MessageUniqueID{Origin: origin, ID: id})
 }
 
+// notify listeners if status received satify condition
 func (gossiper *Gossiper) notifyListenersForStatus(extpacket *ExtendedGossipPacket) {
 	msgChan, exists := gossiper.gossipHandler.MongeringChannels.Load(extpacket.SenderAddr.String())
 	if exists {

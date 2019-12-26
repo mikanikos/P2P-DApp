@@ -18,8 +18,10 @@ type Client struct {
 
 // NewClient init
 func NewClient(uiPort string) *Client {
+	// resolve gossiper address
 	gossiperAddr, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+":"+uiPort)
 	helpers.ErrorCheck(err)
+	// establish connection
 	conn, err := net.DialUDP("udp4", nil, gossiperAddr)
 	helpers.ErrorCheck(err)
 
@@ -32,11 +34,14 @@ func NewClient(uiPort string) *Client {
 // SendMessage to gossiper
 func (client *Client) SendMessage(msg string, dest, file, request *string, keywords string, budget uint64) {
 
+	// create correct packet from arguments
 	packet := convertInputToMessage(msg, *dest, *file, *request, keywords, budget)
 
+	// encode
 	packetBytes, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
 
+	// send message to gossiper
 	_, err = client.Conn.Write(packetBytes)
 	helpers.ErrorCheck(err)
 }
@@ -71,6 +76,7 @@ func convertInputToMessage(msg, dest, file, request, keywords string, budget uin
 
 	packet := &helpers.Message{}
 
+	// get type of message to create
 	switch typeMes := getInputType(msg, dest, file, request, keywords, budget); typeMes {
 
 	case "rumor":

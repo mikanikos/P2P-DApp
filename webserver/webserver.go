@@ -20,7 +20,7 @@ type Webserver struct {
 	Client   *clientsender.Client
 }
 
-// NewWebserver for gui
+// NewWebserver for gui, has the gossiper instance to get values to display in the ui and a client to communicate values to the gossiper using the standard protocol  
 func NewWebserver(uiPort string, gossiper *gossiper.Gossiper) *Webserver {
 	return &Webserver{
 		Gossiper: gossiper,
@@ -51,6 +51,7 @@ func (webserver *Webserver) Run(portGUI string) {
 	log.Fatal(http.ListenAndServe(":"+portGUI, r))
 }
 
+// function to write json data in the http header  
 func writeJSON(w http.ResponseWriter, payload interface{}) {
 	bytes, err := json.Marshal(payload)
 	helpers.ErrorCheck(err)
@@ -59,44 +60,53 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 	w.Write(bytes)
 }
 
+// get and display full blockchain 
 func (webserver *Webserver) getBlockchainHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = webserver.Gossiper.GetBlockchain()
 	writeJSON(w, payload)
 }
 
+// get and display blockchain log messages
 func (webserver *Webserver) getBCLogsHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = gossiper.GetBlockchainList(webserver.Gossiper.GeBlockchainLogs())
 	writeJSON(w, payload)
 }
 
+// get and display current round for tlc
 func (webserver *Webserver) getRoundHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, webserver.Gossiper.GetRound())
 }
 
+// get and display the latest files that have been found in a search
 func (webserver *Webserver) getSearchHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = webserver.Gossiper.GetSearchedFiles()
 	writeJSON(w, payload)
 }
 
+// get and display the downloaded files so far
 func (webserver *Webserver) getDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = gossiper.GetFilesList(webserver.Gossiper.GetDownloadedFiles())
 	writeJSON(w, payload)
 }
 
+// get and display the indexed files so far
 func (webserver *Webserver) getFileHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = gossiper.GetFilesList(webserver.Gossiper.GetIndexedFiles())
 	writeJSON(w, payload)
 }
 
+// get and display the latest gossip messages
 func (webserver *Webserver) getMessageHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = gossiper.GetMessagesList(webserver.Gossiper.GetLatestRumorMessages())
 	writeJSON(w, payload)
 }
 
+// send client message to gossiper with the arguments given
 func (webserver *Webserver) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	helpers.ErrorCheck(err)
 
+	// parse post message
 	message := r.PostForm.Get("text")
 	destination := r.PostForm.Get("destination")
 	file := r.PostForm.Get("file")
@@ -110,13 +120,16 @@ func (webserver *Webserver) postMessageHandler(w http.ResponseWriter, r *http.Re
 	budgetValue, err := strconv.ParseUint(budget, 10, 64)
 	helpers.ErrorCheck(err)
 
+	// send message with parameters through client interface
 	webserver.Client.SendMessage(message, &destination, &file, &request, keywords, budgetValue)
 }
 
+// get and display the peers (neighbour nodes) known by the gossiper
 func (webserver *Webserver) getNodeHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, helpers.GetArrayStringFromAddresses(webserver.Gossiper.GetPeersAtomic()))
 }
 
+// add peer given by gui to the gossiper
 func (webserver *Webserver) postNodeHandler(w http.ResponseWriter, r *http.Request) {
 	bytes, err := ioutil.ReadAll(r.Body)
 	peer := string(bytes)
@@ -126,10 +139,12 @@ func (webserver *Webserver) postNodeHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// get and display gossiper name
 func (webserver *Webserver) getIDHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, webserver.Gossiper.GetName())
 }
 
+// get and display origin nodes names
 func (webserver *Webserver) getOriginHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, webserver.Gossiper.GetOriginsAtomic())
 }

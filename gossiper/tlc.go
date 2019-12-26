@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// start tlc round
 func (gossiper *Gossiper) tlcRound(extPacket *ExtendedGossipPacket) {
 	// round := atomic.LoadUint32(&gossiper.blHandler.myTime)
 	// gossiper.blHandler.confirmations.LoadOrStore(round, make(map[string]*TLCMessage))
@@ -14,6 +15,7 @@ func (gossiper *Gossiper) tlcRound(extPacket *ExtendedGossipPacket) {
 	gossiper.gossipWithConfirmation(extPacket, true)
 }
 
+// gossip with confirmation, wait for confirmation threshold accoridng to flag
 func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket, waitConfirmations bool) {
 
 	if debug {
@@ -24,17 +26,19 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 		gossiper.printTLCMessage(extPacket.Packet.TLCMessage)
 	}
 
+	// start rumor mongering a message
 	id := extPacket.Packet.TLCMessage.ID
 	go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 
 	if stubbornTimeout > 0 {
-		timer := time.NewTicker(time.Duration(stubbornTimeout) * time.Second)
-		// used as a set
+		// witnesses (acks), used as a set
 		witnesses := make(map[string]uint32)
 		witnesses[gossiper.name] = 0
 
+		// confirmations
 		var confirmations map[string]*TLCMessage
 		var tlcChan chan *TLCMessage
+		// get current confirmations and channel
 		if waitConfirmations {
 
 			round := atomic.LoadUint32(&gossiper.blockchainHandler.myTime)
@@ -48,22 +52,31 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 
 		delivered := false
 
+		// start timer
+		timer := time.NewTicker(time.Duration(stubbornTimeout) * time.Second)
+
 		for {
 			select {
+			// if got ack for this message, record it
 			case tlcAck := <-gossiper.blockchainHandler.tlcAckChan:
 
 				if tlcAck.ID == id && !delivered {
 
 					witnesses[tlcAck.Origin] = 0
+
+					// check if received a majority of acks
 					if uint64(len(witnesses)) > gossiper.peersData.Size/2 {
 						timer.Stop()
 
+						// reset ack channel
 						gossiper.blockchainHandler.tlcAckChan = make(chan *TLCAck, maxChannelSize)
 
+						// create tlc confirmed message
 						packet := gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id), extPacket.Packet.TLCMessage.Fitness)
 						gossiper.sendGossipWithConfirmation(packet, witnesses)
 						delivered = true
 
+						// send confirmation
 						if waitConfirmations {
 							go func(tlc *TLCMessage) {
 								tlcChan <- tlc
@@ -74,16 +87,21 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 					}
 				}
 
+			// if got confirm, record confirmation
 			case tlcConfirm := <-tlcChan:
 
 				if waitConfirmations {
 					confirmations[tlcConfirm.Origin] = tlcConfirm
+					
+					// check if got majority of confirmations and increment round in that case
 					if gossiper.checkAndIncrementRound(confirmations) {
 						timer.Stop()
 
 						//gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
+						// reset confirmation channel
 						gossiper.blockchainHandler.tlcAckChan = make(chan *TLCAck, maxChannelSize)
 
+						// send gossip with confirmation if not already done
 						if !delivered {
 							gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(id), extPacket.Packet.TLCMessage.Fitness), getIDForConfirmations(confirmations))
 						}
@@ -91,6 +109,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 					}
 				}
 
+			// periodically resend tlc message
 			case <-timer.C:
 				if hw3ex2Mode {
 					gossiper.printTLCMessage(extPacket.Packet.TLCMessage)
@@ -101,6 +120,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 	}
 }
 
+// prepare gossip with confirmation and rumor monger it
 func (gossiper *Gossiper) sendGossipWithConfirmation(extPacket *ExtendedGossipPacket, witnesses map[string]uint32) {
 
 	if hw3ex2Mode {
@@ -116,6 +136,7 @@ func (gossiper *Gossiper) sendGossipWithConfirmation(extPacket *ExtendedGossipPa
 	}
 }
 
+// check for majority of confirmations and increment round
 func (gossiper *Gossiper) checkAndIncrementRound(confirmations map[string]*TLCMessage) bool {
 	if uint64(len(confirmations)) > gossiper.peersData.Size/2 {
 		atomic.AddUint32(&gossiper.blockchainHandler.myTime, uint32(1))

@@ -27,18 +27,26 @@ type Gossiper struct {
 	blockchainHandler *BlockchainHandler
 }
 
-// NewGossiper function
+// NewGossiper constructor
 func NewGossiper(name string, address string, peersList []string, uiPort string, peersNum uint64) *Gossiper {
 
+	// resolve gossiper address
 	addressGossiper, err := net.ResolveUDPAddr("udp4", address)
 	helpers.ErrorCheck(err)
+
+	// get connection for gossiper
 	connGossiper, err := net.ListenUDP("udp4", addressGossiper)
 	helpers.ErrorCheck(err)
+
+	// resolve client address
 	addressUI, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+":"+uiPort)
 	helpers.ErrorCheck(err)
+
+	// get connection for client
 	connUI, err := net.ListenUDP("udp4", addressUI)
 	helpers.ErrorCheck(err)
 
+	// resolve peers addresses given
 	peers := make([]*net.UDPAddr, 0)
 	for _, peer := range peersList {
 		addressPeer, err := net.ResolveUDPAddr("udp4", peer)
@@ -47,9 +55,11 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 		}
 	}
 
+	// create new gossiper
 	return &Gossiper{
 		name: name,
 
+		// initialize channels used throgout the app to exchange messages
 		packetChannels: initializeChannels(modeTypes),
 
 		clientData:   &NetworkData{Conn: connUI, Addr: addressUI},
@@ -74,24 +84,28 @@ func SetConstantValues(simple, hw3ex2, hw3ex3, hw3ex4 bool, hopLimitVal, stubbor
 	stubbornTimeout = int(stubbornTimeoutVal)
 	ackAllMode = ackAll
 
+	// if qsc, set tlc too
 	if hw3ex4Mode {
 		hw3ex3Mode = true
 	}
 
+	// if tlc, set gossip with confirmation too
 	if hw3ex3Mode {
 		hw3ex3Mode = true
 	}
 
 }
 
-// Run method
+// Run application
 func (gossiper *Gossiper) Run() {
 
 	rand.Seed(time.Now().UnixNano())
 
+	// create client channel
 	clientChannel := make(chan *helpers.Message, maxChannelSize)
 	go gossiper.processClientMessages(clientChannel)
 
+	// start prcessing
 	if simpleMode {
 		go gossiper.processSimpleMessages()
 	} else {
@@ -111,6 +125,7 @@ func (gossiper *Gossiper) Run() {
 		}
 	}
 
+	// listen for incoming packets 
 	go gossiper.receivePacketsFromClient(clientChannel)
 
 	if debug {
@@ -162,7 +177,7 @@ type PeersData struct {
 	Mutex sync.RWMutex
 }
 
-// AddPeer to peers list
+// AddPeer to peers list if not present
 func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
 	gossiper.peersData.Mutex.Lock()
 	defer gossiper.peersData.Mutex.Unlock()

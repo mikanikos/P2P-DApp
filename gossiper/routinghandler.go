@@ -29,16 +29,21 @@ func (gossiper *Gossiper) StartRouteRumormongering(routeTimer uint) {
 
 	if routeTimer > 0 {
 
+		// create new rumor message
 		id := atomic.LoadUint32(&gossiper.gossipHandler.SeqID)
 		atomic.AddUint32(&gossiper.gossipHandler.SeqID, uint32(1))
 		rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
 		extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
 		gossiper.storeMessage(extPacket.Packet, gossiper.name, id)
+		
+		// broadcast it initially in order to start well
 		gossiper.broadcastToPeers(extPacket)
 
+		// start timer
 		timer := time.NewTicker(time.Duration(routeTimer) * time.Second)
 		for {
 			select {
+			// rumor monger rumor at each timeout
 			case <-timer.C:
 				gossiper.mongerRouteRumor()
 			}
@@ -46,22 +51,27 @@ func (gossiper *Gossiper) StartRouteRumormongering(routeTimer uint) {
 	}
 }
 
+// rumor monger route rumor
 func (gossiper *Gossiper) mongerRouteRumor() {
 
+	// create new rumor message
 	id := atomic.LoadUint32(&gossiper.gossipHandler.SeqID)
 	atomic.AddUint32(&gossiper.gossipHandler.SeqID, uint32(1))
 	rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: ""}
 	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Addr}
 	gossiper.storeMessage(extPacket.Packet, gossiper.name, id)
 
+	// start rumormongering the message
 	go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 }
 
+// update routing table based on packet data
 func (gossiper *Gossiper) updateRoutingTable(origin, textPacket string, idPacket uint32, address *net.UDPAddr) {
 
 	gossiper.routingHandler.Mutex.Lock()
 	defer gossiper.routingHandler.Mutex.Unlock()
 
+	// if new packet with higher id, update table
 	if origin != gossiper.name && gossiper.checkAndUpdateLastOriginID(origin, idPacket) {
 
 		if textPacket != "" {
@@ -70,6 +80,7 @@ func (gossiper *Gossiper) updateRoutingTable(origin, textPacket string, idPacket
 			}
 		}
 
+		// update
 		gossiper.routingHandler.RoutingTable[origin] = address
 
 		if debug {
@@ -78,6 +89,7 @@ func (gossiper *Gossiper) updateRoutingTable(origin, textPacket string, idPacket
 	}
 }
 
+// check if packet is new (has higher id) from that source
 func (gossiper *Gossiper) checkAndUpdateLastOriginID(origin string, id uint32) bool {
 	isNew := false
 
@@ -95,15 +107,19 @@ func (gossiper *Gossiper) checkAndUpdateLastOriginID(origin string, id uint32) b
 	return isNew
 }
 
+// forward private message
 func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket, hopLimit *uint32, destination string) {
 
+	// check if hop limit is valid, decrement it if ok
 	if *hopLimit > 0 {
 		*hopLimit = *hopLimit - 1
 
+		// get routing table entry for the origin
 		gossiper.routingHandler.Mutex.RLock()
 		addressInTable, isPresent := gossiper.routingHandler.RoutingTable[destination]
 		gossiper.routingHandler.Mutex.RUnlock()
 
+		// send packet if address is present
 		if isPresent {
 			gossiper.sendPacket(packet, addressInTable)
 		}
