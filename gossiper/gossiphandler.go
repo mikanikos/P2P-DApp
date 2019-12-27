@@ -2,6 +2,7 @@ package gossiper
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 // GossipHandler struct
@@ -30,7 +31,58 @@ type VectorClock struct {
 	Mutex   sync.RWMutex
 }
 
-// store gossip message based on origin and seid 
+func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, origin string, id uint32) {
+
+	gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
+
+	isMessageKnown := true
+
+	if origin != gossiper.name {
+
+		// update routing table
+		gossiper.updateRoutingTable(origin, "", id, extPacket.SenderAddr)
+
+		// store message
+		isMessageKnown = gossiper.storeMessage(extPacket.Packet, origin, id)
+	}
+
+	// send status
+	statusToSend := getStatusToSend(&gossiper.gossipHandler.MyStatus)
+	gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
+
+	if !isMessageKnown {
+
+		if getTypeFromGossip(extPacket.Packet) == "rumor" {
+			if extPacket.Packet.Rumor.Text != "" {
+				go func(r *RumorMessage) {
+					gossiper.uiHandler.latestRumors <- r
+				}(extPacket.Packet.Rumor)
+			}
+		}
+
+		// start rumor monger
+		go gossiper.startRumorMongering(extPacket, origin, id)
+	}
+}
+
+// create new rumor message
+func (gossiper *Gossiper) createRumorMessage(text string) *ExtendedGossipPacket {
+	id := atomic.LoadUint32(&gossiper.gossipHandler.SeqID)
+	atomic.AddUint32(&gossiper.gossipHandler.SeqID, uint32(1))
+	rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: text}
+	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.gossiperData.Address}
+	gossiper.storeMessage(extPacket.Packet, gossiper.name, id)
+
+	if text != "" {
+		go func(r *RumorMessage) {
+			gossiper.uiHandler.latestRumors <- r
+		}(extPacket.Packet.Rumor)
+	}
+
+	return extPacket
+}
+
+// store gossip message based on origin and seid
 func (gossiper *Gossiper) storeMessage(packet *GossipPacket, origin string, id uint32) bool {
 
 	value, _ := gossiper.gossipHandler.MessageStorage.LoadOrStore(origin, &sync.Map{})
@@ -56,7 +108,7 @@ func (gossiper *Gossiper) updateStatus(origin string, id uint32, mapValue *sync.
 		maxID = uint32(value)
 	}
 
-	// increment up to the maximum consecutive known message, i.e. least unknown message 
+	// increment up to the maximum consecutive known message, i.e. least unknown message
 	if maxID <= id {
 		_, found := mapValue.Load(maxID)
 		for found {

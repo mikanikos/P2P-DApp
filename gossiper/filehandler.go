@@ -19,7 +19,7 @@ type FileHandler struct {
 	myFiles            sync.Map
 	hashChannels       sync.Map
 	filesList          sync.Map
-	lastSearchRequests MutexSearchResult
+	lastSearchRequests SafeRequestMap
 }
 
 // NewFileHandler create new file handler
@@ -29,7 +29,7 @@ func NewFileHandler() *FileHandler {
 		myFiles:            sync.Map{},
 		hashChannels:       sync.Map{},
 		filesList:          sync.Map{},
-		lastSearchRequests: MutexSearchResult{SearchResults: make(map[string]time.Time)},
+		lastSearchRequests: SafeRequestMap{OriginTimeMap: make(map[string]time.Time)},
 	}
 }
 
@@ -79,10 +79,10 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	fileInfo, err := file.Stat()
 	helpers.ErrorCheck(err)
 
-	// compute size of the file and number of chunks 
+	// compute size of the file and number of chunks
 	fileSize := fileInfo.Size()
 	numFileChunks := uint64(math.Ceil(float64(fileSize) / float64(fileChunk)))
-	
+
 	chunkMap := make([]uint64, numFileChunks)
 	hashes := make([]byte, numFileChunks*sha256.Size)
 

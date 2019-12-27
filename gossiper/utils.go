@@ -8,21 +8,10 @@ import (
 	"net"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
-
-func initializeChannels(modeTypes []string) (channels map[string]chan *ExtendedGossipPacket) {
-	channels = make(map[string]chan *ExtendedGossipPacket)
-	for _, t := range modeTypes {
-		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
-			channels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
-		}
-	}
-	return channels
-}
 
 func getTypeFromGossip(packet *GossipPacket) string {
 

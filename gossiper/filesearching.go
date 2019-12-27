@@ -12,11 +12,11 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-// // MutexSearchResult struct
-// type MutexSearchResult struct {
-// 	SearchResults map[string]time.Time
-// 	Mutex         sync.RWMutex
-// }
+// SafeRequestMap struct
+type SafeRequestMap struct {
+	OriginTimeMap map[string]time.Time
+	Mutex         sync.RWMutex
+}
 
 // handle single search result
 func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
@@ -40,28 +40,28 @@ func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
 // check if incoming search request is recent
 func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bool {
 
-	// sort and get keywords single string as key 
+	// sort and get keywords single string as key
 	sort.Strings(searchRequest.Keywords)
 	identifier := searchRequest.Origin + strings.Join(searchRequest.Keywords, "")
-	stored := gossiper.fileHandler.lastSearchRequests.SearchResults[identifier]
+	stored := gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier]
 
 	// if not stored or timeout has expired, can take it otherwise no
 	if stored.IsZero() || stored.Add(searchRequestDuplicateTimeout).Before(time.Now()) {
 
 		// save new information and reset timer
-		if gossiper.fileHandler.lastSearchRequests.SearchResults[identifier].IsZero() {
-			gossiper.fileHandler.lastSearchRequests.SearchResults[identifier] = time.Now()
+		if gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier].IsZero() {
+			gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier] = time.Now()
 		} else {
-			last := gossiper.fileHandler.lastSearchRequests.SearchResults[identifier]
+			last := gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier]
 			last = time.Now()
-			gossiper.fileHandler.lastSearchRequests.SearchResults[identifier] = last
+			gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier] = last
 		}
 		return false
 	}
 	return true
 }
 
-// search file with incremental timer
+// search file with budget
 func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket, increment bool) {
 
 	if debug {
@@ -84,7 +84,7 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 	// forward request
 	gossiper.forwardSearchRequestWithBudget(extPacket)
 
-	// start timer 
+	// start timer
 	timer := time.NewTicker(time.Duration(searchTimeout) * time.Second)
 	for {
 		select {
@@ -124,7 +124,7 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 	}
 }
 
-// search locally for files matches given keywords 
+// search locally for files matches given keywords
 func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 
 	matches := make([]string, 0)
@@ -146,7 +146,7 @@ func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
 
 			metaFile := *fileMetadata.MetaFile
 
-			// if chunkmap is empty (i.e. I don't have any chunks) and I know all the chunks location, it's a match 
+			// if chunkmap is empty (i.e. I don't have any chunks) and I know all the chunks location, it's a match
 			if len(fileMetadata.ChunkMap) == 0 && gossiper.checkAllChunksLocation(metaFile, fileMetadata.ChunkCount) {
 				//hashName := key.(string)
 				matches = append(matches, fileMetadata.FileName)
@@ -231,7 +231,7 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 		budgetForEach := extPacket.Packet.SearchRequest.Budget / uint64(len(availablePeers))
 		budgetToShare := extPacket.Packet.SearchRequest.Budget % uint64(len(availablePeers))
 
-		// repetedly get random peer, send minimal budget + 1 if some budget to share left 
+		// repetedly get random peer, send minimal budget + 1 if some budget to share left
 		for len(availablePeers) != 0 {
 
 			if budgetToShare == 0 && budgetForEach == 0 {

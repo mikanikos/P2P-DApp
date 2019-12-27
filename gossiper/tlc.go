@@ -23,7 +23,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 	}
 
 	if hw3ex2Mode {
-		gossiper.printTLCMessage(extPacket.Packet.TLCMessage)
+		gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
 	}
 
 	// start rumor mongering a message
@@ -92,7 +92,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 
 				if waitConfirmations {
 					confirmations[tlcConfirm.Origin] = tlcConfirm
-					
+
 					// check if got majority of confirmations and increment round in that case
 					if gossiper.checkAndIncrementRound(confirmations) {
 						timer.Stop()
@@ -112,7 +112,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 			// periodically resend tlc message
 			case <-timer.C:
 				if hw3ex2Mode {
-					gossiper.printTLCMessage(extPacket.Packet.TLCMessage)
+					gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
 				}
 				go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 			}

@@ -8,16 +8,10 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
-// ExtendedGossipPacket struct: gossip packet + address of the sender 
+// ExtendedGossipPacket struct: gossip packet + address of the sender
 type ExtendedGossipPacket struct {
 	Packet     *GossipPacket
 	SenderAddr *net.UDPAddr
-}
-
-// NetworkData struct: connection + address
-type NetworkData struct {
-	Conn *net.UDPConn
-	Addr *net.UDPAddr
 }
 
 // process incoming packets from client and send them to the client channel for further processing
@@ -27,7 +21,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, _, err := gossiper.clientData.Conn.ReadFromUDP(packetBytes)
+		n, _, err := gossiper.clientData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err)
 
 		if n > maxBufferSize {
@@ -53,7 +47,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, addr, err := gossiper.gossiperData.Conn.ReadFromUDP(packetBytes)
+		n, addr, err := gossiper.gossiperData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err)
 
 		if n > maxBufferSize {
@@ -89,13 +83,13 @@ func (gossiper *Gossiper) sendPacket(packet *GossipPacket, address *net.UDPAddr)
 	// encode message
 	packetToSend, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
-	
+
 	// send message
-	_, err = gossiper.gossiperData.Conn.WriteToUDP(packetToSend, address)
+	_, err = gossiper.gossiperData.Connection.WriteToUDP(packetToSend, address)
 	helpers.ErrorCheck(err)
 }
 
-// broadcast message to all the know peers
+// broadcast message to all the known peers
 func (gossiper *Gossiper) broadcastToPeers(packet *ExtendedGossipPacket) {
 	peers := gossiper.GetPeersAtomic()
 	for _, peer := range peers {

@@ -48,7 +48,7 @@ type SafeTLCMap struct {
 	Mutex       sync.RWMutex
 }
 
-// process incoming blocks from client (namely new files to be indexed) and choose to use qsc or tlc according to flags 
+// process incoming blocks from client (namely new files to be indexed) and choose to use qsc or tlc according to flags
 func (gossiper *Gossiper) processClientBlocks() {
 	for extPacket := range gossiper.blockchainHandler.blockBuffer {
 		if hw3ex4Mode {
@@ -128,11 +128,11 @@ func (gossiper *Gossiper) createTLCMessage(block BlockPublish, confirmedFlag int
 	atomic.AddUint32(&gossiper.gossipHandler.SeqID, uint32(1))
 
 	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: getStatusToSend(&gossiper.gossipHandler.MyStatus), Confirmed: confirmedFlag, Fitness: fitness}
-	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.gossiperData.Addr}
+	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.gossiperData.Address}
 
 	// store message
 	gossiper.storeMessage(extPacket.Packet, gossiper.name, id)
-	
+
 	// update vector clock
 	tlcPacket.VectorClock = getStatusToSend(&gossiper.gossipHandler.MyStatus)
 
@@ -165,7 +165,7 @@ func (gossiper *Gossiper) canAcceptTLCMessage(tlc *TLCMessage) (uint32, bool) {
 
 	tlcMap.Mutex.RUnlock()
 
-	// check vector clock, if v_other[] <= v_mine[] true otherwise false 
+	// check vector clock, if v_other[] <= v_mine[] true otherwise false
 	vectorClockHigher := isPeerStatusNeeded(tlc.VectorClock.Want, &gossiper.gossipHandler.MyStatus)
 	if !vectorClockHigher && tlc.Confirmed > -1 {
 

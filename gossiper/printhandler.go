@@ -30,20 +30,38 @@ func printSearchMatchMessage(origin string, res *SearchResult) {
 	}
 }
 
-func printPeerMessage(extPacket *ExtendedGossipPacket, peers []*net.UDPAddr) {
-	if simpleMode {
+func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket, peers []*net.UDPAddr) {
+
+	switch typePacket := getTypeFromGossip(extPacket.Packet); typePacket {
+
+	case "simple":
 		if hw1 {
 			fmt.Println("SIMPLE MESSAGE origin " + extPacket.Packet.Simple.OriginalName + " from " + extPacket.Packet.Simple.RelayPeerAddr + " contents " + extPacket.Packet.Simple.Contents)
 		}
-	} else {
-		if extPacket.Packet.Private != nil {
-			if hw2 {
-				fmt.Println("PRIVATE origin " + extPacket.Packet.Private.Origin + " hop-limit " + fmt.Sprint(extPacket.Packet.Private.HopLimit) + " contents " + extPacket.Packet.Private.Text)
-			}
+	case "private":
+		if hw2 {
+			fmt.Println("PRIVATE origin " + extPacket.Packet.Private.Origin + " hop-limit " + fmt.Sprint(extPacket.Packet.Private.HopLimit) + " contents " + extPacket.Packet.Private.Text)
+		}
+	case "rumor":
+		fmt.Println("RUMOR origin " + extPacket.Packet.Rumor.Origin + " from " + extPacket.SenderAddr.String() + " ID " + fmt.Sprint(extPacket.Packet.Rumor.ID) + " contents " + extPacket.Packet.Rumor.Text)
+
+	case "tlcMes":
+		messageToPrint := "GOSSIP origin " + extPacket.Packet.TLCMessage.Origin +
+			" ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID) +
+			" filename " + extPacket.Packet.TLCMessage.TxBlock.Transaction.Name +
+			" size " + fmt.Sprint(extPacket.Packet.TLCMessage.TxBlock.Transaction.Size) +
+			" metahash " + hex.EncodeToString(extPacket.Packet.TLCMessage.TxBlock.Transaction.MetafileHash)
+
+		if extPacket.Packet.TLCMessage.Confirmed > -1 {
+			fmt.Println("CONFIRMED " + messageToPrint)
+
+			gossiper.uiHandler.blockchainLogs <- "CONFIRMED " + messageToPrint
+
 		} else {
-			fmt.Println("RUMOR origin " + extPacket.Packet.Rumor.Origin + " from " + extPacket.SenderAddr.String() + " ID " + fmt.Sprint(extPacket.Packet.Rumor.ID) + " contents " + extPacket.Packet.Rumor.Text)
+			fmt.Println("UNCONFIRMED " + messageToPrint)
 		}
 	}
+
 	if hw1 {
 		printPeers(peers)
 	}
@@ -67,22 +85,22 @@ func printPeers(peers []*net.UDPAddr) {
 	}
 }
 
-func (gossiper *Gossiper) printTLCMessage(tlc *TLCMessage) {
-	messageToPrint := "GOSSIP origin " + tlc.Origin +
-		" ID " + fmt.Sprint(tlc.ID) +
-		" filename " + tlc.TxBlock.Transaction.Name +
-		" size " + fmt.Sprint(tlc.TxBlock.Transaction.Size) +
-		" metahash " + hex.EncodeToString(tlc.TxBlock.Transaction.MetafileHash)
+// func (gossiper *Gossiper) printTLCMessage(tlc *TLCMessage) {
+// 	messageToPrint := "GOSSIP origin " + tlc.Origin +
+// 		" ID " + fmt.Sprint(tlc.ID) +
+// 		" filename " + tlc.TxBlock.Transaction.Name +
+// 		" size " + fmt.Sprint(tlc.TxBlock.Transaction.Size) +
+// 		" metahash " + hex.EncodeToString(tlc.TxBlock.Transaction.MetafileHash)
 
-	if tlc.Confirmed > -1 {
-		fmt.Println("CONFIRMED " + messageToPrint)
+// 	if tlc.Confirmed > -1 {
+// 		fmt.Println("CONFIRMED " + messageToPrint)
 
-		gossiper.uiHandler.blockchainLogs <- "CONFIRMED " + messageToPrint
+// 		gossiper.uiHandler.blockchainLogs <- "CONFIRMED " + messageToPrint
 
-	} else {
-		fmt.Println("UNCONFIRMED " + messageToPrint)
-	}
-}
+// 	} else {
+// 		fmt.Println("UNCONFIRMED " + messageToPrint)
+// 	}
+// }
 
 func (gossiper *Gossiper) printRoundMessage(round uint32, confirmations map[string]*TLCMessage) {
 	message := "ADVANCING TO round " + fmt.Sprint(round) + " BASED ON CONFIRMED MESSAGES "

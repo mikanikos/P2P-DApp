@@ -2,6 +2,8 @@ package helpers
 
 import (
 	"net"
+	"os"
+	"sort"
 )
 
 // BaseAddress of the program, local address as default
@@ -21,8 +23,8 @@ type Message struct {
 func ErrorCheck(err error) {
 	if err != nil {
 		panic(err)
-		//os.Exit(1)
 	}
+	os.Exit(1)
 }
 
 // DifferenceString to do the difference between two string sets
@@ -64,10 +66,12 @@ func RemoveDuplicatesFromSlice(slice []string) []string {
 	return result
 }
 
+// SortUint64 utility to sort a slice of uint64
 func SortUint64(slice []uint64) {
 	sort.Slice(slice, func(i, j int) bool { return slice[i] < slice[j] })
 }
 
+// InsertToSortUint64Slice utility to insert uint64 in sorted slice
 func InsertToSortUint64Slice(data []uint64, el uint64) []uint64 {
 	index := sort.Search(len(data), func(i int) bool { return data[i] > el })
 	data = append(data, 0)

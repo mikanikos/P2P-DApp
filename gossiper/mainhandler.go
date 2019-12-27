@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
-	"sync/atomic"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
@@ -13,36 +12,12 @@ import (
 func (gossiper *Gossiper) processTLCMessage() {
 	for extPacket := range gossiper.packetChannels["tlcMes"] {
 
-		if debug {
-			fmt.Println("Got TLC message!!!!!!")
-		}
+		// handle gossip message
+		gossiper.handleGossipMessage(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
-		if extPacket.Packet.TLCMessage.Origin != gossiper.name {
-
-			// update routing table
-			gossiper.updateRoutingTable(extPacket.Packet.TLCMessage.Origin, "", extPacket.Packet.TLCMessage.ID, extPacket.SenderAddr)
-
-			// store message
-			isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
-
-			// send status
-			statusToSend := getStatusToSend(&gossiper.gossipHandler.MyStatus)
-			gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
-
-			// if new message, start rumor mongering
-			if !isMessageKnown {
-
-				if hw3ex2Mode {
-					gossiper.printTLCMessage(extPacket.Packet.TLCMessage)
-				}
-
-				go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
-			}
-
-			// handle tlc message
-			if hw3ex2Mode || hw3ex3Mode || hw3ex4Mode {
-				go gossiper.handleTLCMessage(extPacket)
-			}
+		// handle tlc message
+		if hw3ex2Mode || hw3ex3Mode || hw3ex4Mode {
+			go gossiper.handleTLCMessage(extPacket)
 		}
 	}
 }
@@ -73,7 +48,7 @@ func (gossiper *Gossiper) processSearchRequest() {
 
 		// check if search request is not recent
 		if !gossiper.isRecentSearchRequest(extPacket.Packet.SearchRequest) {
-			// send matching local files 
+			// send matching local files
 			go gossiper.sendMatchingLocalFiles(extPacket)
 		} else {
 			if debug {
@@ -161,18 +136,14 @@ func (gossiper *Gossiper) processDataReply() {
 			fmt.Println("Got data reply")
 		}
 
-		// if for me, hadnle data reply
+		// if for me, handle data reply
 		if extPacket.Packet.DataReply.Destination == gossiper.name {
 
-			// check integrity if the hash
+			// check integrity of the hash
 			if extPacket.Packet.DataReply.Data != nil && checkHash(extPacket.Packet.DataReply.HashValue, extPacket.Packet.DataReply.Data) {
 				value, loaded := gossiper.fileHandler.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin)
 
-				if debug {
-					fmt.Println("Found channel?")
-				}
-
-				// send it to appropriate channel
+				// send it to the appropriate channel
 				if loaded {
 					channel := value.(chan *DataReply)
 					go func(c chan *DataReply, d *DataReply) {
@@ -194,7 +165,7 @@ func (gossiper *Gossiper) processPrivateMessages() {
 		// if for me, handle private message
 		if extPacket.Packet.Private.Destination == gossiper.name {
 			if hw2 {
-				printPeerMessage(extPacket, gossiper.GetPeersAtomic())
+				gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
 			}
 			// send it to gui
 			go func(p *PrivateMessage) {
@@ -212,7 +183,7 @@ func (gossiper *Gossiper) processPrivateMessages() {
 func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Message) {
 	for message := range clientChannel {
 
-		packet := &ExtendedGossipPacket{SenderAddr: gossiper.gossiperData.Addr}
+		packet := &ExtendedGossipPacket{SenderAddr: gossiper.gossiperData.Address}
 
 		// get type of the message
 		switch typeMessage := getTypeFromMessage(message); typeMessage {
@@ -223,7 +194,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			}
 
 			// create simple packet and broadcast
-			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.name, RelayPeerAddr: gossiper.gossiperData.Addr.String()}
+			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.name, RelayPeerAddr: gossiper.gossiperData.Address.String()}
 			packet.Packet = &GossipPacket{Simple: simplePacket}
 
 			go gossiper.broadcastToPeers(packet)
@@ -246,24 +217,14 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 		case "rumor":
 			printClientMessage(message, gossiper.GetPeersAtomic())
 
-			// create rumor message and rumor monger it
-			id := atomic.LoadUint32(&gossiper.gossipHandler.SeqID)
-			atomic.AddUint32(&gossiper.gossipHandler.SeqID, uint32(1))
-			rumorPacket := &RumorMessage{ID: id, Origin: gossiper.name, Text: message.Text}
-			packet.Packet = &GossipPacket{Rumor: rumorPacket}
+			// create rumor
+			extPacket := gossiper.createRumorMessage(message.Text)
 
-			loaded := gossiper.storeMessage(packet.Packet, gossiper.name, id)
-
-			if !loaded {
-				go func(r *RumorMessage) {
-					gossiper.uiHandler.latestRumors <- r
-				}(packet.Packet.Rumor)
-			}
-
-			go gossiper.startRumorMongering(packet, gossiper.name, id)
+			// rumor monger it
+			go gossiper.startRumorMongering(extPacket, gossiper.name, extPacket.Packet.Rumor.ID)
 
 		case "file":
-			go gossiper.indexFile(message.File)
+			gossiper.indexFile(message.File)
 
 		case "dataRequest":
 			go gossiper.requestFile(*message.File, *message.Request, *message.Destination)
@@ -273,16 +234,16 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			// create search request packet and handle it
 			keywordsSplitted := helpers.RemoveDuplicatesFromSlice(strings.Split(*message.Keywords, ","))
 
-			requestPacket := &SearchRequest{Origin: gossiper.name, Keywords: keywordsSplitted}
+			requestPacket := &SearchRequest{Origin: gossiper.name, Keywords: keywordsSplitted, Budget: *message.Budget}
 			packet.Packet = &GossipPacket{SearchRequest: requestPacket}
 
-			if *message.Budget != 0 {
-				requestPacket.Budget = *message.Budget
-				go gossiper.searchFilePeriodically(packet, false)
-			} else {
+			needIncrement := (*message.Budget == 0)
+
+			if needIncrement {
 				requestPacket.Budget = uint64(defaultBudget)
-				go gossiper.searchFilePeriodically(packet, true)
 			}
+
+			go gossiper.searchFilePeriodically(packet, needIncrement)
 
 		default:
 			if debug {
@@ -297,11 +258,11 @@ func (gossiper *Gossiper) processSimpleMessages() {
 	for extPacket := range gossiper.packetChannels["simple"] {
 
 		if hw1 {
-			printPeerMessage(extPacket, gossiper.GetPeersAtomic())
+			gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
 		}
 
 		// set relay address and broadcast
-		extPacket.Packet.Simple.RelayPeerAddr = gossiper.gossiperData.Addr.String()
+		extPacket.Packet.Simple.RelayPeerAddr = gossiper.gossiperData.Address.String()
 
 		go gossiper.broadcastToPeers(extPacket)
 	}
@@ -311,28 +272,8 @@ func (gossiper *Gossiper) processSimpleMessages() {
 func (gossiper *Gossiper) processRumorMessages() {
 	for extPacket := range gossiper.packetChannels["rumor"] {
 
-		printPeerMessage(extPacket, gossiper.GetPeersAtomic())
-
-		// update routing table
-		gossiper.updateRoutingTable(extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.Text, extPacket.Packet.Rumor.ID, extPacket.SenderAddr)
-
-		// store message
-		isMessageKnown := gossiper.storeMessage(extPacket.Packet, extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.ID)
-
-		// send status back to sender
-		statusToSend := getStatusToSend(&gossiper.gossipHandler.MyStatus)
-		gossiper.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
-
-		// if new message, rumor monger it
-		if !isMessageKnown {
-			if extPacket.Packet.Rumor.Text != "" {
-				go func(r *RumorMessage) {
-					gossiper.uiHandler.latestRumors <- r
-				}(extPacket.Packet.Rumor)
-			}
-
-			go gossiper.startRumorMongering(extPacket, extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.ID)
-		}
+		// handle gossip message
+		gossiper.handleGossipMessage(extPacket, extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.ID)
 	}
 }
 
@@ -344,7 +285,7 @@ func (gossiper *Gossiper) processStatusMessages() {
 			printStatusMessage(extPacket, gossiper.GetPeersAtomic())
 		}
 
-		// get status channel for peer and send it
+		// get status channel for peer and send it there
 		value, exists := gossiper.gossipHandler.StatusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket, maxChannelSize))
 		channelPeer := value.(chan *ExtendedGossipPacket)
 		if !exists {

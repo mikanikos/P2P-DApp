@@ -4,11 +4,16 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
+
+// ConnectionData struct: connection + address
+type ConnectionData struct {
+	Connection *net.UDPConn
+	Address    *net.UDPAddr
+}
 
 // Gossiper struct
 type Gossiper struct {
@@ -16,8 +21,8 @@ type Gossiper struct {
 
 	packetChannels map[string]chan *ExtendedGossipPacket
 
-	clientData   *NetworkData
-	gossiperData *NetworkData
+	clientData   *ConnectionData
+	gossiperData *ConnectionData
 	peersData    *PeersData
 
 	gossipHandler     *GossipHandler
@@ -28,43 +33,26 @@ type Gossiper struct {
 }
 
 // NewGossiper constructor
-func NewGossiper(name string, address string, peersList []string, uiPort string, peersNum uint64) *Gossiper {
+func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum uint64) *Gossiper {
 
-	// resolve gossiper address
-	addressGossiper, err := net.ResolveUDPAddr("udp4", address)
+	gossiperData, err := createConnectionData(gossiperAddress)
 	helpers.ErrorCheck(err)
 
-	// get connection for gossiper
-	connGossiper, err := net.ListenUDP("udp4", addressGossiper)
+	clientData, err := createConnectionData(clientAddress)
 	helpers.ErrorCheck(err)
 
-	// resolve client address
-	addressUI, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+":"+uiPort)
-	helpers.ErrorCheck(err)
-
-	// get connection for client
-	connUI, err := net.ListenUDP("udp4", addressUI)
-	helpers.ErrorCheck(err)
-
-	// resolve peers addresses given
-	peers := make([]*net.UDPAddr, 0)
-	for _, peer := range peersList {
-		addressPeer, err := net.ResolveUDPAddr("udp4", peer)
-		if err == nil {
-			peers = append(peers, addressPeer)
-		}
-	}
+	initializeDirectories()
 
 	// create new gossiper
 	return &Gossiper{
 		name: name,
 
-		// initialize channels used throgout the app to exchange messages
-		packetChannels: initializeChannels(modeTypes),
+		// initialize initial channels used throgout the app to exchange messages
+		packetChannels: initDefaultChannels(),
 
-		clientData:   &NetworkData{Conn: connUI, Addr: addressUI},
-		gossiperData: &NetworkData{Conn: connGossiper, Addr: addressGossiper},
-		peersData:    &PeersData{Peers: peers, Size: peersNum},
+		clientData:   clientData,
+		gossiperData: gossiperData,
+		peersData:    createPeersData(peers, peersNum),
 
 		gossipHandler:     NewGossipHandler(),
 		routingHandler:    NewRoutingHandler(),
@@ -74,14 +62,12 @@ func NewGossiper(name string, address string, peersList []string, uiPort string,
 	}
 }
 
-// SetConstantValues based on parameters
-func SetConstantValues(simple, hw3ex2, hw3ex3, hw3ex4 bool, hopLimitVal, stubbornTimeoutVal uint, ackAll bool) {
+// SetAppConstants based on parameters
+func SetAppConstants(simple, hw3ex2, hw3ex3, hw3ex4, ackAll bool, hopLimitVal, stubbornTimeoutVal, rtimer, antiEntropy uint) {
 	simpleMode = simple
 	hw3ex2Mode = hw3ex2
 	hw3ex3Mode = hw3ex3
 	hw3ex4Mode = hw3ex4
-	hopLimit = int(hopLimitVal)
-	stubbornTimeout = int(stubbornTimeoutVal)
 	ackAllMode = ackAll
 
 	// if qsc, set tlc too
@@ -94,6 +80,10 @@ func SetConstantValues(simple, hw3ex2, hw3ex3, hw3ex4 bool, hopLimitVal, stubbor
 		hw3ex3Mode = true
 	}
 
+	hopLimit = int(hopLimitVal)
+	stubbornTimeout = int(stubbornTimeoutVal)
+	routeRumorTimeout = int(rtimer)
+	antiEntropyTimeout = int(antiEntropy)
 }
 
 // Run application
@@ -109,8 +99,6 @@ func (gossiper *Gossiper) Run() {
 	if simpleMode {
 		go gossiper.processSimpleMessages()
 	} else {
-		initializeDirectories()
-
 		go gossiper.processStatusMessages()
 		go gossiper.processRumorMessages()
 		go gossiper.processPrivateMessages()
@@ -120,19 +108,47 @@ func (gossiper *Gossiper) Run() {
 		go gossiper.processSearchReply()
 		go gossiper.processTLCMessage()
 		go gossiper.processTLCAck()
+
 		if hw3ex3Mode || hw3ex4Mode {
 			go gossiper.processClientBlocks()
 		}
 	}
 
-	// listen for incoming packets 
+	// listen for incoming packets
 	go gossiper.receivePacketsFromClient(clientChannel)
+	go gossiper.receivePacketsFromPeers()
 
 	if debug {
 		fmt.Println("Gossiper running")
 	}
+}
 
-	gossiper.receivePacketsFromPeers()
+// create Connection data
+func createConnectionData(addressString string) (*ConnectionData, error) {
+	// resolve gossiper address
+	address, err := net.ResolveUDPAddr("udp4", addressString)
+	if err != nil {
+		return nil, err
+	}
+
+	// get connection for gossiper
+	connection, err := net.ListenUDP("udp4", address)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ConnectionData{Address: address, Connection: connection}, nil
+}
+
+func initDefaultChannels() map[string]chan *ExtendedGossipPacket {
+	// initialize channels used in the application
+	channels := make(map[string]chan *ExtendedGossipPacket)
+	for _, t := range modeTypes {
+		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
+			channels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
+		}
+	}
+	return channels
 }
 
 // GetName of the gossiper
@@ -168,36 +184,4 @@ func (gossiper *Gossiper) GetLatestRumorMessages() chan *RumorMessage {
 // GeBlockchainLogs util
 func (gossiper *Gossiper) GeBlockchainLogs() chan string {
 	return gossiper.uiHandler.blockchainLogs
-}
-
-// PeersData struct
-type PeersData struct {
-	Peers []*net.UDPAddr
-	Size  uint64
-	Mutex sync.RWMutex
-}
-
-// AddPeer to peers list if not present
-func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
-	gossiper.peersData.Mutex.Lock()
-	defer gossiper.peersData.Mutex.Unlock()
-	contains := false
-	for _, p := range gossiper.peersData.Peers {
-		if p.String() == peer.String() {
-			contains = true
-			break
-		}
-	}
-	if !contains {
-		gossiper.peersData.Peers = append(gossiper.peersData.Peers, peer)
-	}
-}
-
-// GetPeersAtomic in concurrent environment
-func (gossiper *Gossiper) GetPeersAtomic() []*net.UDPAddr {
-	gossiper.peersData.Mutex.RLock()
-	defer gossiper.peersData.Mutex.RUnlock()
-	peerCopy := make([]*net.UDPAddr, len(gossiper.peersData.Peers))
-	copy(peerCopy, gossiper.peersData.Peers)
-	return peerCopy
 }

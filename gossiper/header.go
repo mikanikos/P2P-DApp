@@ -22,6 +22,8 @@ var maxChannelSize = 100
 
 var rumorTimeout = 10
 var stubbornTimeout = 10
+var routeRumorTimeout = 0
+var antiEntropyTimeout = 10
 var requestTimeout = 5
 var searchTimeout = 1
 var searchRequestDuplicateTimeout = 500 * time.Millisecond

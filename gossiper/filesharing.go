@@ -41,23 +41,20 @@ func (gossiper *Gossiper) downloadMetafile(destination string, fileMetadata *Fil
 		select {
 		// incoming reply for this request
 		case replyPacket := <-metaFileChan:
-			// check if hash is valid
-			if replyPacket.Data != nil && checkHash(fileMetadata.MetafileHash, replyPacket.Data) {
 
-				// stop timer and close/delete channel
-				timer.Stop()
-				close(metaFileChan)
-				gossiper.fileHandler.hashChannels.Delete(metaHashEnc + destination)
+			// stop timer and close/delete channel
+			timer.Stop()
+			close(metaFileChan)
+			gossiper.fileHandler.hashChannels.Delete(metaHashEnc + destination)
 
-				// save data
-				fileMetadata.MetaFile = &replyPacket.Data
-				fileMetadata.ChunkCount = uint64(len(replyPacket.Data) / 32)
+			// save data
+			fileMetadata.MetaFile = &replyPacket.Data
+			fileMetadata.ChunkCount = uint64(len(replyPacket.Data) / 32)
 
-				if debug {
-					fmt.Println("Got metafile")
-				}
-				return
+			if debug {
+				fmt.Println("Got metafile")
 			}
+			return
 
 		// repeat sending after timeout
 		case <-timer.C:
@@ -74,7 +71,7 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 
 	value, loaded := gossiper.fileHandler.myFiles.Load(hex.EncodeToString(metaHash))
 
-	// check if I already have metafile information needed for chunks download 
+	// check if I already have metafile information needed for chunks download
 	if !loaded {
 		if destination == "" {
 			if debug {
@@ -118,9 +115,9 @@ func (gossiper *Gossiper) requestFile(fileName string, metaHash []byte, destinat
 		fmt.Println("Got all chunks")
 	}
 
-	// check if I got all chunks 
+	// check if I got all chunks
 	if chunksIntegrityCheck(fileMetadata) {
-		
+
 		// reconstruct file
 		gossiper.reconstructFileFromChunks(fileMetadata)
 
@@ -177,10 +174,10 @@ func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *
 			fmt.Println("DOWNLOADING " + fileMetadata.FileName + " chunk " + fmt.Sprint(seqNum) + " from " + destination)
 		}
 
-		// send request 
+		// send request
 		go gossiper.forwardPrivateMessage(newPacket, &newPacket.DataRequest.HopLimit, newPacket.DataRequest.Destination)
 
-		// start timer 
+		// start timer
 		timer := time.NewTicker(time.Duration(requestTimeout) * time.Second)
 		for {
 			select {
@@ -190,23 +187,19 @@ func (gossiper *Gossiper) downloadChunk(fileMetadata *FileMetadata, chunkOwner *
 					fmt.Println("Got chunk")
 				}
 
-				// check integrity of chunk 
-				if replyPacket.Data != nil && checkHash(replyPacket.HashValue, replyPacket.Data) {
+				// stop timer and close/delete channel
+				timer.Stop()
+				close(chunkIn)
+				gossiper.fileHandler.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
 
-					// stop timer and close/delete channel
-					timer.Stop()
-					close(chunkIn)
-					gossiper.fileHandler.hashChannels.Delete(hex.EncodeToString(newPacket.DataRequest.HashValue) + replyPacket.Origin)
-
-					// save data for the chunks
-					chunkOwner.Data = &replyPacket.Data
-					if destination != "" {
-						chunkOwner.Owners = helpers.RemoveDuplicatesFromSlice(append(chunkOwner.Owners, destination))
-					}
-					fileMetadata.ChunkMap = insertToSortUint64Slice(fileMetadata.ChunkMap, seqNum)
-
-					return
+				// save data for the chunks
+				chunkOwner.Data = &replyPacket.Data
+				if destination != "" {
+					chunkOwner.Owners = helpers.RemoveDuplicatesFromSlice(append(chunkOwner.Owners, destination))
 				}
+				fileMetadata.ChunkMap = helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, seqNum)
+
+				return
 
 			// repeat request if timeout expired
 			case <-timer.C:
