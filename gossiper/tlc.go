@@ -1,7 +1,6 @@
 package gossiper
 
 import (
-	"encoding/hex"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -130,9 +129,7 @@ func (gossiper *Gossiper) sendGossipWithConfirmation(extPacket *ExtendedGossipPa
 	go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
 	if !hw3ex4Mode {
-		go func(b *BlockPublish) {
-			gossiper.uiHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
-		}(&extPacket.Packet.TLCMessage.TxBlock)
+		gossiper.confirmMetafileData(extPacket.Packet.TLCMessage.TxBlock.Transaction.Name, extPacket.Packet.TLCMessage.TxBlock.Transaction.MetafileHash)
 	}
 }
 

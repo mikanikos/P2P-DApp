@@ -1,7 +1,6 @@
 package gossiper
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net"
 	"sort"
@@ -22,18 +21,28 @@ type SafeRequestMap struct {
 func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
 
 	// save it if not present
-	value, _ := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash), &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
-	_, loaded := gossiper.fileHandler.filesList.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileIDPair{FileName: res.FileName, EncMetaHash: hex.EncodeToString(res.MetafileHash)})
-	fileMetadata := value.(*FileMetadata)
+	_, loaded := gossiper.fileHandler.hashDataMap.Load(string(res.MetafileHash))
 
-	// if not present, request metafile and print log message
+	// check if I already have metafile information needed for chunks download
 	if !loaded {
 		printSearchMatchMessage(origin, res)
-		gossiper.downloadMetafile(origin, fileMetadata)
+
+		// download metafile
+		if !gossiper.downloadDataFromPeer(res.FileName, origin, res.MetafileHash, 0) {
+			if debug {
+				fmt.Println("ERROR: the peer doesn't have the metafile or is offline")
+			}
+			return
+		}
 	}
 
+	metadataStored, loaded := gossiper.fileHandler.myFiles.Load(getKeyFromString(string(res.MetafileHash) + res.FileName))
+	fileMetadata := metadataStored.(*FileMetadata)
+
 	// store chunk owner origin and search result to gui
-	gossiper.storeChunksOwner(origin, res.ChunkMap, fileMetadata)
+	for chunkID := range fileMetadata.ChunkMap.ChunkOwners {
+		fileMetadata.updateChunkOwner(origin, chunkID)
+	}
 	gossiper.addSearchFileForGUI(fileMetadata)
 }
 
@@ -42,7 +51,7 @@ func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bo
 
 	// sort and get keywords single string as key
 	sort.Strings(searchRequest.Keywords)
-	identifier := searchRequest.Origin + strings.Join(searchRequest.Keywords, "")
+	identifier := getKeyFromString(searchRequest.Origin + strings.Join(searchRequest.Keywords, ""))
 	stored := gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier]
 
 	// if not stored or timeout has expired, can take it otherwise no
@@ -126,46 +135,27 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 
 // search locally for files matches given keywords
 func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
-
 	matches := make([]string, 0)
 
 	// get over all the files
-	gossiper.fileHandler.filesList.Range(func(key interface{}, value interface{}) bool {
-		//fileMetadata := value.(*FileMetadata)
-		id := value.(*FileIDPair)
-		// check if match at least one keyword
-		if containsKeyword(id.FileName, keywords) {
-			valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
-			if !loaded {
-				if debug {
-					panic("Error: file not found when searching for search results")
-				}
-				return false
-			}
-			fileMetadata := valueFile.(*FileMetadata)
-
-			metaFile := *fileMetadata.MetaFile
-
-			// if chunkmap is empty (i.e. I don't have any chunks) and I know all the chunks location, it's a match
-			if len(fileMetadata.ChunkMap) == 0 && gossiper.checkAllChunksLocation(metaFile, fileMetadata.ChunkCount) {
-				//hashName := key.(string)
-				matches = append(matches, fileMetadata.FileName)
-				matches = helpers.RemoveDuplicatesFromSlice(matches)
-			}
+	gossiper.fileHandler.myFiles.Range(func(key interface{}, value interface{}) bool {
+		fileMetadata := value.(*FileMetadata)
+		// check if match at least one keyword, if all chunks locations are known and it's not a file I already have
+		if containsKeyword(fileMetadata.FileName, keywords) && fileMetadata.checkAllChunksLocation() && !fileMetadata.Confirmed {
+			matches = append(matches, fileMetadata.FileName)
+			matches = helpers.RemoveDuplicatesFromSlice(matches)
 		}
 
-		// check if threshold reached and stop in case
+		// check if threshold reached and stop iterating in that case
 		if len(matches) == matchThreshold {
 			return false
 		}
-
 		return true
 	})
 
 	if debug {
 		fmt.Println("Got " + fmt.Sprint(len(matches)))
 	}
-
 	return len(matches)
 }
 
@@ -175,24 +165,14 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 	keywords := extPacket.Packet.SearchRequest.Keywords
 	searchResults := make([]*SearchResult, 0)
 
-	gossiper.fileHandler.filesList.Range(func(key interface{}, value interface{}) bool {
-		//fileMetadata := value.(*FileMetadata)
-		id := value.(*FileIDPair)
+	gossiper.fileHandler.myFiles.Range(func(key interface{}, value interface{}) bool {
+		fileMetadata := value.(*FileMetadata)
+
 		// check if match at least one keyword
-		if containsKeyword(id.FileName, keywords) {
-			valueFile, loaded := gossiper.fileHandler.myFiles.Load(id.EncMetaHash)
-			if !loaded {
-				if debug {
-					panic("Error: file not found when searching for search results")
-				}
-				return false
-			}
-			fileMetadata := valueFile.(*FileMetadata)
-			// check if I have all the chunks, in that case I have a search result
-			if len(fileMetadata.ChunkMap) != 0 {
-				searchResults = append(searchResults, &SearchResult{FileName: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: fileMetadata.ChunkMap})
-			}
+		if containsKeyword(fileMetadata.FileName, keywords) {
+			searchResults = append(searchResults, &SearchResult{FileName: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: fileMetadata.ChunkMap.getKeyList()})
 		}
+
 		return true
 	})
 
@@ -258,22 +238,10 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 	}
 }
 
-// save owner of the chunk
-func (gossiper *Gossiper) storeChunksOwner(destination string, chunkMap []uint64, fileMetadata *FileMetadata) {
-
-	metafile := *fileMetadata.MetaFile
-	for _, elem := range chunkMap {
-		chunkHash := metafile[(elem-1)*32 : elem*32]
-		value, _ := gossiper.fileHandler.myFileChunks.LoadOrStore(hex.EncodeToString(chunkHash), &ChunkOwners{Owners: make([]string, 0)})
-		chunkOwner := value.(*ChunkOwners)
-		chunkOwner.Owners = helpers.RemoveDuplicatesFromSlice(append(chunkOwner.Owners, destination))
-	}
-}
-
 // add search result to gui
 func (gossiper *Gossiper) addSearchFileForGUI(fileMetadata *FileMetadata) {
 
-	element := FileGUI{Name: fileMetadata.FileName, MetaHash: hex.EncodeToString(fileMetadata.MetafileHash)}
+	element := FileGUI{Name: fileMetadata.FileName, MetaHash: string(fileMetadata.MetafileHash)}
 	contains := false
 	for _, elem := range gossiper.uiHandler.filesSearched {
 		if elem.Name == element.Name && elem.MetaHash == element.MetaHash {
@@ -285,21 +253,4 @@ func (gossiper *Gossiper) addSearchFileForGUI(fileMetadata *FileMetadata) {
 	if !contains {
 		gossiper.uiHandler.filesSearched = append(gossiper.uiHandler.filesSearched, element)
 	}
-}
-
-// check if, given a file, I know all the chunks location
-func (gossiper *Gossiper) checkAllChunksLocation(metafile []byte, numChunks uint64) bool {
-	for i := uint64(0); i < numChunks; i++ {
-		hash := metafile[i*32 : (i+1)*32]
-		chunkValue, loaded := gossiper.fileHandler.myFileChunks.Load(hex.EncodeToString(hash))
-		if loaded {
-			chunkOwnerEntry := chunkValue.(*ChunkOwners)
-			if len(chunkOwnerEntry.Owners) == 0 {
-				return false
-			}
-		} else {
-			return false
-		}
-	}
-	return true
 }

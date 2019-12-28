@@ -3,7 +3,6 @@ package gossiper
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 )
 
@@ -33,7 +32,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
 	// extPacket.Packet.TLCMessage.TxBlock.PrevHash = gossiper.blHandler.previousBlockHash
 	// extPacket.Packet.TLCMessage.Fitness = rand.Float32()
-	
+
 	// get current round
 	roundS := gossiper.blockchainHandler.myTime
 
@@ -54,7 +53,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		return
 	}
 
-	// get confirmations and highest fitness tlc 
+	// get confirmations and highest fitness tlc
 	confirmationsRoundS := value.(map[string]*TLCMessage)
 	highestTLCRoundS := gossiper.getTLCWithHighestFitness(confirmationsRoundS)
 
@@ -114,9 +113,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		gossiper.blockchainHandler.previousBlockHash = gossiper.blockchainHandler.topBlockchainHash
 
 		if messageConsensus.Origin == gossiper.name {
-			go func(b *BlockPublish) {
-				gossiper.uiHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
-			}(&chosenBlock)
+			gossiper.confirmMetafileData(chosenBlock.Transaction.Name, chosenBlock.Transaction.MetafileHash)
 		}
 
 		gossiper.printConsensusMessage(messageConsensus)
@@ -146,11 +143,11 @@ func (gossiper *Gossiper) getTLCWithHighestFitness(confirmations map[string]*TLC
 	return maxBlock
 }
 
-// check if tx block is valid, i.e. there's no other committed block with the same name and its history is known 
+// check if tx block is valid, i.e. there's no other committed block with the same name and its history is known
 func (gossiper *Gossiper) isTxBlockValid(b BlockPublish) bool {
 
 	isValid := true
-	
+
 	// check for same name
 	gossiper.blockchainHandler.committedHistory.Range(func(key interface{}, value interface{}) bool {
 		block := value.(BlockPublish)
@@ -218,7 +215,7 @@ func (gossiper *Gossiper) checkIfConsensusReached(confirmationsRoundS, confirmat
 	// 	for _, m := range confirmationsRoundS1 {
 	// 		// if m.TxBlock.Transaction.Name == message.TxBlock.Transaction.Name &&
 	// 		// 	m.TxBlock.Transaction.Size == message.TxBlock.Transaction.Size &&
-	// 		// 	hex.EncodeToString(m.TxBlock.Transaction.MetafileHash) == hex.EncodeToString(message.TxBlock.Transaction.MetafileHash) &&
+	// 		// 	string(m.TxBlock.Transaction.MetafileHash) == string(message.TxBlock.Transaction.MetafileHash) &&
 	// 		// 	m.TxBlock.PrevHash == message.TxBlock.PrevHash &&
 	// 		if m.Fitness == message.Fitness {
 

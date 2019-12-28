@@ -2,6 +2,7 @@ package gossiper
 
 import (
 	"fmt"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,6 +47,24 @@ func NewBlockchainHandler() *BlockchainHandler {
 type SafeTLCMap struct {
 	MessagedIDs map[int]bool
 	Mutex       sync.RWMutex
+}
+
+// create tx block and start finding an agreement with others
+func (gossiper *Gossiper) createAndPublishTxBlock(fileMetadata *FileMetadata) {
+
+	// create tx block
+	tx := TxPublish{Name: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, Size: fileMetadata.Size}
+	block := BlockPublish{Transaction: tx, PrevHash: gossiper.blockchainHandler.previousBlockHash}
+	extPacket := gossiper.createTLCMessage(block, -1, rand.Float32())
+
+	// if no simple gossip with confirmation, send it to client block buffer
+	if hw3ex2Mode && !hw3ex3Mode && !hw3ex4Mode {
+		gossiper.gossipWithConfirmation(extPacket, false)
+	} else {
+		go func(e *ExtendedGossipPacket) {
+			gossiper.blockchainHandler.blockBuffer <- e
+		}(extPacket)
+	}
 }
 
 // process incoming blocks from client (namely new files to be indexed) and choose to use qsc or tlc according to flags

@@ -1,7 +1,6 @@
 package gossiper
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
@@ -21,7 +20,7 @@ func printStatusMessage(extPacket *ExtendedGossipPacket, peers []*net.UDPAddr) {
 }
 
 func printSearchMatchMessage(origin string, res *SearchResult) {
-	message := "FOUND match " + res.FileName + " at " + origin + " metafile=" + hex.EncodeToString(res.MetafileHash) + " chunks="
+	message := "FOUND match " + res.FileName + " at " + origin + " metafile=" + string(res.MetafileHash) + " chunks="
 	for _, elem := range res.ChunkMap {
 		message = message + fmt.Sprint(elem) + ","
 	}
@@ -50,7 +49,7 @@ func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket, peer
 			" ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID) +
 			" filename " + extPacket.Packet.TLCMessage.TxBlock.Transaction.Name +
 			" size " + fmt.Sprint(extPacket.Packet.TLCMessage.TxBlock.Transaction.Size) +
-			" metahash " + hex.EncodeToString(extPacket.Packet.TLCMessage.TxBlock.Transaction.MetafileHash)
+			" metahash " + string(extPacket.Packet.TLCMessage.TxBlock.Transaction.MetafileHash)
 
 		if extPacket.Packet.TLCMessage.Confirmed > -1 {
 			fmt.Println("CONFIRMED " + messageToPrint)
@@ -85,12 +84,22 @@ func printPeers(peers []*net.UDPAddr) {
 	}
 }
 
+func printDownloadMessage(fileName, destination string, hash []byte, seqNum uint64) {
+	// metafile
+	if seqNum == 0 {
+		fmt.Println("DOWNLOADING metafile of " + fileName + " from " + destination)
+	} else {
+		// chunk
+		fmt.Println("DOWNLOADING " + fileName + " chunk " + fmt.Sprint(seqNum) + " from " + destination)
+	}
+}
+
 // func (gossiper *Gossiper) printTLCMessage(tlc *TLCMessage) {
 // 	messageToPrint := "GOSSIP origin " + tlc.Origin +
 // 		" ID " + fmt.Sprint(tlc.ID) +
 // 		" filename " + tlc.TxBlock.Transaction.Name +
 // 		" size " + fmt.Sprint(tlc.TxBlock.Transaction.Size) +
-// 		" metahash " + hex.EncodeToString(tlc.TxBlock.Transaction.MetafileHash)
+// 		" metahash " + string(tlc.TxBlock.Transaction.MetafileHash)
 
 // 	if tlc.Confirmed > -1 {
 // 		fmt.Println("CONFIRMED " + messageToPrint)
@@ -141,7 +150,7 @@ func (gossiper *Gossiper) printConsensusMessage(tlcChosen *TLCMessage) {
 		blockHash = block.PrevHash
 	}
 
-	message = message + filenames + "size " + fmt.Sprint(tlcChosen.TxBlock.Transaction.Size) + " metahash " + hex.EncodeToString(tlcChosen.TxBlock.Transaction.MetafileHash)
+	message = message + filenames + "size " + fmt.Sprint(tlcChosen.TxBlock.Transaction.Size) + " metahash " + string(tlcChosen.TxBlock.Transaction.MetafileHash)
 
 	fmt.Println(message)
 	gossiper.uiHandler.blockchainLogs <- message

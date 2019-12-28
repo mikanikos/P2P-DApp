@@ -2,7 +2,7 @@ package gossiper
 
 import (
 	"crypto/sha256"
-	"fmt"
+	"encoding/hex"
 	"io"
 	"math/rand"
 	"net"
@@ -75,15 +75,15 @@ func getRandomPeer(availablePeers []*net.UDPAddr) *net.UDPAddr {
 	return availablePeers[indexPeer]
 }
 
-func getChunksFromMetafile(metafile []byte) [][]byte {
-	iterations := len(metafile) / 32
-	hashes := make([][]byte, iterations)
-	for i := 0; i < iterations; i++ {
-		hash := metafile[i*32 : (i+1)*32]
-		hashes[i] = hash
-	}
-	return hashes
-}
+// func getChunksFromMetafile(metafile []byte) [][]byte {
+// 	iterations := len(metafile) / 32
+// 	hashes := make([][]byte, iterations)
+// 	for i := 0; i < iterations; i++ {
+// 		hash := metafile[i*32 : (i+1)*32]
+// 		hashes[i] = hash
+// 	}
+// 	return hashes
+// }
 
 func checkHash(hash []byte, data []byte) bool {
 	var hash32 [32]byte
@@ -124,21 +124,25 @@ func saveFileOnDisk(fileName string, data []byte) {
 	helpers.ErrorCheck(err)
 }
 
-func chunksIntegrityCheck(fileMetadata *FileMetadata) bool {
-	if fileMetadata.ChunkCount != uint64(len(fileMetadata.ChunkMap)) {
-		return false
-	}
+// func checkAllChunksRetrieved(fileMetadata *FileMetadata) bool {
+// 	if fileMetadata.ChunkCount != uint64(len(fileMetadata.ChunkMap.ChunkOwners)) {
+// 		return false
+// 	}
 
-	for i := uint64(0); i < fileMetadata.ChunkCount; i++ {
-		if fileMetadata.ChunkMap[i] != i+1 {
-			if debug {
-				fmt.Println("ERROR: not all chunks retrieved")
-			}
-			return false
-		}
-	}
-	return true
-}
+// 	fileMetadata.ChunkMap.Mutex.RLock()
+
+// 	for i := uint64(1); i <= fileMetadata.ChunkCount; i++ {
+// 		if _, loaded := fileMetadata.ChunkMap.ChunkOwners[i]; !loaded {
+// 			if debug {
+// 				fmt.Println("ERROR: not all chunks retrieved")
+// 			}
+// 			return false
+// 		}
+// 	}
+
+// 	fileMetadata.ChunkMap.Mutex.RUnlock()
+// 	return true
+// }
 
 func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint32 {
 	originIDMap := make(map[string]uint32)
@@ -155,4 +159,10 @@ func containsKeyword(fileName string, keywords []string) bool {
 		}
 	}
 	return false
+}
+
+func getKeyFromString(text string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(text))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

@@ -1,7 +1,6 @@
 package gossiper
 
 import (
-	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -87,40 +86,24 @@ func (gossiper *Gossiper) processDataRequest() {
 		// if for me, I I handle the data request
 		if extPacket.Packet.DataRequest.Destination == gossiper.name {
 
-			keyHash := hex.EncodeToString(extPacket.Packet.DataRequest.HashValue)
-			packetToSend := &GossipPacket{DataReply: &DataReply{Origin: gossiper.name, Destination: extPacket.Packet.DataRequest.Origin, HopLimit: uint32(hopLimit), HashValue: extPacket.Packet.DataRequest.HashValue}}
+			dataReply := &DataReply{Origin: gossiper.name, Destination: extPacket.Packet.DataRequest.Origin, HopLimit: uint32(hopLimit), HashValue: extPacket.Packet.DataRequest.HashValue}
+			packetToSend := &GossipPacket{DataReply: dataReply}
 
-			// try checking hash from metafiles
-			fileValue, loaded := gossiper.fileHandler.myFiles.Load(keyHash)
+			// try checking hash from stored data
+			value, loaded := gossiper.fileHandler.hashDataMap.Load(string(extPacket.Packet.DataRequest.HashValue))
 
 			if loaded {
-
-				fileRequested := fileValue.(*FileMetadata)
-				packetToSend.DataReply.Data = *fileRequested.MetaFile
+				dataRequested := value.(*[]byte)
+				packetToSend.DataReply.Data = *dataRequested
 
 				if debug {
-					fmt.Println("Sent metafile")
-				}
-
-			} else {
-
-				// try checking hash from chunks
-				chunkData, loaded := gossiper.fileHandler.myFileChunks.Load(keyHash)
-
-				if loaded {
-
-					chunkRequested := chunkData.(*ChunkOwners)
-					packetToSend.DataReply.Data = *chunkRequested.Data
-
-					if debug {
-						fmt.Println("Sent chunk " + keyHash + " to " + packetToSend.DataReply.Destination)
-					}
-				} else {
-					// no match, send back nil
-					packetToSend.DataReply.Data = nil
+					fmt.Println("Sent data requested")
 				}
 			}
+
+			// send data found (or nil) to peer who requested
 			go gossiper.forwardPrivateMessage(packetToSend, &packetToSend.DataReply.HopLimit, packetToSend.DataReply.Destination)
+
 		} else {
 			// if not for me, I forward the request
 			go gossiper.forwardPrivateMessage(extPacket.Packet, &extPacket.Packet.DataRequest.HopLimit, extPacket.Packet.DataRequest.Destination)
@@ -141,15 +124,13 @@ func (gossiper *Gossiper) processDataReply() {
 
 			// check integrity of the hash
 			if extPacket.Packet.DataReply.Data != nil && checkHash(extPacket.Packet.DataReply.HashValue, extPacket.Packet.DataReply.Data) {
-				value, loaded := gossiper.fileHandler.hashChannels.Load(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin)
+				value, _ := gossiper.fileHandler.hashChannels.Load(getKeyFromString(string(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin))
 
 				// send it to the appropriate channel
-				if loaded {
-					channel := value.(chan *DataReply)
-					go func(c chan *DataReply, d *DataReply) {
-						c <- d
-					}(channel, extPacket.Packet.DataReply)
-				}
+				channel := value.(chan *DataReply)
+				go func(c chan *DataReply, d *DataReply) {
+					c <- d
+				}(channel, extPacket.Packet.DataReply)
 			}
 
 		} else {
@@ -227,7 +208,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			gossiper.indexFile(message.File)
 
 		case "dataRequest":
-			go gossiper.requestFile(*message.File, *message.Request, *message.Destination)
+			go gossiper.downloadFileChunks(*message.File, *message.Destination, *message.Request)
 
 		case "searchRequest":
 
@@ -237,6 +218,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			requestPacket := &SearchRequest{Origin: gossiper.name, Keywords: keywordsSplitted, Budget: *message.Budget}
 			packet.Packet = &GossipPacket{SearchRequest: requestPacket}
 
+			// if 0, means bufget was not specified: so use default budget and increment after timeout
 			needIncrement := (*message.Budget == 0)
 
 			if needIncrement {
@@ -294,6 +276,5 @@ func (gossiper *Gossiper) processStatusMessages() {
 		go func(c chan *ExtendedGossipPacket, p *ExtendedGossipPacket) {
 			c <- p
 		}(channelPeer, extPacket)
-
 	}
 }
