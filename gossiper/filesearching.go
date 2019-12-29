@@ -24,20 +24,33 @@ func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
 	value, loaded := gossiper.fileHandler.filesMetadata.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0), ChunkOwnership: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}})
 	fileMetadata := value.(*FileMetadata)
 
+	fmt.Println("Search on metahash: " + hex.EncodeToString(res.MetafileHash))
+
 	// store chunk owner origin
+	fileMetadata.ChunkOwnership.Mutex.Lock()
 	for _, chunkID := range res.ChunkMap {
-		fileMetadata.updateChunkOwnerMap(origin, chunkID)
+		fileMetadata.ChunkOwnership.ChunkOwners[chunkID] = helpers.RemoveDuplicatesFromSlice(append(fileMetadata.ChunkOwnership.ChunkOwners[chunkID], origin))
 	}
+	fileMetadata.ChunkOwnership.Mutex.Unlock()
+
+	fmt.Println(fileMetadata.ChunkOwnership.ChunkOwners)
 
 	if !loaded {
 		printSearchMatchMessage(origin, res)
 
-		// download metafile
-		go gossiper.downloadMetafile(res.FileName, origin, res.MetafileHash)
-
 		go func(f *FileMetadata) {
 			gossiper.fileHandler.filesSearched <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
 		}(fileMetadata)
+
+		go func (fMeta *FileMetadata, o string) {
+			// download metafile, if needed
+			metafileStored, mLoaded := gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(fMeta.MetafileHash))
+			if mLoaded || gossiper.downloadMetafile(fMeta.FileName, o, fMeta.MetafileHash) {
+				// update chunkmap based on current chunks
+				metafileStored, _ = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(fMeta.MetafileHash))
+				gossiper.fileHandler.updateChunkMap(fileMetadata, metafileStored.(*[]byte))
+			}
+		}(fileMetadata, origin)
 	}
 }
 

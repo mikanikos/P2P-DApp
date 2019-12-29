@@ -67,10 +67,10 @@ func (gossiper *Gossiper) downloadMetafile(fileName, peer string, metaHash []byt
 func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaHash []byte) {
 
 	// try load data from memory
-	metafileStored, loaded := gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(metaHash))
+	metafileStored, mfLoaded := gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(metaHash))
 
 	// check if I already have metafile information needed for chunks download
-	if !loaded {
+	if !mfLoaded {
 		if destination == "" {
 			if debug {
 				fmt.Println("ERROR: file not found in any known peer")
@@ -85,7 +85,14 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 			}
 			return
 		}
-		metafileStored, loaded = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(metaHash))
+		metafileStored, _ = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(metaHash))
+	}
+
+	if metafileStored == nil {
+		if debug {
+			fmt.Println("ERROR: metafile not present")
+		}
+		return
 	}
 
 	// store/get file metadata information
@@ -116,48 +123,52 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 		hashChunk := metafile[i*32 : (i+1)*32]
 
 		// get chunk data from memory if present
-		chunkStored, loaded := gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(hashChunk))
+		chunkStored, chunkLoaded := gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(hashChunk))
 
 		// if not present, download it from available peers + destination (if present)
-		if !loaded {
+		if !chunkLoaded {
 			fileMetadata.ChunkOwnership.Mutex.RLock()
-			peersWithChunk, loaded := fileMetadata.ChunkOwnership.ChunkOwners[i+1]
+			peersWithChunk, _ := fileMetadata.ChunkOwnership.ChunkOwners[i+1]
 			fileMetadata.ChunkOwnership.Mutex.RUnlock()
-			if !loaded {
-				peersWithChunk = make([]string, 0)
-			}
 
 			// add destination on top
 			if destination != "" {
 				peersWithChunk = append([]string{destination}, peersWithChunk...)
 			}
 
+			fmt.Println("For metahash: " + hex.EncodeToString(metaHash) + ", trying with chunk hash : " + hex.EncodeToString(hashChunk) + " numero " + fmt.Sprint(i+1))
+			fmt.Println(fmt.Sprint(len(peersWithChunk)))
+
 			// try to get chunk from one peer
 			for _, peer := range peersWithChunk {
 				// download chunk
 				if gossiper.downloadDataFromPeer(fileName, peer, hashChunk, i+1) {
 					if peer == destination {
-						fileMetadata.updateChunkOwnerMap(peer, i+1)
+						fileMetadata.ChunkOwnership.Mutex.Lock()
+						fileMetadata.ChunkOwnership.ChunkOwners[i+1] = helpers.RemoveDuplicatesFromSlice(append(fileMetadata.ChunkOwnership.ChunkOwners[i+1], peer))
+						fileMetadata.ChunkOwnership.Mutex.Unlock()
 					}
 					fileMetadata.ChunkMap = helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, i+1)
-					chunkStored, loaded = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(hashChunk))
+					chunkStored, _ = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(hashChunk))
 					break
 				}
 			}
 		}
 
 		// should be downloaded (either already present or just downloaded)
-		if loaded {
+		if chunkStored != nil {
 			chunk := *chunkStored.(*[]byte)
 			chunkLen := len(chunk)
 			copy(chunksData[i*fileChunk:(int(i)*fileChunk)+chunkLen], chunk)
 			size += int64(chunkLen)
 			chunksRetrievedCounter++
+		} else {
+			fmt.Println("Porcooooooooooooo diooooooooooooooooooooooooooooooooooooooo")
 		}
 	}
 
 	if debug {
-		fmt.Println("Got all chunks")
+		fmt.Println("Got " + fmt.Sprint(chunksRetrievedCounter) + " out of " + fmt.Sprint(fileMetadata.ChunkCount))
 	}
 
 	// check if I got all chunks

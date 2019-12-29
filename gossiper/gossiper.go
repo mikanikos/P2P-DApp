@@ -82,7 +82,7 @@ func Init() {
 // initPacketChannels that are used in the app
 func initPacketChannels() {
 	// initialize channels used in the application
-	packetChannels := make(map[string]chan *ExtendedGossipPacket)
+	packetChannels = make(map[string]chan *ExtendedGossipPacket)
 	for _, t := range modeTypes {
 		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
 			packetChannels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)

@@ -119,16 +119,16 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 }
 
 // update chunk owners map for given file metadata
-func (fileMetadata *FileMetadata) updateChunkOwnerMap(destination string, seqNum uint64) {
-	fileMetadata.ChunkOwnership.Mutex.Lock()
-	defer fileMetadata.ChunkOwnership.Mutex.Unlock()
-
-	owners, loaded := fileMetadata.ChunkOwnership.ChunkOwners[seqNum]
-	if !loaded {
-		fileMetadata.ChunkOwnership.ChunkOwners[seqNum] = make([]string, 0)
-		owners = fileMetadata.ChunkOwnership.ChunkOwners[seqNum]
+func (fileHandler *FileHandler) updateChunkMap(fileMetadata *FileMetadata, metafilePointer *[]byte) {
+	metafile := *metafilePointer
+	for i := uint64(0); i < fileMetadata.ChunkCount; i++ {
+		hashChunk := metafile[i*32 : (i+1)*32]
+		fmt.Println("Updating on chunk hash : " + hex.EncodeToString(hashChunk) + " numero " + fmt.Sprint(i+1))
+		_, loaded := fileHandler.hashDataMap.Load(hex.EncodeToString(hashChunk))
+		if loaded {
+			fileMetadata.ChunkMap = helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, i+1)
+		}
 	}
-	fileMetadata.ChunkOwnership.ChunkOwners[seqNum] = helpers.RemoveDuplicatesFromSlice(append(owners, destination))
 }
 
 // check if, given a file, I know all the chunks location (at least one peer per chunk)
