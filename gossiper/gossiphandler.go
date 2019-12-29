@@ -40,7 +40,11 @@ func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, o
 	if origin != gossiper.name {
 
 		// update routing table
-		gossiper.updateRoutingTable(origin, "", id, extPacket.SenderAddr)
+		textMessage := ""
+		if getTypeFromGossip(extPacket.Packet) == "rumor" {
+			textMessage = extPacket.Packet.Rumor.Text
+		} 
+		gossiper.updateRoutingTable(origin, textMessage, id, extPacket.SenderAddr)
 
 		// store message
 		isMessageKnown = gossiper.storeMessage(extPacket.Packet, origin, id)

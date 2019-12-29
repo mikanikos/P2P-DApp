@@ -1,6 +1,7 @@
 package gossiper
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -44,15 +45,20 @@ func (gossiper *Gossiper) processTLCAck() {
 // process search request
 func (gossiper *Gossiper) processSearchRequest() {
 	for extPacket := range gossiper.packetChannels["searchRequest"] {
-
-		// check if search request is not recent
 		if !gossiper.isRecentSearchRequest(extPacket.Packet.SearchRequest) {
-			// send matching local files
-			go gossiper.sendMatchingLocalFiles(extPacket)
-		} else {
-			if debug {
-				fmt.Println("Too recent request!!!!")
+			// check if search request is not recent
+			if extPacket.Packet.SearchRequest.Origin != gossiper.name {
+				// send matching local files
+				go gossiper.sendMatchingLocalFiles(extPacket)
+			} else {
+				if debug {
+					fmt.Println("Too recent request!!!!")
+				}
 			}
+
+			// forward request with left budget
+			extPacket.Packet.SearchRequest.Budget = extPacket.Packet.SearchRequest.Budget - 1
+			go gossiper.forwardSearchRequestWithBudget(extPacket)
 		}
 	}
 }
@@ -79,18 +85,18 @@ func (gossiper *Gossiper) processSearchReply() {
 func (gossiper *Gossiper) processDataRequest() {
 	for extPacket := range gossiper.packetChannels["dataRequest"] {
 
-		if debug {
-			fmt.Println("Got data request")
-		}
-
 		// if for me, I I handle the data request
 		if extPacket.Packet.DataRequest.Destination == gossiper.name {
+
+			if debug {
+				fmt.Println("Got data request")
+			}
 
 			dataReply := &DataReply{Origin: gossiper.name, Destination: extPacket.Packet.DataRequest.Origin, HopLimit: uint32(hopLimit), HashValue: extPacket.Packet.DataRequest.HashValue}
 			packetToSend := &GossipPacket{DataReply: dataReply}
 
 			// try checking hash from stored data
-			value, loaded := gossiper.fileHandler.hashDataMap.Load(string(extPacket.Packet.DataRequest.HashValue))
+			value, loaded := gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(extPacket.Packet.DataRequest.HashValue))
 
 			if loaded {
 				dataRequested := value.(*[]byte)
@@ -116,15 +122,24 @@ func (gossiper *Gossiper) processDataReply() {
 	for extPacket := range gossiper.packetChannels["dataReply"] {
 
 		if debug {
-			fmt.Println("Got data reply")
+			fmt.Println("Got data reply from " + extPacket.Packet.DataReply.Destination)
 		}
 
 		// if for me, handle data reply
 		if extPacket.Packet.DataReply.Destination == gossiper.name {
 
+			if debug {
+				fmt.Println("For me")
+			}
+
 			// check integrity of the hash
 			if extPacket.Packet.DataReply.Data != nil && checkHash(extPacket.Packet.DataReply.HashValue, extPacket.Packet.DataReply.Data) {
-				value, _ := gossiper.fileHandler.hashChannels.Load(getKeyFromString(string(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin))
+				
+				if debug {
+					fmt.Println("DATA VALID")
+				}
+				
+				value, _ := gossiper.fileHandler.hashChannels.Load(getKeyFromString(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin))
 
 				// send it to the appropriate channel
 				channel := value.(chan *DataReply)
@@ -142,6 +157,9 @@ func (gossiper *Gossiper) processDataReply() {
 // process private message
 func (gossiper *Gossiper) processPrivateMessages() {
 	for extPacket := range gossiper.packetChannels["private"] {
+
+		// update routing table
+		gossiper.updateRoutingTable(extPacket.Packet.Private.Destination, extPacket.Packet.Private.Text, extPacket.Packet.Private.ID, extPacket.SenderAddr)
 
 		// if for me, handle private message
 		if extPacket.Packet.Private.Destination == gossiper.name {

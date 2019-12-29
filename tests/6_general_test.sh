@@ -227,7 +227,7 @@ else
     then
         declare -A files
         files[0,1,0,0]="A.out"
-        files[0,1,0,1]="e7b186af86191853df4166270c6b8afe2610c8bab36af31e58e54b751adf8e9c"
+        files[0,1,0,1]="04985e745c3d548ace56579a045c19de5545b7de6071aa2274d22e7833214064"
     fi
 
     name='A'

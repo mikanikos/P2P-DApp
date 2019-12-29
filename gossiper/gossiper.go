@@ -35,12 +35,9 @@ type Gossiper struct {
 // NewGossiper constructor
 func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum uint64) *Gossiper {
 
-	gossiperData, err := createConnectionData(gossiperAddress)
-	helpers.ErrorCheck(err)
-
-	clientData, err := createConnectionData(clientAddress)
-	helpers.ErrorCheck(err)
-
+	gossiperData := createConnectionData(gossiperAddress)
+	clientData := createConnectionData(clientAddress)
+	
 	initializeDirectories()
 
 	// create new gossiper
@@ -101,11 +98,17 @@ func (gossiper *Gossiper) Run() {
 	} else {
 		go gossiper.processStatusMessages()
 		go gossiper.processRumorMessages()
+		go gossiper.startAntiEntropy()
+		
+		go gossiper.startRouteRumormongering()
 		go gossiper.processPrivateMessages()
+		
 		go gossiper.processDataRequest()
 		go gossiper.processDataReply()
+		
 		go gossiper.processSearchRequest()
 		go gossiper.processSearchReply()
+		
 		go gossiper.processTLCMessage()
 		go gossiper.processTLCAck()
 
@@ -124,20 +127,16 @@ func (gossiper *Gossiper) Run() {
 }
 
 // create Connection data
-func createConnectionData(addressString string) (*ConnectionData, error) {
+func createConnectionData(addressString string) *ConnectionData {
 	// resolve gossiper address
 	address, err := net.ResolveUDPAddr("udp4", addressString)
-	if err != nil {
-		return nil, err
-	}
+	helpers.ErrorCheck(err)
 
 	// get connection for gossiper
 	connection, err := net.ListenUDP("udp4", address)
-	if err != nil {
-		return nil, err
-	}
+	helpers.ErrorCheck(err)
 
-	return &ConnectionData{Address: address, Connection: connection}, nil
+	return &ConnectionData{Address: address, Connection: connection}
 }
 
 func initDefaultChannels() map[string]chan *ExtendedGossipPacket {

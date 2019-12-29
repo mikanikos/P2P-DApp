@@ -215,7 +215,7 @@ func (gossiper *Gossiper) checkIfConsensusReached(confirmationsRoundS, confirmat
 	// 	for _, m := range confirmationsRoundS1 {
 	// 		// if m.TxBlock.Transaction.Name == message.TxBlock.Transaction.Name &&
 	// 		// 	m.TxBlock.Transaction.Size == message.TxBlock.Transaction.Size &&
-	// 		// 	string(m.TxBlock.Transaction.MetafileHash) == string(message.TxBlock.Transaction.MetafileHash) &&
+	// 		// 	string(m.TxBlock.Transaction.MetafileHash) ==hex.EncodeToStringmessage.TxBlock.Transaction.MetafileHash) &&
 	// 		// 	m.TxBlock.PrevHash == message.TxBlock.PrevHash &&
 	// 		if m.Fitness == message.Fitness {
 

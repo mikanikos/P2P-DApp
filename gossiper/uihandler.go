@@ -1,5 +1,9 @@
 package gossiper
 
+import (
+	"encoding/hex"
+)
+
 // FileGUI struct
 type FileGUI struct {
 	Name     string
@@ -72,7 +76,7 @@ func (gossiper *Gossiper) GetBlockchain() []FileGUI {
 	for blockHash != [32]byte{} {
 		value, _ := gossiper.blockchainHandler.committedHistory.Load(gossiper.blockchainHandler.topBlockchainHash)
 		block := value.(BlockPublish)
-		filesConsensus = append(filesConsensus, FileGUI{Name: block.Transaction.Name, MetaHash: string(block.Transaction.MetafileHash), Size: block.Transaction.Size})
+		filesConsensus = append(filesConsensus, FileGUI{Name: block.Transaction.Name, MetaHash:hex.EncodeToString(block.Transaction.MetafileHash), Size: block.Transaction.Size})
 		blockHash = block.PrevHash
 	}
 	return filesConsensus

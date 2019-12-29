@@ -31,7 +31,7 @@ func main() {
 	flag.Parse()
 
 	// set flags that are used througout the application
-	gossiper.SetAppConstants(*simple, *hw3ex2, *hw3ex3, *hw3ex4, *ackAll, *hopLimit, *stubbornTimeout, *antiEntropy, *rtimer)
+	gossiper.SetAppConstants(*simple, *hw3ex2, *hw3ex3, *hw3ex4, *ackAll, *hopLimit, *stubbornTimeout, *rtimer, *antiEntropy)
 
 	// create new gossiper instance
 	gossiper := gossiper.NewGossiper(*gossipName, *gossipAddr, helpers.BaseAddress+":"+*uiPort, *peers, *peersNumber)
@@ -45,6 +45,6 @@ func main() {
 	// run gossiper
 	gossiper.Run()
 
-	// stop
+	// wait forever
 	select {}
 }

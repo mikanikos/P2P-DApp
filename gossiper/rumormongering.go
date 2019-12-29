@@ -10,7 +10,7 @@ import (
 )
 
 // StartAntiEntropy with the specified timer
-func (gossiper *Gossiper) StartAntiEntropy(antiEntropyTimeout uint) {
+func (gossiper *Gossiper) startAntiEntropy() {
 	if antiEntropyTimeout > 0 {
 		timer := time.NewTicker(time.Duration(antiEntropyTimeout) * time.Second)
 		for {

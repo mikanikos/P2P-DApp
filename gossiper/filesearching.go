@@ -1,6 +1,7 @@
 package gossiper
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net"
 	"sort"
@@ -19,31 +20,22 @@ type SafeRequestMap struct {
 
 // handle single search result
 func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
-
-	// save it if not present
-	_, loaded := gossiper.fileHandler.hashDataMap.Load(string(res.MetafileHash))
-
-	// check if I already have metafile information needed for chunks download
-	if !loaded {
-		printSearchMatchMessage(origin, res)
-
-		// download metafile
-		if !gossiper.downloadDataFromPeer(res.FileName, origin, res.MetafileHash, 0) {
-			if debug {
-				fmt.Println("ERROR: the peer doesn't have the metafile or is offline")
-			}
-			return
-		}
-	}
-
-	metadataStored, loaded := gossiper.fileHandler.myFiles.Load(getKeyFromString(string(res.MetafileHash) + res.FileName))
-	fileMetadata := metadataStored.(*FileMetadata)
+	
+	value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}})
+	fileMetadata := value.(*FileMetadata)
 
 	// store chunk owner origin and search result to gui
 	for chunkID := range fileMetadata.ChunkMap.ChunkOwners {
 		fileMetadata.updateChunkOwner(origin, chunkID)
 	}
-	gossiper.addSearchFileForGUI(fileMetadata)
+
+	if !loaded {
+		printSearchMatchMessage(origin, res)
+		
+		gossiper.addSearchFileForGUI(fileMetadata)
+		
+		go gossiper.downloadDataFromPeer(res.FileName, origin, res.MetafileHash, 0)
+	}
 }
 
 // check if incoming search request is recent
@@ -170,9 +162,10 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 
 		// check if match at least one keyword
 		if containsKeyword(fileMetadata.FileName, keywords) {
-			searchResults = append(searchResults, &SearchResult{FileName: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: fileMetadata.ChunkMap.getKeyList()})
+			chunkMap := fileMetadata.ChunkMap.getKeyList()
+			helpers.SortUint64(chunkMap)
+			searchResults = append(searchResults, &SearchResult{FileName: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: chunkMap})
 		}
-
 		return true
 	})
 
@@ -186,11 +179,6 @@ func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket
 
 		go gossiper.forwardPrivateMessage(packetToSend, &packetToSend.SearchReply.HopLimit, packetToSend.SearchReply.Destination)
 	}
-
-	// forward request with left budget
-	extPacket.Packet.SearchRequest.Budget = extPacket.Packet.SearchRequest.Budget - 1
-	gossiper.forwardSearchRequestWithBudget(extPacket)
-
 }
 
 // forward request as evenly as possible to the known peers
@@ -241,7 +229,7 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 // add search result to gui
 func (gossiper *Gossiper) addSearchFileForGUI(fileMetadata *FileMetadata) {
 
-	element := FileGUI{Name: fileMetadata.FileName, MetaHash: string(fileMetadata.MetafileHash)}
+	element := FileGUI{Name: fileMetadata.FileName, MetaHash: hex.EncodeToString(fileMetadata.MetafileHash)}
 	contains := false
 	for _, elem := range gossiper.uiHandler.filesSearched {
 		if elem.Name == element.Name && elem.MetaHash == element.MetaHash {

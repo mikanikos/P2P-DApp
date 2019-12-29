@@ -2,6 +2,7 @@ package gossiper
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"os"
@@ -102,19 +103,19 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 		hash := hash32[:]
 
 		// save chunk
-		gossiper.fileHandler.hashDataMap.LoadOrStore(string(hash), &partBuffer)
+		gossiper.fileHandler.hashDataMap.LoadOrStore(hex.EncodeToString(hash), &partBuffer)
 		chunkMap.ChunkOwners[i+1] = make([]string, 0)
 		copy(hashes[i*32:(i+1)*32], hash)
 	}
 
 	metahash32 := sha256.Sum256(hashes)
 	metahash := metahash32[:]
-	keyHash := string(metahash)
+	keyHash := hex.EncodeToString(metahash)
 
 	// save all file metadata
-	fileMetadata, loaded := gossiper.saveMetafileData(metahash, *fileName, &hashes)
-	fileMetadata.ChunkMap = chunkMap
-	fileMetadata.Size = fileSize
+	gossiper.fileHandler.hashDataMap.LoadOrStore(keyHash, &hashes)
+	metadataStored, loaded := gossiper.fileHandler.myFiles.LoadOrStore(getKeyFromString(keyHash+*fileName), &FileMetadata{FileName: *fileName, MetafileHash: metahash, ChunkMap: chunkMap, ChunkCount: numFileChunks, Size: fileSize})
+	fileMetadata := metadataStored.(*FileMetadata)
 
 	// publish tx block and agree with other peers on this block, otherwise save it
 	if ((hw3ex2Mode || hw3ex3Mode) && !loaded) || hw3ex4Mode {
@@ -133,7 +134,7 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 // make fileMetadata available for other peers and search results
 func (gossiper *Gossiper) confirmMetafileData(filename string, hash []byte) {
 
-	value, loaded := gossiper.fileHandler.myFiles.Load(getKeyFromString(string(hash) + filename))
+	value, loaded := gossiper.fileHandler.myFiles.Load(getKeyFromString(hex.EncodeToString(hash) + filename))
 
 	if !loaded {
 		if debug {
@@ -145,11 +146,10 @@ func (gossiper *Gossiper) confirmMetafileData(filename string, hash []byte) {
 	fileMetadata := value.(*FileMetadata)
 
 	// confirm metafile, i.e. send it to gui and make it available for others
-
 	fileMetadata.Confirmed = true
 
 	go func(f *FileMetadata) {
-		gossiper.uiHandler.filesIndexed <- &FileGUI{Name: f.FileName, MetaHash: string(f.MetafileHash), Size: f.Size}
+		gossiper.uiHandler.filesIndexed <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
 	}(fileMetadata)
 
 }
@@ -165,11 +165,11 @@ func (fileMetadata *FileMetadata) updateChunkOwner(destination string, seqNum ui
 	fileMetadata.ChunkMap.Mutex.Unlock()
 }
 
-func (gossiper *Gossiper) saveMetafileData(hash []byte, filename string, data *[]byte) (*FileMetadata, bool) {
-	gossiper.fileHandler.hashDataMap.Store(string(hash), data)
-	value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(getKeyFromString(string(hash)+filename), &FileMetadata{FileName: filename, MetafileHash: hash, ChunkMap: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}, ChunkCount: uint64(len(*data) / 32)})
-	return value.(*FileMetadata), loaded
-}
+// func (gossiper *Gossiper) saveMetafileData(hash []byte, filename string, data *[]byte) (*FileMetadata, bool) {
+// 	gossiper.fileHandler.hashDataMap.Store(hex.EncodeToString(hash), data)
+// 	value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(getKeyFromString(hex.EncodeToString(hash)+filename), &FileMetadata{FileName: filename, MetafileHash: hash, ChunkMap: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}, ChunkCount: uint64(len(*data) / 32)})
+// 	return value.(*FileMetadata), loaded
+// }
 
 func (fileMetadata *FileMetadata) getChunkOwnersByID(seqNum uint64) []string {
 	fileMetadata.ChunkMap.Mutex.RLock()
