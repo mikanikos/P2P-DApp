@@ -88,17 +88,18 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 		metafileStored, _ = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(metaHash))
 	}
 
-	if metafileStored == nil {
-		if debug {
-			fmt.Println("ERROR: metafile not present")
-		}
-		return
-	}
+	// if metafileStored == nil {
+	// 	if debug {
+	// 		fmt.Println("ERROR: metafile not present")
+	// 	}
+	// 	return
+	// }
 
 	// store/get file metadata information
 	metafile := *metafileStored.(*[]byte)
-	metadataStored, _ := gossiper.fileHandler.filesMetadata.LoadOrStore(getKeyFromString(hex.EncodeToString(metaHash)+fileName), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0), ChunkOwnership: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}, ChunkCount: uint64(len(metafile) / 32)})
+	metadataStored, _ := gossiper.fileHandler.filesMetadata.LoadOrStore(getKeyFromString(hex.EncodeToString(metaHash)+fileName), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0), ChunkCount: uint64(len(metafile) / 32)})
 	fileMetadata := metadataStored.(*FileMetadata)
+	gossiper.fileHandler.updateChunkMap(fileMetadata, metafileStored.(*[]byte))
 
 	// if already have size, I already have file chunks (maybe with a different name) and there's no need to request it again
 	if fileMetadata.Size != 0 {
@@ -127,9 +128,9 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 
 		// if not present, download it from available peers + destination (if present)
 		if !chunkLoaded {
-			fileMetadata.ChunkOwnership.Mutex.RLock()
-			peersWithChunk, _ := fileMetadata.ChunkOwnership.ChunkOwners[i+1]
-			fileMetadata.ChunkOwnership.Mutex.RUnlock()
+			gossiper.fileHandler.chunkOwnership.Mutex.RLock()
+			peersWithChunk, _ := gossiper.fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(hashChunk)]
+			gossiper.fileHandler.chunkOwnership.Mutex.RUnlock()
 
 			// add destination on top
 			if destination != "" {
@@ -144,11 +145,11 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 				// download chunk
 				if gossiper.downloadDataFromPeer(fileName, peer, hashChunk, i+1) {
 					if peer == destination {
-						fileMetadata.ChunkOwnership.Mutex.Lock()
-						fileMetadata.ChunkOwnership.ChunkOwners[i+1] = helpers.RemoveDuplicatesFromSlice(append(fileMetadata.ChunkOwnership.ChunkOwners[i+1], peer))
-						fileMetadata.ChunkOwnership.Mutex.Unlock()
+						gossiper.fileHandler.chunkOwnership.Mutex.Lock()
+						gossiper.fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(hashChunk)] = helpers.RemoveDuplicatesFromSlice(append(gossiper.fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(hashChunk)], peer))
+						gossiper.fileHandler.chunkOwnership.Mutex.Unlock()
 					}
-					fileMetadata.ChunkMap = helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, i+1)
+					fileMetadata.ChunkMap = helpers.RemoveDuplicatesFromUint64Slice(helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, i+1))
 					chunkStored, _ = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(hashChunk))
 					break
 				}

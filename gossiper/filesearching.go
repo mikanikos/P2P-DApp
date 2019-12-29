@@ -18,22 +18,23 @@ type SafeRequestMap struct {
 	Mutex         sync.RWMutex
 }
 
+func (fileHandler *FileHandler) updateChunkOwnerMap(destination string, chunkMap []uint64, fileMetadata *FileMetadata, metafilePointer *[]byte) {
+
+	fileHandler.chunkOwnership.Mutex.Lock()
+	defer fileHandler.chunkOwnership.Mutex.Unlock()
+
+	metafile := *metafilePointer
+	for _, elem := range chunkMap {
+		chunkHash := metafile[(elem-1)*32 : elem*32]
+		fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)] = helpers.RemoveDuplicatesFromSlice(append(fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)], destination))
+	}
+}
+
 // handle single search result
 func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
 
-	value, loaded := gossiper.fileHandler.filesMetadata.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0), ChunkOwnership: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}})
+	value, loaded := gossiper.fileHandler.filesMetadata.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0)})
 	fileMetadata := value.(*FileMetadata)
-
-	fmt.Println("Search on metahash: " + hex.EncodeToString(res.MetafileHash))
-
-	// store chunk owner origin
-	fileMetadata.ChunkOwnership.Mutex.Lock()
-	for _, chunkID := range res.ChunkMap {
-		fileMetadata.ChunkOwnership.ChunkOwners[chunkID] = helpers.RemoveDuplicatesFromSlice(append(fileMetadata.ChunkOwnership.ChunkOwners[chunkID], origin))
-	}
-	fileMetadata.ChunkOwnership.Mutex.Unlock()
-
-	fmt.Println(fileMetadata.ChunkOwnership.ChunkOwners)
 
 	if !loaded {
 		printSearchMatchMessage(origin, res)
@@ -42,15 +43,17 @@ func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
 			gossiper.fileHandler.filesSearched <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
 		}(fileMetadata)
 
-		go func (fMeta *FileMetadata, o string) {
+		go func(fMeta *FileMetadata, o string, chunkMap []uint64) {
 			// download metafile, if needed
 			metafileStored, mLoaded := gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(fMeta.MetafileHash))
 			if mLoaded || gossiper.downloadMetafile(fMeta.FileName, o, fMeta.MetafileHash) {
 				// update chunkmap based on current chunks
 				metafileStored, _ = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(fMeta.MetafileHash))
+
+				gossiper.fileHandler.updateChunkOwnerMap(o, chunkMap, fileMetadata, metafileStored.(*[]byte))
 				gossiper.fileHandler.updateChunkMap(fileMetadata, metafileStored.(*[]byte))
 			}
-		}(fileMetadata, origin)
+		}(fileMetadata, origin, res.ChunkMap)
 	}
 }
 
@@ -149,7 +152,7 @@ func (fileHandler *FileHandler) isFileMatchThresholdReached(keywords []string) b
 	fileHandler.filesMetadata.Range(func(key interface{}, value interface{}) bool {
 		fileMetadata := value.(*FileMetadata)
 		// check if match at least one keyword, if all chunks locations are known and it's not a file I already have
-		if containsKeyword(fileMetadata.FileName, keywords) && fileMetadata.Size == 0 && fileMetadata.checkAllChunksLocation() {
+		if containsKeyword(fileMetadata.FileName, keywords) && fileMetadata.Size == 0 && fileHandler.checkAllChunksLocation(fileMetadata) {
 			matches = append(matches, fileMetadata.FileName)
 		}
 		// check if threshold reached and stop iterating in that case

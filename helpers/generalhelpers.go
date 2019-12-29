@@ -77,3 +77,17 @@ func InsertToSortUint64Slice(data []uint64, el uint64) []uint64 {
 	data[index] = el
 	return data
 }
+
+// RemoveDuplicatesFromUint64Slice utility to remove duplicates from list of strings
+func RemoveDuplicatesFromUint64Slice(slice []uint64) []uint64 {
+	found := make(map[uint64]bool)
+	for i := range slice {
+		found[slice[i]] = true
+	}
+
+	result := []uint64{}
+	for key := range found {
+		result = append(result, key)
+	}
+	return result
+}

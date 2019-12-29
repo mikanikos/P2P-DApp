@@ -18,6 +18,7 @@ type FileHandler struct {
 	filesMetadata      sync.Map
 	hashChannels       sync.Map
 	lastSearchRequests *SafeRequestMap
+	chunkOwnership     *ChunkOwnersMap
 
 	filesIndexed    chan *FileGUI
 	filesDownloaded chan *FileGUI
@@ -31,6 +32,7 @@ func NewFileHandler() *FileHandler {
 		filesMetadata:      sync.Map{},
 		hashChannels:       sync.Map{},
 		lastSearchRequests: &SafeRequestMap{OriginTimeMap: make(map[string]time.Time)},
+		chunkOwnership:     &ChunkOwnersMap{ChunkOwners: make(map[string][]string)},
 
 		filesIndexed:    make(chan *FileGUI, 10),
 		filesDownloaded: make(chan *FileGUI, 10),
@@ -40,12 +42,11 @@ func NewFileHandler() *FileHandler {
 
 // FileMetadata struct
 type FileMetadata struct {
-	FileName       string
-	MetafileHash   []byte
-	ChunkCount     uint64
-	ChunkOwnership *ChunkOwnersMap
-	ChunkMap       []uint64
-	Size           int64
+	FileName     string
+	MetafileHash []byte
+	ChunkCount   uint64
+	ChunkMap     []uint64
+	Size         int64
 }
 
 // FileIDPair struct
@@ -56,7 +57,7 @@ type FileIDPair struct {
 
 // ChunkOwnersMap struct
 type ChunkOwnersMap struct {
-	ChunkOwners map[uint64][]string
+	ChunkOwners map[string][]string
 	Mutex       sync.RWMutex
 }
 
@@ -99,7 +100,7 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 
 	// save all file metadata
 	gossiper.fileHandler.hashDataMap.LoadOrStore(keyHash, &hashes)
-	metadataStored, loaded := gossiper.fileHandler.filesMetadata.LoadOrStore(getKeyFromString(keyHash+*fileName), &FileMetadata{FileName: *fileName, MetafileHash: metahash, ChunkMap: chunkMap, ChunkOwnership: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}, ChunkCount: numFileChunks, Size: fileSize})
+	metadataStored, loaded := gossiper.fileHandler.filesMetadata.LoadOrStore(getKeyFromString(keyHash+*fileName), &FileMetadata{FileName: *fileName, MetafileHash: metahash, ChunkMap: chunkMap, ChunkCount: numFileChunks, Size: fileSize})
 	fileMetadata := metadataStored.(*FileMetadata)
 
 	// publish tx block and agree with other peers on this block, otherwise save it and send it to gui
@@ -123,30 +124,36 @@ func (fileHandler *FileHandler) updateChunkMap(fileMetadata *FileMetadata, metaf
 	metafile := *metafilePointer
 	for i := uint64(0); i < fileMetadata.ChunkCount; i++ {
 		hashChunk := metafile[i*32 : (i+1)*32]
-		fmt.Println("Updating on chunk hash : " + hex.EncodeToString(hashChunk) + " numero " + fmt.Sprint(i+1))
+		//		fmt.Println("Updating on chunk hash : " + hex.EncodeToString(hashChunk) + " numero " + fmt.Sprint(i+1))
 		_, loaded := fileHandler.hashDataMap.Load(hex.EncodeToString(hashChunk))
 		if loaded {
-			fileMetadata.ChunkMap = helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, i+1)
+			fileMetadata.ChunkMap = helpers.RemoveDuplicatesFromUint64Slice(helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, i+1))
 		}
 	}
 }
 
 // check if, given a file, I know all the chunks location (at least one peer per chunk)
-func (fileMetadata *FileMetadata) checkAllChunksLocation() bool {
+func (fileHandler *FileHandler) checkAllChunksLocation(fileMetadata *FileMetadata) bool {
 
-	fileMetadata.ChunkOwnership.Mutex.RLock()
-	defer fileMetadata.ChunkOwnership.Mutex.RUnlock()
+	metafileStored, loaded := fileHandler.hashDataMap.Load(hex.EncodeToString(fileMetadata.MetafileHash))
+	if !loaded {
+		return false
+	}
 
-	chunkCounter := uint64(0)
-	for _, peers := range fileMetadata.ChunkOwnership.ChunkOwners {
-		if len(peers) != 0 {
-			chunkCounter++
+	fileHandler.chunkOwnership.Mutex.RLock()
+	defer fileHandler.chunkOwnership.Mutex.RUnlock()
+
+	metafile := *metafileStored.(*[]byte)
+	for i := uint64(0); i < fileMetadata.ChunkCount; i++ {
+		hash := metafile[i*32 : (i+1)*32]
+		chunkValue, loaded := fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(hash)]
+		if loaded {
+			if len(chunkValue) == 0 {
+				return false
+			}
+		} else {
+			return false
 		}
 	}
-
-	if fileMetadata.ChunkCount == chunkCounter {
-		return true
-	}
-
-	return false
+	return true
 }
