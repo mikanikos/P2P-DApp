@@ -67,11 +67,20 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 	// open new file
 	file, err := os.Open(shareFolder + *fileName)
 	helpers.ErrorCheck(err)
+	
+	if err != nil {
+		return
+	}
+	
 	defer file.Close()
 
 	// get file data
 	fileInfo, err := file.Stat()
 	helpers.ErrorCheck(err)
+
+	if err != nil {
+		return
+	}
 
 	// compute size of the file and number of chunks
 	fileSize := fileInfo.Size()
@@ -157,3 +166,32 @@ func (fileHandler *FileHandler) checkAllChunksLocation(fileMetadata *FileMetadat
 	}
 	return true
 }
+
+func (fileHandler *FileHandler) updateChunkOwnerMap(destination string, chunkMap []uint64, fileMetadata *FileMetadata, metafilePointer *[]byte) {
+
+	fileHandler.chunkOwnership.Mutex.Lock()
+	defer fileHandler.chunkOwnership.Mutex.Unlock()
+
+	metafile := *metafilePointer
+	for _, elem := range chunkMap {
+		chunkHash := metafile[(elem-1)*32 : elem*32]
+		fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)] = helpers.RemoveDuplicatesFromSlice(append(fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)], destination))
+	}
+}
+
+// // add search result to gui
+// func (fileHandler *FileHandler) addSearchFileForGUI(fileMetadata *FileMetadata) {
+
+// 	element := FileGUI{Name: fileMetadata.FileName, MetaHash: hex.EncodeToString(fileMetadata.MetafileHash)}
+// 	contains := false
+// 	for _, elem := range fileHandler.filesSearched {
+// 		if elem.Name == element.Name && elem.MetaHash == element.MetaHash {
+// 			contains = true
+// 			break
+// 		}
+// 	}
+
+// 	if !contains {
+// 		fileHandler.filesSearched = append(fileHandler.filesSearched, element)
+// 	}
+// }

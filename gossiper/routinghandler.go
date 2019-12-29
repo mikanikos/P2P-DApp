@@ -27,10 +27,6 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 
 	if routeRumorTimeout > 0 {
 
-		if debug {
-			fmt.Println("ok herere")
-		}
-
 		// create new rumor message
 		extPacket := gossiper.createRumorMessage("")
 

@@ -18,18 +18,6 @@ type SafeRequestMap struct {
 	Mutex         sync.RWMutex
 }
 
-func (fileHandler *FileHandler) updateChunkOwnerMap(destination string, chunkMap []uint64, fileMetadata *FileMetadata, metafilePointer *[]byte) {
-
-	fileHandler.chunkOwnership.Mutex.Lock()
-	defer fileHandler.chunkOwnership.Mutex.Unlock()
-
-	metafile := *metafilePointer
-	for _, elem := range chunkMap {
-		chunkHash := metafile[(elem-1)*32 : elem*32]
-		fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)] = helpers.RemoveDuplicatesFromSlice(append(fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)], destination))
-	}
-}
-
 // handle single search result
 func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
 
@@ -225,20 +213,3 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 		}
 	}
 }
-
-// // add search result to gui
-// func (fileHandler *FileHandler) addSearchFileForGUI(fileMetadata *FileMetadata) {
-
-// 	element := FileGUI{Name: fileMetadata.FileName, MetaHash: hex.EncodeToString(fileMetadata.MetafileHash)}
-// 	contains := false
-// 	for _, elem := range fileHandler.filesSearched {
-// 		if elem.Name == element.Name && elem.MetaHash == element.MetaHash {
-// 			contains = true
-// 			break
-// 		}
-// 	}
-
-// 	if !contains {
-// 		fileHandler.filesSearched = append(fileHandler.filesSearched, element)
-// 	}
-// }

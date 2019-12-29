@@ -137,9 +137,6 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 				peersWithChunk = append([]string{destination}, peersWithChunk...)
 			}
 
-			fmt.Println("For metahash: " + hex.EncodeToString(metaHash) + ", trying with chunk hash : " + hex.EncodeToString(hashChunk) + " numero " + fmt.Sprint(i+1))
-			fmt.Println(fmt.Sprint(len(peersWithChunk)))
-
 			// try to get chunk from one peer
 			for _, peer := range peersWithChunk {
 				// download chunk
@@ -163,8 +160,6 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 			copy(chunksData[i*fileChunk:(int(i)*fileChunk)+chunkLen], chunk)
 			size += int64(chunkLen)
 			chunksRetrievedCounter++
-		} else {
-			fmt.Println("Porcooooooooooooo diooooooooooooooooooooooooooooooooooooooo")
 		}
 	}
 

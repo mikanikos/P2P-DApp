@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
-	"os"
 
 	"github.com/dedis/protobuf"
 	"github.com/mikanikos/Peerster/helpers"
@@ -37,13 +36,16 @@ func (client *Client) SendMessage(msg string, dest, file, request *string, keywo
 	// create correct packet from arguments
 	packet := convertInputToMessage(msg, *dest, *file, *request, keywords, budget)
 
-	// encode
-	packetBytes, err := protobuf.Encode(packet)
-	helpers.ErrorCheck(err)
+	if packet != nil {
 
-	// send message to gossiper
-	_, err = client.Conn.Write(packetBytes)
-	helpers.ErrorCheck(err)
+		// encode
+		packetBytes, err := protobuf.Encode(packet)
+		helpers.ErrorCheck(err)
+
+		// send message to gossiper
+		_, err = client.Conn.Write(packetBytes)
+		helpers.ErrorCheck(err)
+	}
 }
 
 func getInputType(msg, dest, file, request, keywords string, budget uint64) string {
@@ -93,7 +95,7 @@ func convertInputToMessage(msg, dest, file, request, keywords string, budget uin
 		decodeRequest, err := hex.DecodeString(request)
 		if err != nil {
 			fmt.Println("ERROR (Unable to decode hex hash)")
-			os.Exit(1)
+			return nil
 		}
 		packet.Request = &decodeRequest
 		packet.File = &file
@@ -105,7 +107,7 @@ func convertInputToMessage(msg, dest, file, request, keywords string, budget uin
 
 	default:
 		fmt.Println("ERROR (Bad argument combination)")
-		os.Exit(1)
+		return nil
 	}
 
 	return packet

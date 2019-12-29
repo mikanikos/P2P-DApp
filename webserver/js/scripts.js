@@ -255,9 +255,9 @@ $(document).ready(function () {
                 var jsonData = JSON.parse(data);
                 var list = document.getElementById('searchList');
 
-                while (list.hasChildNodes()) {
-                    list.removeChild(list.firstChild)
-                }
+                // while (list.hasChildNodes()) {
+                //     list.removeChild(list.firstChild)
+                // }
 
                 for (el of jsonData) {
                     var entry = document.createElement('li');
