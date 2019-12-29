@@ -2,7 +2,9 @@ package gossiper
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -124,26 +126,6 @@ func saveFileOnDisk(fileName string, data []byte) {
 	helpers.ErrorCheck(err)
 }
 
-// func checkAllChunksRetrieved(fileMetadata *FileMetadata) bool {
-// 	if fileMetadata.ChunkCount != uint64(len(fileMetadata.ChunkMap.ChunkOwners)) {
-// 		return false
-// 	}
-
-// 	fileMetadata.ChunkMap.Mutex.RLock()
-
-// 	for i := uint64(1); i <= fileMetadata.ChunkCount; i++ {
-// 		if _, loaded := fileMetadata.ChunkMap.ChunkOwners[i]; !loaded {
-// 			if debug {
-// 				fmt.Println("ERROR: not all chunks retrieved")
-// 			}
-// 			return false
-// 		}
-// 	}
-
-// 	fileMetadata.ChunkMap.Mutex.RUnlock()
-// 	return true
-// }
-
 func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint32 {
 	originIDMap := make(map[string]uint32)
 	for key, value := range confirmations {
@@ -165,4 +147,42 @@ func getKeyFromString(text string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(text))
 	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// get tlc with highest fitness value
+func getTLCWithHighestFitness(confirmations map[string]*TLCMessage) *TLCMessage {
+
+	maxBlock := &TLCMessage{Fitness: 0}
+	for _, value := range confirmations {
+
+		if debug {
+			fmt.Println(value.Origin + " " + fmt.Sprint(value.ID) + " " + fmt.Sprint(value.Fitness))
+		}
+
+		if value.Fitness > maxBlock.Fitness {
+			maxBlock = value
+		}
+	}
+	return maxBlock
+}
+
+// Hash function of BlockPublish
+func (b *BlockPublish) Hash() (out [32]byte) {
+	h := sha256.New()
+	h.Write(b.PrevHash[:])
+	th := b.Transaction.Hash()
+	h.Write(th[:])
+	copy(out[:], h.Sum(nil))
+	return
+}
+
+// Hash function of TXPublish
+func (t *TxPublish) Hash() (out [32]byte) {
+	h := sha256.New()
+	binary.Write(h, binary.LittleEndian,
+		uint32(len(t.Name)))
+	h.Write([]byte(t.Name))
+	h.Write(t.MetafileHash)
+	copy(out[:], h.Sum(nil))
+	return
 }

@@ -69,11 +69,11 @@ func SortUint64(slice []uint64) {
 	sort.Slice(slice, func(i, j int) bool { return slice[i] < slice[j] })
 }
 
-// // InsertToSortUint64Slice utility to insert uint64 in sorted slice
-// func InsertToSortUint64Slice(data []uint64, el uint64) []uint64 {
-// 	index := sort.Search(len(data), func(i int) bool { return data[i] > el })
-// 	data = append(data, 0)
-// 	copy(data[index+1:], data[index:])
-// 	data[index] = el
-// 	return data
-// }
+// InsertToSortUint64Slice utility to insert uint64 in sorted slice
+func InsertToSortUint64Slice(data []uint64, el uint64) []uint64 {
+	index := sort.Search(len(data), func(i int) bool { return data[i] > el })
+	data = append(data, 0)
+	copy(data[index+1:], data[index:])
+	data[index] = el
+	return data
+}

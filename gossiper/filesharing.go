@@ -4,25 +4,20 @@ import (
 	"encoding/hex"
 	"fmt"
 	"time"
+
+	"github.com/mikanikos/Peerster/helpers"
 )
 
-func (gossiper *Gossiper) downloadDataFromPeer(fileName, destination string, hash []byte, seqNum uint64) bool {
+func (gossiper *Gossiper) downloadDataFromPeer(fileName, peer string, hash []byte, seqNum uint64) bool {
 	// get channel from hashChannel map
-	value, _ := gossiper.fileHandler.hashChannels.LoadOrStore(getKeyFromString(hex.EncodeToString(hash)+destination), make(chan *DataReply))
+	value, _ := gossiper.fileHandler.hashChannels.LoadOrStore(getKeyFromString(hex.EncodeToString(hash)+peer), make(chan *DataReply))
 	replyChan := value.(chan *DataReply)
 
-	// if loaded {
-	// 	if debug {
-	// 		fmt.Println("Already requesting same data from this peer")
-	// 	}
-	// 	return false
-	// }
-
 	// prepare data request
-	packet := &GossipPacket{DataRequest: &DataRequest{Origin: gossiper.name, Destination: destination, HashValue: hash, HopLimit: uint32(hopLimit)}}
+	packet := &GossipPacket{DataRequest: &DataRequest{Origin: gossiper.name, Destination: peer, HashValue: hash, HopLimit: uint32(hopLimit)}}
 
 	if hw2 {
-		printDownloadMessage(fileName, destination, hash, seqNum)
+		printDownloadMessage(fileName, peer, hash, seqNum)
 	}
 
 	// send request
@@ -33,16 +28,13 @@ func (gossiper *Gossiper) downloadDataFromPeer(fileName, destination string, has
 	defer requestTimer.Stop()
 
 	// start timer for stopping download
-	stopTimer := time.NewTicker(time.Duration(requestTimeout * 10) * time.Second)
+	stopTimer := time.NewTicker(time.Duration(requestTimeout*10) * time.Second)
 	defer stopTimer.Stop()
 
 	for {
 		select {
 		// incoming reply for this request
 		case replyPacket := <-replyChan:
-
-			// close(replyChan)
-			// gossiper.fileHandler.hashChannels.Delete(getKeyFromString(hex.EncodeToString(hash)+destination))
 
 			// save data
 			gossiper.fileHandler.hashDataMap.LoadOrStore(hex.EncodeToString(hash), &replyPacket.Data)
@@ -55,7 +47,7 @@ func (gossiper *Gossiper) downloadDataFromPeer(fileName, destination string, has
 		// repeat sending after timeout
 		case <-requestTimer.C:
 			if hw2 {
-				printDownloadMessage(fileName, destination, hash, seqNum)
+				printDownloadMessage(fileName, peer, hash, seqNum)
 			}
 			go gossiper.forwardPrivateMessage(packet, &packet.DataRequest.HopLimit, packet.DataRequest.Destination)
 
@@ -64,6 +56,11 @@ func (gossiper *Gossiper) downloadDataFromPeer(fileName, destination string, has
 			return false
 		}
 	}
+}
+
+// download metafile
+func (gossiper *Gossiper) downloadMetafile(fileName, peer string, metaHash []byte) bool {
+	return gossiper.downloadDataFromPeer(fileName, peer, metaHash, 0)
 }
 
 // request all file chunks of a file
@@ -82,7 +79,7 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 		}
 
 		// download metafile
-		if !gossiper.downloadDataFromPeer(fileName, destination, metaHash, 0) {
+		if !gossiper.downloadMetafile(fileName, destination, metaHash) {
 			if debug {
 				fmt.Println("ERROR: the peer doesn't have the metafile or is offline")
 			}
@@ -93,11 +90,11 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 
 	// store/get file metadata information
 	metafile := *metafileStored.(*[]byte)
-	metadataStored, _ := gossiper.fileHandler.myFiles.LoadOrStore(getKeyFromString(hex.EncodeToString(metaHash)+fileName), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}, ChunkCount: uint64(len(metafile) / 32)})
+	metadataStored, _ := gossiper.fileHandler.filesMetadata.LoadOrStore(getKeyFromString(hex.EncodeToString(metaHash)+fileName), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0), ChunkOwnership: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}, ChunkCount: uint64(len(metafile) / 32)})
 	fileMetadata := metadataStored.(*FileMetadata)
 
-	// if already confirmed, I already have file chunk (maybe with a different name) and there's no need to request it again
-	if fileMetadata.Confirmed {
+	// if already have size, I already have file chunks (maybe with a different name) and there's no need to request it again
+	if fileMetadata.Size != 0 {
 		if debug {
 			fmt.Println("Already have this file")
 		}
@@ -123,7 +120,12 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 
 		// if not present, download it from available peers + destination (if present)
 		if !loaded {
-			peersWithChunk := fileMetadata.getChunkOwnersByID(i + 1)
+			fileMetadata.ChunkOwnership.Mutex.RLock()
+			peersWithChunk, loaded := fileMetadata.ChunkOwnership.ChunkOwners[i+1]
+			fileMetadata.ChunkOwnership.Mutex.RUnlock()
+			if !loaded {
+				peersWithChunk = make([]string, 0)
+			}
 
 			// add destination on top
 			if destination != "" {
@@ -134,7 +136,10 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 			for _, peer := range peersWithChunk {
 				// download chunk
 				if gossiper.downloadDataFromPeer(fileName, peer, hashChunk, i+1) {
-					fileMetadata.updateChunkOwner(peer, i+1)
+					if peer == destination {
+						fileMetadata.updateChunkOwnerMap(peer, i+1)
+					}
+					fileMetadata.ChunkMap = helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, i+1)
 					chunkStored, loaded = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(hashChunk))
 					break
 				}
@@ -161,9 +166,7 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 		// reconstruct file
 		fileReconstructed := make([]byte, size)
 		copy(fileReconstructed, chunksData[:size])
-
 		fileMetadata.Size = size
-		fileMetadata.Confirmed = true
 
 		// save file data to disk
 		saveFileOnDisk(fileMetadata.FileName, fileReconstructed)
@@ -174,13 +177,13 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 
 		// send it to gui
 		go func(f *FileMetadata) {
-			gossiper.uiHandler.filesDownloaded <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
+			gossiper.fileHandler.filesDownloaded <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
 		}(fileMetadata)
 	}
 }
 
 // // reconstruct file from all the chunks
-// func (gossiper *Gossiper) reconstructFileFromChunks(fileMetadata *FileMetadata) {
+// func (fileHandler *FileHandler) reconstructFileFromChunks(fileMetadata *FileMetadata) {
 // 	size := int64(0)
 // 	chunksData := make([]byte, fileMetadata.ChunkCount*fileChunk)
 // 	metafile := *fileMetadata.MetaFile
@@ -188,7 +191,7 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 // 	// go over each chunk
 // 	for i := 0; i < int(fileMetadata.ChunkCount); i++ {
 // 		hChunk := metafile[i*32 : (i+1)*32]
-// 		value, loaded := gossiper.fileHandler.hashDataMap.Load(string(hChunk))
+// 		value, loaded := fileHandler.hashDataMap.Load(string(hChunk))
 
 // 		if !loaded {
 // 			if debug {

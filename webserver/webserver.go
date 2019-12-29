@@ -20,7 +20,7 @@ type Webserver struct {
 	Client   *clientsender.Client
 }
 
-// NewWebserver for gui, has the gossiper instance to get values to display in the ui and a client to communicate values to the gossiper using the standard protocol  
+// NewWebserver for gui, has the gossiper instance to get values to display in the ui and a client to communicate values to the gossiper using the standard protocol
 func NewWebserver(uiPort string, gossiper *gossiper.Gossiper) *Webserver {
 	return &Webserver{
 		Gossiper: gossiper,
@@ -51,7 +51,7 @@ func (webserver *Webserver) Run(portGUI string) {
 	log.Fatal(http.ListenAndServe(":"+portGUI, r))
 }
 
-// function to write json data in the http header  
+// function to write json data in the http header
 func writeJSON(w http.ResponseWriter, payload interface{}) {
 	bytes, err := json.Marshal(payload)
 	helpers.ErrorCheck(err)
@@ -60,7 +60,7 @@ func writeJSON(w http.ResponseWriter, payload interface{}) {
 	w.Write(bytes)
 }
 
-// get and display full blockchain 
+// get and display full blockchain
 func (webserver *Webserver) getBlockchainHandler(w http.ResponseWriter, r *http.Request) {
 	var payload = webserver.Gossiper.GetBlockchain()
 	writeJSON(w, payload)
@@ -68,7 +68,7 @@ func (webserver *Webserver) getBlockchainHandler(w http.ResponseWriter, r *http.
 
 // get and display blockchain log messages
 func (webserver *Webserver) getBCLogsHandler(w http.ResponseWriter, r *http.Request) {
-	var payload = gossiper.GetBlockchainList(webserver.Gossiper.GeBlockchainLogs())
+	var payload = gossiper.GetBlockchainList(webserver.Gossiper.GetBlockchainLogs())
 	writeJSON(w, payload)
 }
 
@@ -79,7 +79,7 @@ func (webserver *Webserver) getRoundHandler(w http.ResponseWriter, r *http.Reque
 
 // get and display the latest files that have been found in a search
 func (webserver *Webserver) getSearchHandler(w http.ResponseWriter, r *http.Request) {
-	var payload = webserver.Gossiper.GetSearchedFiles()
+	var payload = gossiper.GetFilesList(webserver.Gossiper.GetSearchedFiles())
 	writeJSON(w, payload)
 }
 
@@ -126,7 +126,7 @@ func (webserver *Webserver) postMessageHandler(w http.ResponseWriter, r *http.Re
 
 // get and display the peers (neighbour nodes) known by the gossiper
 func (webserver *Webserver) getNodeHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, helpers.GetArrayStringFromAddresses(webserver.Gossiper.GetPeersAtomic()))
+	writeJSON(w, helpers.GetArrayStringFromAddresses(webserver.Gossiper.GetPeers()))
 }
 
 // add peer given by gui to the gossiper
@@ -146,5 +146,5 @@ func (webserver *Webserver) getIDHandler(w http.ResponseWriter, r *http.Request)
 
 // get and display origin nodes names
 func (webserver *Webserver) getOriginHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, webserver.Gossiper.GetOriginsAtomic())
+	writeJSON(w, webserver.Gossiper.GetOrigins())
 }

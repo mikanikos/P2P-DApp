@@ -1,31 +1,9 @@
 package gossiper
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 )
-
-// Hash function of BlockPublish
-func (b *BlockPublish) Hash() (out [32]byte) {
-	h := sha256.New()
-	h.Write(b.PrevHash[:])
-	th := b.Transaction.Hash()
-	h.Write(th[:])
-	copy(out[:], h.Sum(nil))
-	return
-}
-
-// Hash function of TXPublish
-func (t *TxPublish) Hash() (out [32]byte) {
-	h := sha256.New()
-	binary.Write(h, binary.LittleEndian,
-		uint32(len(t.Name)))
-	h.Write([]byte(t.Name))
-	h.Write(t.MetafileHash)
-	copy(out[:], h.Sum(nil))
-	return
-}
 
 // que sera consensus round
 func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
@@ -55,7 +33,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
 	// get confirmations and highest fitness tlc
 	confirmationsRoundS := value.(map[string]*TLCMessage)
-	highestTLCRoundS := gossiper.getTLCWithHighestFitness(confirmationsRoundS)
+	highestTLCRoundS := getTLCWithHighestFitness(confirmationsRoundS)
 
 	if debug {
 		fmt.Println("Highest in round s : " + highestTLCRoundS.Origin + " " + fmt.Sprint(highestTLCRoundS.ID) + " " + fmt.Sprint(highestTLCRoundS.Fitness))
@@ -76,7 +54,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
 	// get confirmations and highest fitness tlc
 	confirmationsRoundS1 := value.(map[string]*TLCMessage)
-	highestTLCRoundS1 := gossiper.getTLCWithHighestFitness(confirmationsRoundS1)
+	highestTLCRoundS1 := getTLCWithHighestFitness(confirmationsRoundS1)
 
 	if debug {
 		fmt.Println("Highest in round s : " + highestTLCRoundS1.Origin + " " + fmt.Sprint(highestTLCRoundS1.ID) + " " + fmt.Sprint(highestTLCRoundS1.Fitness))
@@ -99,7 +77,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 	}
 
 	// get message if consensus reached, otherwise return nil
-	if messageConsensus := gossiper.checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1, roundS); messageConsensus != nil {
+	if messageConsensus := gossiper.blockchainHandler.checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1, roundS); messageConsensus != nil {
 
 		if debug {
 			fmt.Println("GOT CONSENSUS")
@@ -113,7 +91,9 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		gossiper.blockchainHandler.previousBlockHash = gossiper.blockchainHandler.topBlockchainHash
 
 		if messageConsensus.Origin == gossiper.name {
-			gossiper.confirmMetafileData(chosenBlock.Transaction.Name, chosenBlock.Transaction.MetafileHash)
+			go func(b *BlockPublish) {
+				gossiper.fileHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
+			}(&chosenBlock)
 		}
 
 		gossiper.printConsensusMessage(messageConsensus)
@@ -125,31 +105,13 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 	}
 }
 
-// get tlc with highest fitness value
-func (gossiper *Gossiper) getTLCWithHighestFitness(confirmations map[string]*TLCMessage) *TLCMessage {
-
-	maxBlock := &TLCMessage{Fitness: 0}
-	for _, value := range confirmations {
-
-		if debug {
-			fmt.Println(value.Origin + " " + fmt.Sprint(value.ID) + " " + fmt.Sprint(value.Fitness))
-		}
-
-		if value.Fitness > maxBlock.Fitness {
-			maxBlock = value
-		}
-	}
-
-	return maxBlock
-}
-
 // check if tx block is valid, i.e. there's no other committed block with the same name and its history is known
-func (gossiper *Gossiper) isTxBlockValid(b BlockPublish) bool {
+func (blockchainHandler *BlockchainHandler) isTxBlockValid(b BlockPublish) bool {
 
 	isValid := true
 
 	// check for same name
-	gossiper.blockchainHandler.committedHistory.Range(func(key interface{}, value interface{}) bool {
+	blockchainHandler.committedHistory.Range(func(key interface{}, value interface{}) bool {
 		block := value.(BlockPublish)
 
 		if block.Transaction.Name == b.Transaction.Name {
@@ -164,7 +126,7 @@ func (gossiper *Gossiper) isTxBlockValid(b BlockPublish) bool {
 	if isValid {
 		blockHash := b.PrevHash
 		for blockHash != [32]byte{} {
-			value, loaded := gossiper.blockchainHandler.committedHistory.Load(blockHash)
+			value, loaded := blockchainHandler.committedHistory.Load(blockHash)
 
 			if !loaded {
 				isValid = false
@@ -180,7 +142,7 @@ func (gossiper *Gossiper) isTxBlockValid(b BlockPublish) bool {
 }
 
 // check if consensus reached based on confirmations from previous rounds
-func (gossiper *Gossiper) checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1 map[string]*TLCMessage, initialRound uint32) *TLCMessage {
+func (blockchainHandler *BlockchainHandler) checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1 map[string]*TLCMessage, initialRound uint32) *TLCMessage {
 
 	best := &TLCMessage{Fitness: 0}
 	for _, message := range confirmationsRoundS {
@@ -189,7 +151,7 @@ func (gossiper *Gossiper) checkIfConsensusReached(confirmationsRoundS, confirmat
 		}
 	}
 
-	value, _ := gossiper.blockchainHandler.messageSeen.Load(initialRound)
+	value, _ := blockchainHandler.messageSeen.Load(initialRound)
 	messageSeen := value.(map[string]*TLCMessage)
 
 	for _, saw := range messageSeen {

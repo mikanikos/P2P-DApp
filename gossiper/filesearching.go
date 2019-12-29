@@ -20,42 +20,45 @@ type SafeRequestMap struct {
 
 // handle single search result
 func (gossiper *Gossiper) handleSearchResult(origin string, res *SearchResult) {
-	
-	value, loaded := gossiper.fileHandler.myFiles.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}})
+
+	value, loaded := gossiper.fileHandler.filesMetadata.LoadOrStore(hex.EncodeToString(res.MetafileHash)+res.FileName, &FileMetadata{FileName: res.FileName, MetafileHash: res.MetafileHash, ChunkCount: res.ChunkCount, ChunkMap: make([]uint64, 0), ChunkOwnership: &ChunkOwnersMap{ChunkOwners: make(map[uint64][]string)}})
 	fileMetadata := value.(*FileMetadata)
 
-	// store chunk owner origin and search result to gui
-	for chunkID := range fileMetadata.ChunkMap.ChunkOwners {
-		fileMetadata.updateChunkOwner(origin, chunkID)
+	// store chunk owner origin
+	for _, chunkID := range res.ChunkMap {
+		fileMetadata.updateChunkOwnerMap(origin, chunkID)
 	}
 
 	if !loaded {
 		printSearchMatchMessage(origin, res)
-		
-		gossiper.addSearchFileForGUI(fileMetadata)
-		
-		go gossiper.downloadDataFromPeer(res.FileName, origin, res.MetafileHash, 0)
+
+		// download metafile
+		go gossiper.downloadMetafile(res.FileName, origin, res.MetafileHash)
+
+		go func(f *FileMetadata) {
+			gossiper.fileHandler.filesSearched <- &FileGUI{Name: f.FileName, MetaHash: hex.EncodeToString(f.MetafileHash), Size: f.Size}
+		}(fileMetadata)
 	}
 }
 
 // check if incoming search request is recent
-func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bool {
+func (fileHandler *FileHandler) isRecentSearchRequest(searchRequest *SearchRequest) bool {
 
 	// sort and get keywords single string as key
 	sort.Strings(searchRequest.Keywords)
 	identifier := getKeyFromString(searchRequest.Origin + strings.Join(searchRequest.Keywords, ""))
-	stored := gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier]
+	stored := fileHandler.lastSearchRequests.OriginTimeMap[identifier]
 
 	// if not stored or timeout has expired, can take it otherwise no
 	if stored.IsZero() || stored.Add(searchRequestDuplicateTimeout).Before(time.Now()) {
 
 		// save new information and reset timer
-		if gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier].IsZero() {
-			gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier] = time.Now()
+		if fileHandler.lastSearchRequests.OriginTimeMap[identifier].IsZero() {
+			fileHandler.lastSearchRequests.OriginTimeMap[identifier] = time.Now()
 		} else {
-			last := gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier]
+			last := fileHandler.lastSearchRequests.OriginTimeMap[identifier]
 			last = time.Now()
-			gossiper.fileHandler.lastSearchRequests.OriginTimeMap[identifier] = last
+			fileHandler.lastSearchRequests.OriginTimeMap[identifier] = last
 		}
 		return false
 	}
@@ -63,7 +66,7 @@ func (gossiper *Gossiper) isRecentSearchRequest(searchRequest *SearchRequest) bo
 }
 
 // search file with budget
-func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket, increment bool) {
+func (gossiper *Gossiper) searchFilesWithTimeout(extPacket *ExtendedGossipPacket, increment bool) {
 
 	if debug {
 		fmt.Println("Got search request")
@@ -101,7 +104,7 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 			}
 
 			// if reached matching threshold, search finished
-			if gossiper.searchForFilesNotDownloaded(keywords) >= matchThreshold {
+			if gossiper.fileHandler.isFileMatchThresholdReached(keywords) {
 				timer.Stop()
 				if hw3 {
 					fmt.Println("SEARCH FINISHED")
@@ -126,65 +129,46 @@ func (gossiper *Gossiper) searchFilePeriodically(extPacket *ExtendedGossipPacket
 }
 
 // search locally for files matches given keywords
-func (gossiper *Gossiper) searchForFilesNotDownloaded(keywords []string) int {
+func (fileHandler *FileHandler) isFileMatchThresholdReached(keywords []string) bool {
 	matches := make([]string, 0)
 
 	// get over all the files
-	gossiper.fileHandler.myFiles.Range(func(key interface{}, value interface{}) bool {
+	fileHandler.filesMetadata.Range(func(key interface{}, value interface{}) bool {
 		fileMetadata := value.(*FileMetadata)
 		// check if match at least one keyword, if all chunks locations are known and it's not a file I already have
-		if containsKeyword(fileMetadata.FileName, keywords) && fileMetadata.checkAllChunksLocation() && !fileMetadata.Confirmed {
+		if containsKeyword(fileMetadata.FileName, keywords) && fileMetadata.Size == 0 && fileMetadata.checkAllChunksLocation() {
 			matches = append(matches, fileMetadata.FileName)
-			matches = helpers.RemoveDuplicatesFromSlice(matches)
 		}
-
 		// check if threshold reached and stop iterating in that case
-		if len(matches) == matchThreshold {
-			return false
-		}
-		return true
+		return !(len(matches) == matchThreshold)
 	})
 
 	if debug {
 		fmt.Println("Got " + fmt.Sprint(len(matches)))
 	}
-	return len(matches)
+	return len(matches) == matchThreshold
 }
 
-// process search request and send all matches
-func (gossiper *Gossiper) sendMatchingLocalFiles(extPacket *ExtendedGossipPacket) {
-
-	keywords := extPacket.Packet.SearchRequest.Keywords
+// process search request and search all matches for the keywords given
+func (fileHandler *FileHandler) searchMatchingLocalFiles(keywords []string) []*SearchResult {
+	//keywords := extPacket.Packet.SearchRequest.Keywords
 	searchResults := make([]*SearchResult, 0)
 
-	gossiper.fileHandler.myFiles.Range(func(key interface{}, value interface{}) bool {
+	fileHandler.filesMetadata.Range(func(key interface{}, value interface{}) bool {
 		fileMetadata := value.(*FileMetadata)
-
 		// check if match at least one keyword
-		if containsKeyword(fileMetadata.FileName, keywords) {
-			chunkMap := fileMetadata.ChunkMap.getKeyList()
-			helpers.SortUint64(chunkMap)
-			searchResults = append(searchResults, &SearchResult{FileName: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: chunkMap})
+		if containsKeyword(fileMetadata.FileName, keywords) && len(fileMetadata.ChunkMap) != 0 {
+			searchResults = append(searchResults, &SearchResult{FileName: fileMetadata.FileName, MetafileHash: fileMetadata.MetafileHash, ChunkCount: fileMetadata.ChunkCount, ChunkMap: fileMetadata.ChunkMap})
 		}
 		return true
 	})
-
-	// if I have some results, send them back to request origin
-	if len(searchResults) != 0 {
-		if debug {
-			fmt.Println("Sending search results")
-		}
-		searchReply := &SearchReply{Origin: gossiper.name, Destination: extPacket.Packet.SearchRequest.Origin, HopLimit: uint32(hopLimit), Results: searchResults}
-		packetToSend := &GossipPacket{SearchReply: searchReply}
-
-		go gossiper.forwardPrivateMessage(packetToSend, &packetToSend.SearchReply.HopLimit, packetToSend.SearchReply.Destination)
-	}
+	return searchResults
 }
 
 // forward request as evenly as possible to the known peers
 func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGossipPacket) {
 
-	peers := gossiper.GetPeersAtomic()
+	peers := gossiper.GetPeers()
 	peersChosen := []*net.UDPAddr{extPacket.SenderAddr}
 	availablePeers := helpers.DifferenceString(peers, peersChosen)
 
@@ -219,26 +203,26 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 			}
 
 			// send packet and remove current peer
-			gossiper.sendPacket(extPacket.Packet, randomPeer)
+			gossiper.connectionHandler.sendPacket(extPacket.Packet, randomPeer)
 			peersChosen = append(peersChosen, randomPeer)
-			availablePeers = helpers.DifferenceString(gossiper.GetPeersAtomic(), peersChosen)
+			availablePeers = helpers.DifferenceString(gossiper.GetPeers(), peersChosen)
 		}
 	}
 }
 
-// add search result to gui
-func (gossiper *Gossiper) addSearchFileForGUI(fileMetadata *FileMetadata) {
+// // add search result to gui
+// func (fileHandler *FileHandler) addSearchFileForGUI(fileMetadata *FileMetadata) {
 
-	element := FileGUI{Name: fileMetadata.FileName, MetaHash: hex.EncodeToString(fileMetadata.MetafileHash)}
-	contains := false
-	for _, elem := range gossiper.uiHandler.filesSearched {
-		if elem.Name == element.Name && elem.MetaHash == element.MetaHash {
-			contains = true
-			break
-		}
-	}
+// 	element := FileGUI{Name: fileMetadata.FileName, MetaHash: hex.EncodeToString(fileMetadata.MetafileHash)}
+// 	contains := false
+// 	for _, elem := range fileHandler.filesSearched {
+// 		if elem.Name == element.Name && elem.MetaHash == element.MetaHash {
+// 			contains = true
+// 			break
+// 		}
+// 	}
 
-	if !contains {
-		gossiper.uiHandler.filesSearched = append(gossiper.uiHandler.filesSearched, element)
-	}
-}
+// 	if !contains {
+// 		fileHandler.filesSearched = append(fileHandler.filesSearched, element)
+// 	}
+// }

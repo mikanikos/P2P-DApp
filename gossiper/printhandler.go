@@ -21,7 +21,7 @@ func printStatusMessage(extPacket *ExtendedGossipPacket, peers []*net.UDPAddr) {
 }
 
 func printSearchMatchMessage(origin string, res *SearchResult) {
-	message := "FOUND match " + res.FileName + " at " + origin + " metafile=" +hex.EncodeToString(res.MetafileHash) + " chunks="
+	message := "FOUND match " + res.FileName + " at " + origin + " metafile=" + hex.EncodeToString(res.MetafileHash) + " chunks="
 	for _, elem := range res.ChunkMap {
 		message = message + fmt.Sprint(elem) + ","
 	}
@@ -50,12 +50,12 @@ func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket, peer
 			" ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID) +
 			" filename " + extPacket.Packet.TLCMessage.TxBlock.Transaction.Name +
 			" size " + fmt.Sprint(extPacket.Packet.TLCMessage.TxBlock.Transaction.Size) +
-			" metahash " +hex.EncodeToString(extPacket.Packet.TLCMessage.TxBlock.Transaction.MetafileHash)
+			" metahash " + hex.EncodeToString(extPacket.Packet.TLCMessage.TxBlock.Transaction.MetafileHash)
 
 		if extPacket.Packet.TLCMessage.Confirmed > -1 {
 			fmt.Println("CONFIRMED " + messageToPrint)
 
-			gossiper.uiHandler.blockchainLogs <- "CONFIRMED " + messageToPrint
+			gossiper.blockchainHandler.blockchainLogs <- "CONFIRMED " + messageToPrint
 
 		} else {
 			fmt.Println("UNCONFIRMED " + messageToPrint)
@@ -122,7 +122,7 @@ func (gossiper *Gossiper) printRoundMessage(round uint32, confirmations map[stri
 	}
 	if hw3ex3Mode {
 		fmt.Println(message[:len(message)-2])
-		gossiper.uiHandler.blockchainLogs <- message[:len(message)-2]
+		gossiper.blockchainHandler.blockchainLogs <- message[:len(message)-2]
 	}
 }
 
@@ -151,8 +151,8 @@ func (gossiper *Gossiper) printConsensusMessage(tlcChosen *TLCMessage) {
 		blockHash = block.PrevHash
 	}
 
-	message = message + filenames + "size " + fmt.Sprint(tlcChosen.TxBlock.Transaction.Size) + " metahash " +hex.EncodeToString(tlcChosen.TxBlock.Transaction.MetafileHash)
+	message = message + filenames + "size " + fmt.Sprint(tlcChosen.TxBlock.Transaction.Size) + " metahash " + hex.EncodeToString(tlcChosen.TxBlock.Transaction.MetafileHash)
 
 	fmt.Println(message)
-	gossiper.uiHandler.blockchainLogs <- message
+	gossiper.blockchainHandler.blockchainLogs <- message
 }

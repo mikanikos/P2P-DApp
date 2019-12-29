@@ -8,6 +8,37 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
+// ConnectionHandler struct
+type ConnectionHandler struct {
+	clientData   *ConnectionData
+	gossiperData *ConnectionData
+}
+
+// NewConnectionHandler create new routing handler
+func NewConnectionHandler(gossiperAddress, clientAddress string) *ConnectionHandler {
+
+	gossiperData := createConnectionData(gossiperAddress)
+	clientData := createConnectionData(clientAddress)
+
+	return &ConnectionHandler{
+		clientData:   clientData,
+		gossiperData: gossiperData,
+	}
+}
+
+// create Connection data
+func createConnectionData(addressString string) *ConnectionData {
+	// resolve gossiper address
+	address, err := net.ResolveUDPAddr("udp4", addressString)
+	helpers.ErrorCheck(err)
+
+	// get connection for gossiper
+	connection, err := net.ListenUDP("udp4", address)
+	helpers.ErrorCheck(err)
+
+	return &ConnectionData{Address: address, Connection: connection}
+}
+
 // ExtendedGossipPacket struct: gossip packet + address of the sender
 type ExtendedGossipPacket struct {
 	Packet     *GossipPacket
@@ -21,7 +52,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, _, err := gossiper.clientData.Connection.ReadFromUDP(packetBytes)
+		n, _, err := gossiper.connectionHandler.clientData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err)
 
 		if n > maxBufferSize {
@@ -47,7 +78,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, addr, err := gossiper.gossiperData.Connection.ReadFromUDP(packetBytes)
+		n, addr, err := gossiper.connectionHandler.gossiperData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err)
 
 		if n > maxBufferSize {
@@ -69,7 +100,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 			if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
 				packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
 				go func(p *ExtendedGossipPacket) {
-					gossiper.packetChannels[modeType] <- p
+					packetChannels[modeType] <- p
 				}(packet)
 			} else {
 				fmt.Println("ERROR: message can't be accepted in this operation mode")
@@ -79,22 +110,22 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 }
 
 // send given packet to the address specified
-func (gossiper *Gossiper) sendPacket(packet *GossipPacket, address *net.UDPAddr) {
+func (connectionHandler *ConnectionHandler) sendPacket(packet *GossipPacket, address *net.UDPAddr) {
 	// encode message
 	packetToSend, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err)
 
 	// send message
-	_, err = gossiper.gossiperData.Connection.WriteToUDP(packetToSend, address)
+	_, err = connectionHandler.gossiperData.Connection.WriteToUDP(packetToSend, address)
 	helpers.ErrorCheck(err)
 }
 
 // broadcast message to all the known peers
-func (gossiper *Gossiper) broadcastToPeers(packet *ExtendedGossipPacket) {
-	peers := gossiper.GetPeersAtomic()
+func (connectionHandler *ConnectionHandler) broadcastToPeers(packet *ExtendedGossipPacket, peers []*net.UDPAddr) {
+	//peers := gossiper.GetPeersAtomic()
 	for _, peer := range peers {
 		if peer.String() != packet.SenderAddr.String() {
-			gossiper.sendPacket(packet.Packet, peer)
+			connectionHandler.sendPacket(packet.Packet, peer)
 		}
 	}
 }

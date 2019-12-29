@@ -50,8 +50,8 @@ func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
 	}
 }
 
-// GetPeersAtomic in concurrent environment
-func (gossiper *Gossiper) GetPeersAtomic() []*net.UDPAddr {
+// GetPeers in concurrent environment
+func (gossiper *Gossiper) GetPeers() []*net.UDPAddr {
 	gossiper.peersData.Mutex.RLock()
 	defer gossiper.peersData.Mutex.RUnlock()
 	peerCopy := make([]*net.UDPAddr, len(gossiper.peersData.Peers))

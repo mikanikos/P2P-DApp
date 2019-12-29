@@ -10,7 +10,7 @@ import (
 
 // process tlc message
 func (gossiper *Gossiper) processTLCMessage() {
-	for extPacket := range gossiper.packetChannels["tlcMes"] {
+	for extPacket := range packetChannels["tlcMes"] {
 
 		// handle gossip message
 		gossiper.handleGossipMessage(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
@@ -24,7 +24,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 
 // process tlc acks
 func (gossiper *Gossiper) processTLCAck() {
-	for extPacket := range gossiper.packetChannels["tlcAck"] {
+	for extPacket := range packetChannels["tlcAck"] {
 		if extPacket.Packet.Ack.Destination == gossiper.name {
 
 			if debug {
@@ -44,12 +44,22 @@ func (gossiper *Gossiper) processTLCAck() {
 
 // process search request
 func (gossiper *Gossiper) processSearchRequest() {
-	for extPacket := range gossiper.packetChannels["searchRequest"] {
-		if !gossiper.isRecentSearchRequest(extPacket.Packet.SearchRequest) {
+	for extPacket := range packetChannels["searchRequest"] {
+		if !gossiper.fileHandler.isRecentSearchRequest(extPacket.Packet.SearchRequest) {
 			// check if search request is not recent
 			if extPacket.Packet.SearchRequest.Origin != gossiper.name {
+
 				// send matching local files
-				go gossiper.sendMatchingLocalFiles(extPacket)
+				searchResults := gossiper.fileHandler.searchMatchingLocalFiles(extPacket.Packet.SearchRequest.Keywords)
+				if len(searchResults) != 0 {
+					if debug {
+						fmt.Println("Sending search results")
+					}
+					searchReply := &SearchReply{Origin: gossiper.name, Destination: extPacket.Packet.SearchRequest.Origin, HopLimit: uint32(hopLimit), Results: searchResults}
+					packetToSend := &GossipPacket{SearchReply: searchReply}
+
+					go gossiper.forwardPrivateMessage(packetToSend, &packetToSend.SearchReply.HopLimit, packetToSend.SearchReply.Destination)
+				}
 			} else {
 				if debug {
 					fmt.Println("Too recent request!!!!")
@@ -65,14 +75,14 @@ func (gossiper *Gossiper) processSearchRequest() {
 
 // process search replies
 func (gossiper *Gossiper) processSearchReply() {
-	for extPacket := range gossiper.packetChannels["searchReply"] {
+	for extPacket := range packetChannels["searchReply"] {
 
 		// if it's for me, I handle search results
 		if extPacket.Packet.SearchReply.Destination == gossiper.name {
 
 			searchResults := extPacket.Packet.SearchReply.Results
 			for _, res := range searchResults {
-				gossiper.handleSearchResult(extPacket.Packet.SearchReply.Origin, res)
+				go gossiper.handleSearchResult(extPacket.Packet.SearchReply.Origin, res)
 			}
 		} else {
 			// if not for me, I forward the reply
@@ -83,7 +93,7 @@ func (gossiper *Gossiper) processSearchReply() {
 
 // process data request
 func (gossiper *Gossiper) processDataRequest() {
-	for extPacket := range gossiper.packetChannels["dataRequest"] {
+	for extPacket := range packetChannels["dataRequest"] {
 
 		// if for me, I I handle the data request
 		if extPacket.Packet.DataRequest.Destination == gossiper.name {
@@ -119,7 +129,7 @@ func (gossiper *Gossiper) processDataRequest() {
 
 // process data reply
 func (gossiper *Gossiper) processDataReply() {
-	for extPacket := range gossiper.packetChannels["dataReply"] {
+	for extPacket := range packetChannels["dataReply"] {
 
 		if debug {
 			fmt.Println("Got data reply from " + extPacket.Packet.DataReply.Destination)
@@ -134,11 +144,11 @@ func (gossiper *Gossiper) processDataReply() {
 
 			// check integrity of the hash
 			if extPacket.Packet.DataReply.Data != nil && checkHash(extPacket.Packet.DataReply.HashValue, extPacket.Packet.DataReply.Data) {
-				
+
 				if debug {
 					fmt.Println("DATA VALID")
 				}
-				
+
 				value, _ := gossiper.fileHandler.hashChannels.Load(getKeyFromString(hex.EncodeToString(extPacket.Packet.DataReply.HashValue) + extPacket.Packet.DataReply.Origin))
 
 				// send it to the appropriate channel
@@ -156,19 +166,19 @@ func (gossiper *Gossiper) processDataReply() {
 
 // process private message
 func (gossiper *Gossiper) processPrivateMessages() {
-	for extPacket := range gossiper.packetChannels["private"] {
+	for extPacket := range packetChannels["private"] {
 
 		// update routing table
-		gossiper.updateRoutingTable(extPacket.Packet.Private.Destination, extPacket.Packet.Private.Text, extPacket.Packet.Private.ID, extPacket.SenderAddr)
+		gossiper.routingHandler.updateRoutingTable(extPacket.Packet.Private.Destination, extPacket.Packet.Private.Text, extPacket.Packet.Private.ID, extPacket.SenderAddr)
 
 		// if for me, handle private message
 		if extPacket.Packet.Private.Destination == gossiper.name {
 			if hw2 {
-				gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
+				gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 			}
 			// send it to gui
 			go func(p *PrivateMessage) {
-				gossiper.uiHandler.latestRumors <- &RumorMessage{Text: p.Text, Origin: p.Origin}
+				gossiper.gossipHandler.latestRumors <- &RumorMessage{Text: p.Text, Origin: p.Origin}
 			}(extPacket.Packet.Private)
 
 		} else {
@@ -182,25 +192,25 @@ func (gossiper *Gossiper) processPrivateMessages() {
 func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Message) {
 	for message := range clientChannel {
 
-		packet := &ExtendedGossipPacket{SenderAddr: gossiper.gossiperData.Address}
+		packet := &ExtendedGossipPacket{SenderAddr: gossiper.connectionHandler.gossiperData.Address}
 
 		// get type of the message
 		switch typeMessage := getTypeFromMessage(message); typeMessage {
 
 		case "simple":
 			if hw1 {
-				printClientMessage(message, gossiper.GetPeersAtomic())
+				printClientMessage(message, gossiper.GetPeers())
 			}
 
 			// create simple packet and broadcast
-			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.name, RelayPeerAddr: gossiper.gossiperData.Address.String()}
+			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.name, RelayPeerAddr: gossiper.connectionHandler.gossiperData.Address.String()}
 			packet.Packet = &GossipPacket{Simple: simplePacket}
 
-			go gossiper.broadcastToPeers(packet)
+			go gossiper.connectionHandler.broadcastToPeers(packet, gossiper.GetPeers())
 
 		case "private":
 			if hw2 {
-				printClientMessage(message, gossiper.GetPeersAtomic())
+				printClientMessage(message, gossiper.GetPeers())
 			}
 
 			// create private message and forward it
@@ -208,13 +218,13 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			packet.Packet = &GossipPacket{Private: privatePacket}
 
 			go func(p *PrivateMessage) {
-				gossiper.uiHandler.latestRumors <- &RumorMessage{Text: p.Text, Origin: p.Origin}
+				gossiper.gossipHandler.latestRumors <- &RumorMessage{Text: p.Text, Origin: p.Origin}
 			}(privatePacket)
 
 			go gossiper.forwardPrivateMessage(packet.Packet, &packet.Packet.Private.HopLimit, packet.Packet.Private.Destination)
 
 		case "rumor":
-			printClientMessage(message, gossiper.GetPeersAtomic())
+			printClientMessage(message, gossiper.GetPeers())
 
 			// create rumor
 			extPacket := gossiper.createRumorMessage(message.Text)
@@ -243,7 +253,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 				requestPacket.Budget = uint64(defaultBudget)
 			}
 
-			go gossiper.searchFilePeriodically(packet, needIncrement)
+			go gossiper.searchFilesWithTimeout(packet, needIncrement)
 
 		default:
 			if debug {
@@ -255,22 +265,22 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 
 // process simple message
 func (gossiper *Gossiper) processSimpleMessages() {
-	for extPacket := range gossiper.packetChannels["simple"] {
+	for extPacket := range packetChannels["simple"] {
 
 		if hw1 {
-			gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
+			gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 		}
 
 		// set relay address and broadcast
-		extPacket.Packet.Simple.RelayPeerAddr = gossiper.gossiperData.Address.String()
+		extPacket.Packet.Simple.RelayPeerAddr = gossiper.connectionHandler.gossiperData.Address.String()
 
-		go gossiper.broadcastToPeers(extPacket)
+		go gossiper.connectionHandler.broadcastToPeers(extPacket, gossiper.GetPeers())
 	}
 }
 
 // process rumor message
 func (gossiper *Gossiper) processRumorMessages() {
-	for extPacket := range gossiper.packetChannels["rumor"] {
+	for extPacket := range packetChannels["rumor"] {
 
 		// handle gossip message
 		gossiper.handleGossipMessage(extPacket, extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.ID)
@@ -279,10 +289,10 @@ func (gossiper *Gossiper) processRumorMessages() {
 
 // process status message
 func (gossiper *Gossiper) processStatusMessages() {
-	for extPacket := range gossiper.packetChannels["status"] {
+	for extPacket := range packetChannels["status"] {
 
 		if hw1 {
-			printStatusMessage(extPacket, gossiper.GetPeersAtomic())
+			printStatusMessage(extPacket, gossiper.GetPeers())
 		}
 
 		// get status channel for peer and send it there

@@ -17,6 +17,9 @@ var ackAllMode = false
 
 var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck"}
 
+// channels used throgout the app to exchange messages
+var packetChannels map[string]chan *ExtendedGossipPacket
+
 var maxBufferSize = 60000
 var maxChannelSize = 100
 

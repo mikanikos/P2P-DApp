@@ -1,6 +1,7 @@
 package gossiper
 
 import (
+	"encoding/hex"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -22,11 +23,12 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 	}
 
 	if hw3ex2Mode {
-		gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
+		gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 	}
 
 	// start rumor mongering a message
 	id := extPacket.Packet.TLCMessage.ID
+
 	go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 
 	if stubbornTimeout > 0 {
@@ -93,8 +95,11 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 					confirmations[tlcConfirm.Origin] = tlcConfirm
 
 					// check if got majority of confirmations and increment round in that case
-					if gossiper.checkAndIncrementRound(confirmations) {
+					if uint64(len(confirmations)) > gossiper.peersData.Size/2 {
 						timer.Stop()
+
+						atomic.AddUint32(&gossiper.blockchainHandler.myTime, uint32(1))
+						gossiper.printRoundMessage(gossiper.blockchainHandler.myTime, confirmations)
 
 						//gossiper.tlcConfirmChan = make(chan *TLCMessage, maxChannelSize)
 						// reset confirmation channel
@@ -111,7 +116,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 			// periodically resend tlc message
 			case <-timer.C:
 				if hw3ex2Mode {
-					gossiper.printPeerMessage(extPacket, gossiper.GetPeersAtomic())
+					gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 				}
 				go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 			}
@@ -129,16 +134,18 @@ func (gossiper *Gossiper) sendGossipWithConfirmation(extPacket *ExtendedGossipPa
 	go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
 	if !hw3ex4Mode {
-		gossiper.confirmMetafileData(extPacket.Packet.TLCMessage.TxBlock.Transaction.Name, extPacket.Packet.TLCMessage.TxBlock.Transaction.MetafileHash)
+		go func(b *BlockPublish) {
+			gossiper.fileHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
+		}(&extPacket.Packet.TLCMessage.TxBlock)
 	}
 }
 
-// check for majority of confirmations and increment round
-func (gossiper *Gossiper) checkAndIncrementRound(confirmations map[string]*TLCMessage) bool {
-	if uint64(len(confirmations)) > gossiper.peersData.Size/2 {
-		atomic.AddUint32(&gossiper.blockchainHandler.myTime, uint32(1))
-		gossiper.printRoundMessage(gossiper.blockchainHandler.myTime, confirmations)
-		return true
-	}
-	return false
-}
+// // check for majority of confirmations and increment round
+// func (gossiper *Gossiper) checkAndIncrementRound(confirmations map[string]*TLCMessage) bool {
+// 	if uint64(len(confirmations)) > gossiper.peersData.Size/2 {
+// 		atomic.AddUint32(&gossiper.blockchainHandler.myTime, uint32(1))
+// 		gossiper.printRoundMessage(gossiper.blockchainHandler.myTime, confirmations)
+// 		return true
+// 	}
+// 	return false
+// }

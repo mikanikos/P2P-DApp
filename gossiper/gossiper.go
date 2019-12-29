@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
 	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
@@ -17,44 +18,30 @@ type ConnectionData struct {
 
 // Gossiper struct
 type Gossiper struct {
-	name string
+	name      string
+	peersData *PeersData
 
-	packetChannels map[string]chan *ExtendedGossipPacket
-
-	clientData   *ConnectionData
-	gossiperData *ConnectionData
-	peersData    *PeersData
-
+	connectionHandler *ConnectionHandler
 	gossipHandler     *GossipHandler
 	routingHandler    *RoutingHandler
 	fileHandler       *FileHandler
-	uiHandler         *UIHandler
 	blockchainHandler *BlockchainHandler
 }
 
 // NewGossiper constructor
 func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum uint64) *Gossiper {
 
-	gossiperData := createConnectionData(gossiperAddress)
-	clientData := createConnectionData(clientAddress)
-	
-	initializeDirectories()
+	// init app
+	Init()
 
-	// create new gossiper
 	return &Gossiper{
-		name: name,
+		name:      name,
+		peersData: createPeersData(peers, peersNum),
 
-		// initialize initial channels used throgout the app to exchange messages
-		packetChannels: initDefaultChannels(),
-
-		clientData:   clientData,
-		gossiperData: gossiperData,
-		peersData:    createPeersData(peers, peersNum),
-
+		connectionHandler: NewConnectionHandler(gossiperAddress, clientAddress),
 		gossipHandler:     NewGossipHandler(),
 		routingHandler:    NewRoutingHandler(),
 		fileHandler:       NewFileHandler(),
-		uiHandler:         NewUIHandler(),
 		blockchainHandler: NewBlockchainHandler(),
 	}
 }
@@ -83,6 +70,38 @@ func SetAppConstants(simple, hw3ex2, hw3ex3, hw3ex4, ackAll bool, hopLimitVal, s
 	antiEntropyTimeout = int(antiEntropy)
 }
 
+// Init app structures and environments
+func Init() {
+	// initialize channels used to exchange packets in the app
+	initPacketChannels()
+
+	// create working directories for shared and downloaded files
+	createWorkingDirectories()
+}
+
+// initPacketChannels that are used in the app
+func initPacketChannels() {
+	// initialize channels used in the application
+	packetChannels := make(map[string]chan *ExtendedGossipPacket)
+	for _, t := range modeTypes {
+		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
+			packetChannels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
+		}
+	}
+}
+
+// createWorkingDirectories for shared and downloaded files at the base directory
+func createWorkingDirectories() {
+	wd, err := os.Getwd()
+	helpers.ErrorCheck(err)
+
+	shareFolder = wd + shareFolder
+	downloadFolder = wd + downloadFolder
+
+	os.Mkdir(shareFolder, os.ModePerm)
+	os.Mkdir(downloadFolder, os.ModePerm)
+}
+
 // Run application
 func (gossiper *Gossiper) Run() {
 
@@ -99,16 +118,16 @@ func (gossiper *Gossiper) Run() {
 		go gossiper.processStatusMessages()
 		go gossiper.processRumorMessages()
 		go gossiper.startAntiEntropy()
-		
+
 		go gossiper.startRouteRumormongering()
 		go gossiper.processPrivateMessages()
-		
+
 		go gossiper.processDataRequest()
 		go gossiper.processDataReply()
-		
+
 		go gossiper.processSearchRequest()
 		go gossiper.processSearchReply()
-		
+
 		go gossiper.processTLCMessage()
 		go gossiper.processTLCAck()
 
@@ -126,29 +145,7 @@ func (gossiper *Gossiper) Run() {
 	}
 }
 
-// create Connection data
-func createConnectionData(addressString string) *ConnectionData {
-	// resolve gossiper address
-	address, err := net.ResolveUDPAddr("udp4", addressString)
-	helpers.ErrorCheck(err)
-
-	// get connection for gossiper
-	connection, err := net.ListenUDP("udp4", address)
-	helpers.ErrorCheck(err)
-
-	return &ConnectionData{Address: address, Connection: connection}
-}
-
-func initDefaultChannels() map[string]chan *ExtendedGossipPacket {
-	// initialize channels used in the application
-	channels := make(map[string]chan *ExtendedGossipPacket)
-	for _, t := range modeTypes {
-		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
-			channels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
-		}
-	}
-	return channels
-}
+// getters
 
 // GetName of the gossiper
 func (gossiper *Gossiper) GetName() string {
@@ -161,26 +158,26 @@ func (gossiper *Gossiper) GetRound() uint32 {
 }
 
 // GetSearchedFiles util
-func (gossiper *Gossiper) GetSearchedFiles() []FileGUI {
-	return gossiper.uiHandler.filesSearched
+func (gossiper *Gossiper) GetSearchedFiles() chan *FileGUI {
+	return gossiper.fileHandler.filesSearched
 }
 
 // GetIndexedFiles util
 func (gossiper *Gossiper) GetIndexedFiles() chan *FileGUI {
-	return gossiper.uiHandler.filesIndexed
+	return gossiper.fileHandler.filesIndexed
 }
 
 // GetDownloadedFiles util
 func (gossiper *Gossiper) GetDownloadedFiles() chan *FileGUI {
-	return gossiper.uiHandler.filesDownloaded
+	return gossiper.fileHandler.filesDownloaded
 }
 
 // GetLatestRumorMessages util
 func (gossiper *Gossiper) GetLatestRumorMessages() chan *RumorMessage {
-	return gossiper.uiHandler.latestRumors
+	return gossiper.gossipHandler.latestRumors
 }
 
-// GeBlockchainLogs util
-func (gossiper *Gossiper) GeBlockchainLogs() chan string {
-	return gossiper.uiHandler.blockchainLogs
+// GetBlockchainLogs util
+func (gossiper *Gossiper) GetBlockchainLogs() chan string {
+	return gossiper.blockchainHandler.blockchainLogs
 }
