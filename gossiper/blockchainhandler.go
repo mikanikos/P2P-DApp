@@ -15,8 +15,7 @@ type BlockchainHandler struct {
 	tlcAckChan     chan *TLCAck
 	tlcConfirmChan sync.Map
 
-	blockBuffer chan *ExtendedGossipPacket
-	tlcStatus   sync.Map
+	tlcStatus sync.Map
 
 	confirmations sync.Map
 	messageSeen   sync.Map
@@ -35,7 +34,6 @@ func NewBlockchainHandler() *BlockchainHandler {
 		myTime:            0,
 		tlcAckChan:        make(chan *TLCAck, maxChannelSize),
 		tlcConfirmChan:    sync.Map{},
-		blockBuffer:       make(chan *ExtendedGossipPacket, maxChannelSize),
 		tlcStatus:         sync.Map{},
 		confirmations:     sync.Map{},
 		messageSeen:       sync.Map{},
@@ -66,14 +64,14 @@ func (gossiper *Gossiper) createAndPublishTxBlock(fileMetadata *FileMetadata) {
 		gossiper.gossipWithConfirmation(extPacket, false)
 	} else {
 		go func(e *ExtendedGossipPacket) {
-			gossiper.blockchainHandler.blockBuffer <- e
+			packetChannels["clientBlock"] <- e
 		}(extPacket)
 	}
 }
 
 // process incoming blocks from client (namely new files to be indexed) and choose to use qsc or tlc according to flags
 func (gossiper *Gossiper) processClientBlocks() {
-	for extPacket := range gossiper.blockchainHandler.blockBuffer {
+	for extPacket := range packetChannels["clientBlock"] {
 		if hw3ex4Mode {
 			gossiper.qscRound(extPacket)
 		} else {
@@ -85,7 +83,6 @@ func (gossiper *Gossiper) processClientBlocks() {
 // process tlc message
 func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket) {
 	messageRound := gossiper.getMessageOriginalRound(extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID, extPacket.Packet.TLCMessage.Confirmed)
-	causalCheck := gossiper.checkForCausalProperty(extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.VectorClock, extPacket.Packet.TLCMessage.Confirmed)
 
 	if debug {
 		fmt.Println(extPacket.Packet.TLCMessage.Origin + " is at round " + fmt.Sprint(messageRound))
@@ -95,27 +92,14 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket) {
 	if !hw3ex4Mode || gossiper.blockchainHandler.isTxBlockValid(extPacket.Packet.TLCMessage.TxBlock) {
 		if !hw3ex3Mode || ackAllMode || uint32(messageRound) >= gossiper.blockchainHandler.myTime {
 			if !(extPacket.Packet.TLCMessage.Confirmed > -1) {
-
-				round := atomic.LoadUint32(&gossiper.blockchainHandler.myTime)
-
-				// store message for this round
-				value, _ := gossiper.blockchainHandler.messageSeen.LoadOrStore(round, make(map[string]*TLCMessage))
-				messages := value.(map[string]*TLCMessage)
-				messages[extPacket.Packet.TLCMessage.Origin] = extPacket.Packet.TLCMessage
-
-				// send ack for tlc
-				privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
-				if hw3ex2Mode || hw3ex3Mode {
-					fmt.Println("SENDING ACK origin " + extPacket.Packet.TLCMessage.Origin + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
-				}
-				go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
+				gossiper.ackTLCMessage(extPacket.Packet.TLCMessage)
 			}
 		}
 	}
 
-	if hw3ex3Mode || hw3ex4Mode {
+	if hw3ex3Mode {
 		// check if I can take this confirmation, otherwise process it again later
-		if causalCheck && uint32(messageRound) == gossiper.blockchainHandler.myTime {
+		if gossiper.checkForCausalProperty(extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.VectorClock, extPacket.Packet.TLCMessage.Confirmed) && uint32(messageRound) == gossiper.blockchainHandler.myTime {
 
 			if debug {
 				fmt.Println("Got confirm for " + fmt.Sprint(extPacket.Packet.TLCMessage.Confirmed) + " from " + extPacket.Packet.TLCMessage.Origin + " " + fmt.Sprint(extPacket.Packet.TLCMessage.Fitness))
@@ -132,9 +116,9 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket) {
 			}(extPacket.Packet.TLCMessage)
 		} else {
 			// re-send it to the queue after timeout
-			if extPacket.Packet.TLCMessage.Confirmed > -1 {
+			if extPacket.Packet.TLCMessage.Confirmed > -1 && uint32(messageRound) >= gossiper.blockchainHandler.myTime {
 				go func(ext *ExtendedGossipPacket) {
-					time.Sleep(time.Duration(500) * time.Millisecond)
+					time.Sleep(time.Duration(1) * time.Second)
 					packetChannels["tlcMes"] <- ext
 				}(extPacket)
 			}
@@ -142,19 +126,35 @@ func (gossiper *Gossiper) handleTLCMessage(extPacket *ExtendedGossipPacket) {
 	}
 }
 
+func (gossiper *Gossiper) ackTLCMessage(tlc *TLCMessage) {
+	round := atomic.LoadUint32(&gossiper.blockchainHandler.myTime)
+
+	// store message for this round
+	value, _ := gossiper.blockchainHandler.messageSeen.LoadOrStore(round, make(map[string]*TLCMessage))
+	messages := value.(map[string]*TLCMessage)
+	messages[tlc.Origin] = tlc
+
+	// send ack for tlc
+	privatePacket := &TLCAck{Origin: gossiper.name, ID: tlc.ID, Destination: tlc.Origin, HopLimit: uint32(hopLimit)}
+	if hw3ex2Mode || hw3ex3Mode {
+		fmt.Println("SENDING ACK origin " + tlc.Origin + " ID " + fmt.Sprint(tlc.ID))
+	}
+	go gossiper.forwardPrivateMessage(&GossipPacket{Ack: privatePacket}, &privatePacket.HopLimit, privatePacket.Destination)
+}
+
 // create tlc message with given paramters
 func (gossiper *Gossiper) createTLCMessage(block BlockPublish, confirmedFlag int, fitness float32) *ExtendedGossipPacket {
-	id := atomic.LoadUint32(&gossiper.gossipHandler.SeqID)
-	atomic.AddUint32(&gossiper.gossipHandler.SeqID, uint32(1))
+	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
+	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 
-	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: gossiper.gossipHandler.MyStatus.createMyStatusPacket(), Confirmed: confirmedFlag, Fitness: fitness}
+	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: gossiper.gossipHandler.myStatus.createMyStatusPacket(), Confirmed: confirmedFlag, Fitness: fitness}
 	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.connectionHandler.gossiperData.Address}
 
 	// store message
 	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.name, id)
 
 	// update vector clock
-	tlcPacket.VectorClock = gossiper.gossipHandler.MyStatus.createMyStatusPacket()
+	tlcPacket.VectorClock = gossiper.gossipHandler.myStatus.createMyStatusPacket()
 
 	return extPacket
 }
@@ -193,7 +193,7 @@ func (gossiper *Gossiper) checkForCausalProperty(origin string, receivedVC *Stat
 	tlcMap := value.(*SafeTLCMap)
 
 	// check vector clock, if v_other[] <= v_mine[] true otherwise false
-	vectorClockHigher := gossiper.gossipHandler.MyStatus.checkIfINeedPeerStatus(receivedVC.Want)
+	vectorClockHigher := gossiper.gossipHandler.myStatus.checkIfINeedPeerStatus(receivedVC.Want)
 	if !vectorClockHigher && confirmedID > -1 {
 
 		if debug {

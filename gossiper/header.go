@@ -15,7 +15,7 @@ var hw3ex3Mode = false
 var hw3ex4Mode = false
 var ackAllMode = false
 
-var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck"}
+var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck", "clientBlock"}
 
 // channels used throgout the app to exchange messages
 var packetChannels map[string]chan *ExtendedGossipPacket

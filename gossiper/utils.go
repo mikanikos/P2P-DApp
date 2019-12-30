@@ -100,30 +100,51 @@ func copyFile(source, target string) {
 	target = downloadFolder + target
 
 	sourceFile, err := os.Open(source)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 	defer sourceFile.Close()
 
 	targetFile, err := os.Create(target)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 	defer targetFile.Close()
 
 	_, err = io.Copy(targetFile, sourceFile)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 
 	err = targetFile.Close()
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 }
 
 func saveFileOnDisk(fileName string, data []byte) {
 	file, err := os.Create(downloadFolder + fileName)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 	defer file.Close()
 
 	_, err = file.Write(data)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 
 	err = file.Sync()
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 }
 
 func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint32 {

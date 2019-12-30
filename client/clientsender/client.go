@@ -19,10 +19,10 @@ type Client struct {
 func NewClient(uiPort string) *Client {
 	// resolve gossiper address
 	gossiperAddr, err := net.ResolveUDPAddr("udp4", helpers.BaseAddress+":"+uiPort)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, true)
 	// establish connection
 	conn, err := net.DialUDP("udp4", nil, gossiperAddr)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, true)
 
 	return &Client{
 		GossiperAddr: gossiperAddr,
@@ -40,11 +40,11 @@ func (client *Client) SendMessage(msg string, dest, file, request *string, keywo
 
 		// encode
 		packetBytes, err := protobuf.Encode(packet)
-		helpers.ErrorCheck(err)
+		helpers.ErrorCheck(err, false)
 
 		// send message to gossiper
 		_, err = client.Conn.Write(packetBytes)
-		helpers.ErrorCheck(err)
+		helpers.ErrorCheck(err, false)
 	}
 }
 

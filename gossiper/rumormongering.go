@@ -20,7 +20,7 @@ func (gossiper *Gossiper) startAntiEntropy() {
 				peersCopy := gossiper.GetPeers()
 				if len(peersCopy) != 0 {
 					randomPeer := getRandomPeer(peersCopy)
-					statusToSend := gossiper.gossipHandler.MyStatus.createMyStatusPacket()
+					statusToSend := gossiper.gossipHandler.myStatus.createMyStatusPacket()
 					gossiper.connectionHandler.sendPacket(&GossipPacket{Status: statusToSend}, randomPeer)
 				}
 			}
@@ -116,15 +116,15 @@ func (gossiper *Gossiper) handlePeerStatus(statusChannel chan *ExtendedGossipPac
 		go gossiper.gossipHandler.notifyListenersForStatus(extPacket)
 
 		// get peer status that other might need
-		toSend := gossiper.gossipHandler.MyStatus.getPeerStatusForPeer(extPacket.Packet.Status.Want)
+		toSend := gossiper.gossipHandler.myStatus.getPeerStatusForPeer(extPacket.Packet.Status.Want)
 		if toSend != nil {
 			packetToSend := gossiper.gossipHandler.getPacketFromPeerStatus(*toSend)
 			gossiper.connectionHandler.sendPacket(packetToSend, extPacket.SenderAddr)
 		} else {
 			// check if I need something
-			wanted := gossiper.gossipHandler.MyStatus.checkIfINeedPeerStatus(extPacket.Packet.Status.Want)
+			wanted := gossiper.gossipHandler.myStatus.checkIfINeedPeerStatus(extPacket.Packet.Status.Want)
 			if wanted {
-				statusToSend := gossiper.gossipHandler.MyStatus.createMyStatusPacket()
+				statusToSend := gossiper.gossipHandler.myStatus.createMyStatusPacket()
 				gossiper.connectionHandler.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 			} else {
 				// we're in sync

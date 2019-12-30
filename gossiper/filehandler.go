@@ -66,18 +66,16 @@ func (gossiper *Gossiper) indexFile(fileName *string) {
 
 	// open new file
 	file, err := os.Open(shareFolder + *fileName)
-	helpers.ErrorCheck(err)
-	
+	helpers.ErrorCheck(err, false)
 	if err != nil {
 		return
 	}
-	
+
 	defer file.Close()
 
 	// get file data
 	fileInfo, err := file.Stat()
-	helpers.ErrorCheck(err)
-
+	helpers.ErrorCheck(err, false)
 	if err != nil {
 		return
 	}
@@ -175,7 +173,7 @@ func (fileHandler *FileHandler) updateChunkOwnerMap(destination string, chunkMap
 	metafile := *metafilePointer
 	for _, elem := range chunkMap {
 		chunkHash := metafile[(elem-1)*32 : elem*32]
-		fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)] = helpers.RemoveDuplicatesFromSlice(append(fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)], destination))
+		fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)] = helpers.RemoveDuplicatesFromStringSlice(append(fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)], destination))
 	}
 }
 

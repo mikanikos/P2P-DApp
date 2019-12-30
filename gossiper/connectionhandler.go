@@ -30,11 +30,11 @@ func NewConnectionHandler(gossiperAddress, clientAddress string) *ConnectionHand
 func createConnectionData(addressString string) *ConnectionData {
 	// resolve gossiper address
 	address, err := net.ResolveUDPAddr("udp4", addressString)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, true)
 
 	// get connection for gossiper
 	connection, err := net.ListenUDP("udp4", address)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, true)
 
 	return &ConnectionData{Address: address, Connection: connection}
 }
@@ -53,7 +53,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 
 		// read from socket
 		n, _, err := gossiper.connectionHandler.clientData.Connection.ReadFromUDP(packetBytes)
-		helpers.ErrorCheck(err)
+		helpers.ErrorCheck(err, false)
 
 		if n > maxBufferSize {
 			maxBufferSize = maxBufferSize + n
@@ -62,7 +62,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 
 		// decode message
 		protobuf.Decode(packetBytes[:n], messageFromClient)
-		helpers.ErrorCheck(err)
+		helpers.ErrorCheck(err, false)
 
 		// send it to channel
 		go func(m *helpers.Message) {
@@ -79,7 +79,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 
 		// read from socket
 		n, addr, err := gossiper.connectionHandler.gossiperData.Connection.ReadFromUDP(packetBytes)
-		helpers.ErrorCheck(err)
+		helpers.ErrorCheck(err, false)
 
 		if n > maxBufferSize {
 			maxBufferSize = maxBufferSize + n
@@ -91,7 +91,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 
 		// decode message
 		err = protobuf.Decode(packetBytes[:n], packetFromPeer)
-		helpers.ErrorCheck(err)
+		helpers.ErrorCheck(err, false)
 
 		// get type of message and send it dynamically to the correct channel
 		modeType := getTypeFromGossip(packetFromPeer)
@@ -113,11 +113,11 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 func (connectionHandler *ConnectionHandler) sendPacket(packet *GossipPacket, address *net.UDPAddr) {
 	// encode message
 	packetToSend, err := protobuf.Encode(packet)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
 
 	// send message
 	_, err = connectionHandler.gossiperData.Connection.WriteToUDP(packetToSend, address)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
 }
 
 // broadcast message to all the known peers

@@ -7,35 +7,31 @@ import (
 
 // GossipHandler struct
 type GossipHandler struct {
-	SeqID             uint32
-	MessageStorage    sync.Map
-	MyStatus          VectorClock
-	StatusChannels    sync.Map
-	MongeringChannels sync.Map
+	seqID             uint32
+	messageStorage    sync.Map
+	myStatus          *VectorClock
+	statusChannels    sync.Map
+	mongeringChannels sync.Map
 	latestRumors      chan *RumorMessage
 }
 
 // NewGossipHandler create new gossip handler
 func NewGossipHandler() *GossipHandler {
 	return &GossipHandler{
-		SeqID:             1,
-		MessageStorage:    sync.Map{},
-		MyStatus:          VectorClock{Entries: make(map[string]uint32)},
-		StatusChannels:    sync.Map{},
-		MongeringChannels: sync.Map{},
+		seqID:             1,
+		messageStorage:    sync.Map{},
+		myStatus:          &VectorClock{Entries: make(map[string]uint32)},
+		statusChannels:    sync.Map{},
+		mongeringChannels: sync.Map{},
 		latestRumors:      make(chan *RumorMessage, latestMessagesBuffer),
 	}
-}
-
-// VectorClock struct
-type VectorClock struct {
-	Entries map[string]uint32
-	Mutex   sync.RWMutex
 }
 
 func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, origin string, id uint32) {
 
 	gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
+
+	packetType := getTypeFromGossip(extPacket.Packet)
 
 	isMessageKnown := true
 
@@ -43,7 +39,7 @@ func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, o
 
 		// update routing table
 		textMessage := ""
-		if getTypeFromGossip(extPacket.Packet) == "rumor" {
+		if packetType == "rumor" {
 			textMessage = extPacket.Packet.Rumor.Text
 		}
 		gossiper.routingHandler.updateRoutingTable(origin, textMessage, id, extPacket.SenderAddr)
@@ -53,12 +49,12 @@ func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, o
 	}
 
 	// send status
-	statusToSend := gossiper.gossipHandler.MyStatus.createMyStatusPacket()
+	statusToSend := gossiper.gossipHandler.myStatus.createMyStatusPacket()
 	gossiper.connectionHandler.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 
 	if !isMessageKnown {
 
-		if getTypeFromGossip(extPacket.Packet) == "rumor" {
+		if packetType == "rumor" {
 			if extPacket.Packet.Rumor.Text != "" {
 				go func(r *RumorMessage) {
 					gossiper.gossipHandler.latestRumors <- r
@@ -73,8 +69,8 @@ func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, o
 
 // create new rumor message
 func (gossiper *Gossiper) createRumorMessage(text string) *ExtendedGossipPacket {
-	id := atomic.LoadUint32(&gossiper.gossipHandler.SeqID)
-	atomic.AddUint32(&gossiper.gossipHandler.SeqID, uint32(1))
+	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
+	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 	rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: text}
 	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.connectionHandler.gossiperData.Address}
 	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.name, id)
@@ -91,7 +87,7 @@ func (gossiper *Gossiper) createRumorMessage(text string) *ExtendedGossipPacket 
 // store gossip message based on origin and seid
 func (gossipHandler *GossipHandler) storeMessage(packet *GossipPacket, origin string, id uint32) bool {
 
-	value, _ := gossipHandler.MessageStorage.LoadOrStore(origin, &sync.Map{})
+	value, _ := gossipHandler.messageStorage.LoadOrStore(origin, &sync.Map{})
 	mapValue := value.(*sync.Map)
 
 	_, loaded := mapValue.LoadOrStore(id, packet)

@@ -13,7 +13,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 	for extPacket := range packetChannels["tlcMes"] {
 
 		// handle gossip message
-		gossiper.handleGossipMessage(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
+		go gossiper.handleGossipMessage(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
 		// handle tlc message
 		if hw3ex2Mode || hw3ex3Mode || hw3ex4Mode {
@@ -241,7 +241,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 		case "searchRequest":
 
 			// create search request packet and handle it
-			keywordsSplitted := helpers.RemoveDuplicatesFromSlice(strings.Split(*message.Keywords, ","))
+			keywordsSplitted := helpers.RemoveDuplicatesFromStringSlice(strings.Split(*message.Keywords, ","))
 
 			requestPacket := &SearchRequest{Origin: gossiper.name, Keywords: keywordsSplitted, Budget: *message.Budget}
 			packet.Packet = &GossipPacket{SearchRequest: requestPacket}
@@ -296,7 +296,7 @@ func (gossiper *Gossiper) processStatusMessages() {
 		}
 
 		// get status channel for peer and send it there
-		value, exists := gossiper.gossipHandler.StatusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket, maxChannelSize))
+		value, exists := gossiper.gossipHandler.statusChannels.LoadOrStore(extPacket.SenderAddr.String(), make(chan *ExtendedGossipPacket, maxChannelSize))
 		channelPeer := value.(chan *ExtendedGossipPacket)
 		if !exists {
 			go gossiper.handlePeerStatus(channelPeer)

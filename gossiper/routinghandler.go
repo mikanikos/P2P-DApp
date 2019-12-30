@@ -9,16 +9,16 @@ import (
 
 // RoutingHandler struct
 type RoutingHandler struct {
-	RoutingTable map[string]*net.UDPAddr
-	OriginLastID *VectorClock
-	Mutex        sync.RWMutex
+	routingTable map[string]*net.UDPAddr
+	originLastID *VectorClock
+	mutex        sync.RWMutex
 }
 
 // NewRoutingHandler create new routing handler
 func NewRoutingHandler() *RoutingHandler {
 	return &RoutingHandler{
-		RoutingTable: make(map[string]*net.UDPAddr),
-		OriginLastID: &VectorClock{Entries: make(map[string]uint32)},
+		routingTable: make(map[string]*net.UDPAddr),
+		originLastID: &VectorClock{Entries: make(map[string]uint32)},
 	}
 }
 
@@ -52,8 +52,8 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 // update routing table based on packet data
 func (routingHandler *RoutingHandler) updateRoutingTable(origin, textPacket string, idPacket uint32, address *net.UDPAddr) {
 
-	routingHandler.Mutex.Lock()
-	defer routingHandler.Mutex.Unlock()
+	routingHandler.mutex.Lock()
+	defer routingHandler.mutex.Unlock()
 
 	// if new packet with higher id, update table
 	if routingHandler.updateLastOriginID(origin, idPacket) {
@@ -65,7 +65,7 @@ func (routingHandler *RoutingHandler) updateRoutingTable(origin, textPacket stri
 		}
 
 		// update
-		routingHandler.RoutingTable[origin] = address
+		routingHandler.routingTable[origin] = address
 
 		if debug {
 			fmt.Println("Routing table updated")
@@ -77,13 +77,13 @@ func (routingHandler *RoutingHandler) updateRoutingTable(origin, textPacket stri
 func (routingHandler *RoutingHandler) updateLastOriginID(origin string, id uint32) bool {
 	isNew := false
 
-	originMaxID, loaded := routingHandler.OriginLastID.Entries[origin]
+	originMaxID, loaded := routingHandler.originLastID.Entries[origin]
 	if !loaded {
-		routingHandler.OriginLastID.Entries[origin] = id
+		routingHandler.originLastID.Entries[origin] = id
 		isNew = true
 	} else {
 		if id > originMaxID {
-			routingHandler.OriginLastID.Entries[origin] = id
+			routingHandler.originLastID.Entries[origin] = id
 			isNew = true
 		}
 	}
@@ -99,9 +99,9 @@ func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket, hopLimit *
 		*hopLimit = *hopLimit - 1
 
 		// get routing table entry for the origin
-		gossiper.routingHandler.Mutex.RLock()
-		addressInTable, isPresent := gossiper.routingHandler.RoutingTable[destination]
-		gossiper.routingHandler.Mutex.RUnlock()
+		gossiper.routingHandler.mutex.RLock()
+		addressInTable, isPresent := gossiper.routingHandler.routingTable[destination]
+		gossiper.routingHandler.mutex.RUnlock()
 
 		// send packet if address is present
 		if isPresent {
@@ -112,12 +112,12 @@ func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket, hopLimit *
 
 // GetOrigins in concurrent environment
 func (gossiper *Gossiper) GetOrigins() []string {
-	gossiper.routingHandler.Mutex.RLock()
-	defer gossiper.routingHandler.Mutex.RUnlock()
+	gossiper.routingHandler.mutex.RLock()
+	defer gossiper.routingHandler.mutex.RUnlock()
 
-	origins := make([]string, len(gossiper.routingHandler.OriginLastID.Entries))
+	origins := make([]string, len(gossiper.routingHandler.originLastID.Entries))
 	i := 0
-	for k := range gossiper.routingHandler.OriginLastID.Entries {
+	for k := range gossiper.routingHandler.originLastID.Entries {
 		origins[i] = k
 		i++
 	}

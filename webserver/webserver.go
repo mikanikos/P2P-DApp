@@ -54,7 +54,10 @@ func (webserver *Webserver) Run(portGUI string) {
 // function to write json data in the http header
 func writeJSON(w http.ResponseWriter, payload interface{}) {
 	bytes, err := json.Marshal(payload)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(bytes)
@@ -104,7 +107,10 @@ func (webserver *Webserver) getMessageHandler(w http.ResponseWriter, r *http.Req
 // send client message to gossiper with the arguments given
 func (webserver *Webserver) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
+	if err != nil {
+		return
+	}
 
 	// parse post message
 	message := r.PostForm.Get("text")
@@ -118,7 +124,7 @@ func (webserver *Webserver) postMessageHandler(w http.ResponseWriter, r *http.Re
 		budget = "0"
 	}
 	budgetValue, err := strconv.ParseUint(budget, 10, 64)
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, false)
 
 	// send message with parameters through client interface
 	webserver.Client.SendMessage(message, &destination, &file, &request, keywords, budgetValue)

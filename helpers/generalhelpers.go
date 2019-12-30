@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"fmt"
 	"net"
 	"sort"
 )
@@ -19,9 +20,13 @@ type Message struct {
 }
 
 // ErrorCheck to log errors
-func ErrorCheck(err error) {
+func ErrorCheck(err error, doPanic bool) {
 	if err != nil {
-		panic(err)
+		if doPanic {
+			panic(err)
+		} else {
+			fmt.Println(err)
+		}
 	}
 }
 
@@ -50,8 +55,8 @@ func GetArrayStringFromAddresses(peers []*net.UDPAddr) []string {
 	return list
 }
 
-// RemoveDuplicatesFromSlice utility to remove duplicates from list of strings
-func RemoveDuplicatesFromSlice(slice []string) []string {
+// RemoveDuplicatesFromStringSlice utility to remove duplicates from list of strings
+func RemoveDuplicatesFromStringSlice(slice []string) []string {
 	found := make(map[string]bool)
 	for i := range slice {
 		found[slice[i]] = true

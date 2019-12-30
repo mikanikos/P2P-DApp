@@ -2,13 +2,19 @@ package gossiper
 
 import "sync"
 
+// VectorClock struct
+type VectorClock struct {
+	Entries map[string]uint32
+	Mutex   sync.RWMutex
+}
+
 // update my vector clock based on current information of mapvalue
 func (gossipHandler *GossipHandler) updateStatus(origin string, id uint32, mapValue *sync.Map) {
 
-	gossipHandler.MyStatus.Mutex.Lock()
-	defer gossipHandler.MyStatus.Mutex.Unlock()
+	gossipHandler.myStatus.Mutex.Lock()
+	defer gossipHandler.myStatus.Mutex.Unlock()
 
-	value, peerExists := gossipHandler.MyStatus.Entries[origin]
+	value, peerExists := gossipHandler.myStatus.Entries[origin]
 	maxID := uint32(1)
 	if peerExists {
 		maxID = uint32(value)
@@ -20,14 +26,14 @@ func (gossipHandler *GossipHandler) updateStatus(origin string, id uint32, mapVa
 		for found {
 			maxID++
 			_, found = mapValue.Load(maxID)
-			gossipHandler.MyStatus.Entries[origin] = maxID
+			gossipHandler.myStatus.Entries[origin] = maxID
 		}
 	}
 }
 
 // get gossip packet from peer status
 func (gossipHandler *GossipHandler) getPacketFromPeerStatus(ps PeerStatus) *GossipPacket {
-	value, _ := gossipHandler.MessageStorage.Load(ps.Identifier)
+	value, _ := gossipHandler.messageStorage.Load(ps.Identifier)
 	idMessages := value.(*sync.Map)
 	message, _ := idMessages.Load(ps.NextID)
 	return message.(*GossipPacket)
@@ -96,20 +102,20 @@ type MessageUniqueID struct {
 
 // get listener for incoming status
 func (gossipHandler *GossipHandler) getListenerForStatus(origin string, id uint32, peer string) (chan bool, bool) {
-	msgChan, _ := gossipHandler.MongeringChannels.LoadOrStore(peer, &sync.Map{})
+	msgChan, _ := gossipHandler.mongeringChannels.LoadOrStore(peer, &sync.Map{})
 	channel, loaded := msgChan.(*sync.Map).LoadOrStore(MessageUniqueID{Origin: origin, ID: id}, make(chan bool, maxChannelSize))
 	return channel.(chan bool), loaded
 }
 
 // delete listener for incoming status
 func (gossipHandler *GossipHandler) deleteListenerForStatus(origin string, id uint32, peer string) {
-	msgChan, _ := gossipHandler.MongeringChannels.LoadOrStore(peer, &sync.Map{})
+	msgChan, _ := gossipHandler.mongeringChannels.LoadOrStore(peer, &sync.Map{})
 	msgChan.(*sync.Map).Delete(MessageUniqueID{Origin: origin, ID: id})
 }
 
 // notify listeners if status received satify condition
 func (gossipHandler *GossipHandler) notifyListenersForStatus(extpacket *ExtendedGossipPacket) {
-	msgChan, exists := gossipHandler.MongeringChannels.Load(extpacket.SenderAddr.String())
+	msgChan, exists := gossipHandler.mongeringChannels.Load(extpacket.SenderAddr.String())
 	if exists {
 		msgChan.(*sync.Map).Range(func(key interface{}, value interface{}) bool {
 			msg := key.(MessageUniqueID)

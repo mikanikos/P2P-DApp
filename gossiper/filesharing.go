@@ -143,7 +143,7 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 				if gossiper.downloadDataFromPeer(fileName, peer, hashChunk, i+1) {
 					if peer == destination {
 						gossiper.fileHandler.chunkOwnership.Mutex.Lock()
-						gossiper.fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(hashChunk)] = helpers.RemoveDuplicatesFromSlice(append(gossiper.fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(hashChunk)], peer))
+						gossiper.fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(hashChunk)] = helpers.RemoveDuplicatesFromStringSlice(append(gossiper.fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(hashChunk)], peer))
 						gossiper.fileHandler.chunkOwnership.Mutex.Unlock()
 					}
 					fileMetadata.ChunkMap = helpers.RemoveDuplicatesFromUint64Slice(helpers.InsertToSortUint64Slice(fileMetadata.ChunkMap, i+1))

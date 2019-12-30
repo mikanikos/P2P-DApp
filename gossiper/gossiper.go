@@ -93,7 +93,7 @@ func initPacketChannels() {
 // createWorkingDirectories for shared and downloaded files at the base directory
 func createWorkingDirectories() {
 	wd, err := os.Getwd()
-	helpers.ErrorCheck(err)
+	helpers.ErrorCheck(err, true)
 
 	shareFolder = wd + shareFolder
 	downloadFolder = wd + downloadFolder
