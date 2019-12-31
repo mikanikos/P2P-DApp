@@ -14,10 +14,12 @@ type ConnectionHandler struct {
 	gossiperData *ConnectionData
 }
 
-// NewConnectionHandler create new routing handler
+// NewConnectionHandler creates new connection handler
 func NewConnectionHandler(gossiperAddress, clientAddress string) *ConnectionHandler {
 
+	// connection with other peers
 	gossiperData := createConnectionData(gossiperAddress)
+	// connection with client
 	clientData := createConnectionData(clientAddress)
 
 	return &ConnectionHandler{

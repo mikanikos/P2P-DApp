@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 )
 
+// functions for UI, quite self-explanatory
+
 // FileGUI struct
 type FileGUI struct {
 	Name     string

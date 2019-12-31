@@ -5,11 +5,10 @@ import (
 	"fmt"
 )
 
+// POSSIBLE OPTIMIZATION: if current file from our client was not agreed in consensus, should I use it for the next round?
+
 // que sera consensus round
 func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
-
-	// extPacket.Packet.TLCMessage.TxBlock.PrevHash = gossiper.blHandler.previousBlockHash
-	// extPacket.Packet.TLCMessage.Fitness = rand.Float32()
 
 	// get current round
 	roundS := gossiper.blockchainHandler.myTime
@@ -70,7 +69,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		fmt.Println("ROUND S+2")
 	}
 
-	// round s + 2
+	// round s + 2 (IS IT NECESSARY?)
 	gossiper.tlcRound(gossiper.createTLCMessage(highestTLCRoundS1.TxBlock, -1, highestTLCRoundS1.Fitness))
 	value, loaded = gossiper.blockchainHandler.confirmations.Load(roundS + 2)
 	if !loaded {
@@ -96,6 +95,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		gossiper.blockchainHandler.topBlockchainHash = chosenBlock.Hash()
 		gossiper.blockchainHandler.previousBlockHash = gossiper.blockchainHandler.topBlockchainHash
 
+		// if mine, notify gui
 		if messageConsensus.Origin == gossiper.name {
 			go func(b *BlockPublish) {
 				gossiper.fileHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
@@ -108,6 +108,14 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		// if not consensus, update blockchain with highest tilc from round s + 1
 		chosenBlock := highestTLCRoundS1.TxBlock
 		gossiper.blockchainHandler.previousBlockHash = chosenBlock.Hash()
+
+		// if mine, notify gui
+		if highestTLCRoundS1.Origin == gossiper.name {
+			go func(b *BlockPublish) {
+				gossiper.fileHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
+			}(&chosenBlock)
+		}
+
 	}
 }
 
@@ -150,6 +158,7 @@ func (blockchainHandler *BlockchainHandler) isTxBlockValid(b BlockPublish) bool 
 // check if consensus reached based on confirmations from previous rounds
 func (blockchainHandler *BlockchainHandler) checkIfConsensusReached(confirmationsRoundS, confirmationsRoundS1 map[string]*TLCMessage, initialRound uint32) *TLCMessage {
 
+	// get best from first confirmations of first round
 	best := &TLCMessage{Fitness: 0}
 	for _, message := range confirmationsRoundS {
 		if message.Fitness > best.Fitness {
@@ -164,12 +173,14 @@ func (blockchainHandler *BlockchainHandler) checkIfConsensusReached(confirmation
 	messageSeen := tlcMap.OriginMessage
 	tlcMap.Mutex.RUnlock()
 
+	// check if higher than all messages seen from first round
 	for _, saw := range messageSeen {
 		if saw.Fitness >= best.Fitness && saw.TxBlock.Hash() != best.TxBlock.Hash() {
 			return nil
 		}
 	}
 
+	// check if block was reconfirmed
 	for _, m1 := range confirmationsRoundS1 {
 		if m1.TxBlock.Hash() == best.TxBlock.Hash() {
 			return best
@@ -177,6 +188,8 @@ func (blockchainHandler *BlockchainHandler) checkIfConsensusReached(confirmation
 	}
 
 	return nil
+
+	// ALTERNATIVE VERSION, DONT KNOW IF CORRECT OR NOT
 
 	// // first condition: m belongs to confirmationsRoundS, i.e. originated from s and was witnessed by round s+1
 	// for _, message := range confirmationsRoundS {

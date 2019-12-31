@@ -88,13 +88,6 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 		metafileStored, _ = gossiper.fileHandler.hashDataMap.Load(hex.EncodeToString(metaHash))
 	}
 
-	// if metafileStored == nil {
-	// 	if debug {
-	// 		fmt.Println("ERROR: metafile not present")
-	// 	}
-	// 	return
-	// }
-
 	// store/get file metadata information
 	metafile := *metafileStored.(*[]byte)
 	metadataStored, _ := gossiper.fileHandler.filesMetadata.LoadOrStore(getKeyFromString(hex.EncodeToString(metaHash)+fileName), &FileMetadata{FileName: fileName, MetafileHash: metaHash, ChunkMap: make([]uint64, 0), ChunkCount: uint64(len(metafile) / 32)})
@@ -137,7 +130,7 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 				peersWithChunk = append([]string{destination}, peersWithChunk...)
 			}
 
-			// try to get chunk from one peer
+			// try to get chunk from every peer
 			for _, peer := range peersWithChunk {
 				// download chunk
 				if gossiper.downloadDataFromPeer(fileName, peer, hashChunk, i+1) {
@@ -188,30 +181,3 @@ func (gossiper *Gossiper) downloadFileChunks(fileName, destination string, metaH
 		}(fileMetadata)
 	}
 }
-
-// // reconstruct file from all the chunks
-// func (fileHandler *FileHandler) reconstructFileFromChunks(fileMetadata *FileMetadata) {
-// 	size := int64(0)
-// 	chunksData := make([]byte, fileMetadata.ChunkCount*fileChunk)
-// 	metafile := *fileMetadata.MetaFile
-
-// 	// go over each chunk
-// 	for i := 0; i < int(fileMetadata.ChunkCount); i++ {
-// 		hChunk := metafile[i*32 : (i+1)*32]
-// 		value, loaded := fileHandler.hashDataMap.Load(string(hChunk))
-
-// 		if !loaded {
-// 			if debug {
-// 				fmt.Println("ERROR: no chunk during reconstruction")
-// 			}
-// 			return
-// 		}
-
-// 		chunkOwner := value.(*ChunkOwners)
-// 		chunk := *chunkOwner.Data
-// 		chunkLen := len(chunk)
-// 		copy(chunksData[i*fileChunk:(i*fileChunk)+chunkLen], chunk)
-// 		size += int64(chunkLen)
-// 	}
-
-// }

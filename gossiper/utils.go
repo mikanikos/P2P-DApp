@@ -15,6 +15,9 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
+// some utils used throughout the app, should be easy to understand
+
+// get type of gossip packet based on fields
 func getTypeFromGossip(packet *GossipPacket) string {
 
 	// as stated in the handout, we assume every packet has only one field which is not null
@@ -44,6 +47,7 @@ func getTypeFromGossip(packet *GossipPacket) string {
 	return "unknown"
 }
 
+// get type of client message based on fields
 func getTypeFromMessage(message *helpers.Message) string {
 	if simpleMode {
 		return "simple"
@@ -72,21 +76,13 @@ func getTypeFromMessage(message *helpers.Message) string {
 	return "unknown"
 }
 
+// get random peer from list
 func getRandomPeer(availablePeers []*net.UDPAddr) *net.UDPAddr {
 	indexPeer := rand.Intn(len(availablePeers))
 	return availablePeers[indexPeer]
 }
 
-// func getChunksFromMetafile(metafile []byte) [][]byte {
-// 	iterations := len(metafile) / 32
-// 	hashes := make([][]byte, iterations)
-// 	for i := 0; i < iterations; i++ {
-// 		hash := metafile[i*32 : (i+1)*32]
-// 		hashes[i] = hash
-// 	}
-// 	return hashes
-// }
-
+// check hash validity
 func checkHash(hash []byte, data []byte) bool {
 	var hash32 [32]byte
 	copy(hash32[:], hash)
@@ -94,6 +90,7 @@ func checkHash(hash []byte, data []byte) bool {
 	return hash32 == value
 }
 
+// copy file on disk
 func copyFile(source, target string) {
 
 	source = downloadFolder + source
@@ -126,6 +123,7 @@ func copyFile(source, target string) {
 	}
 }
 
+// save file on disk
 func saveFileOnDisk(fileName string, data []byte) {
 	file, err := os.Create(downloadFolder + fileName)
 	helpers.ErrorCheck(err, false)
@@ -147,6 +145,7 @@ func saveFileOnDisk(fileName string, data []byte) {
 	}
 }
 
+// get list of ids instaed of messages
 func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint32 {
 	originIDMap := make(map[string]uint32)
 	for key, value := range confirmations {
@@ -155,6 +154,7 @@ func getIDForConfirmations(confirmations map[string]*TLCMessage) map[string]uint
 	return originIDMap
 }
 
+// check if contains keywords
 func containsKeyword(fileName string, keywords []string) bool {
 	for _, keyword := range keywords {
 		if matched, _ := regexp.MatchString(keyword, fileName); matched || strings.Contains(fileName, keyword) {
@@ -164,6 +164,7 @@ func containsKeyword(fileName string, keywords []string) bool {
 	return false
 }
 
+// string -> hashed key
 func getKeyFromString(text string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(text))

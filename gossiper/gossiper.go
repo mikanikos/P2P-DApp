@@ -18,13 +18,20 @@ type ConnectionData struct {
 
 // Gossiper struct
 type Gossiper struct {
-	name      string
+	// name of the gossiper
+	name string
+	// save peers data (neighbours and total number of peers in the network)
 	peersData *PeersData
 
+	// handle connection with peers and client
 	connectionHandler *ConnectionHandler
-	gossipHandler     *GossipHandler
-	routingHandler    *RoutingHandler
-	fileHandler       *FileHandler
+	// handle gossip messages and status messages
+	gossipHandler *GossipHandler
+	// handle routing table and forwarding
+	routingHandler *RoutingHandler
+	// handle file indexing, sharing and searching
+	fileHandler *FileHandler
+	// handle abstractions for the blockchain (gossip with confirmation, tlc and qsc)
 	blockchainHandler *BlockchainHandler
 }
 
@@ -111,31 +118,27 @@ func (gossiper *Gossiper) Run() {
 	clientChannel := make(chan *helpers.Message, maxChannelSize)
 	go gossiper.processClientMessages(clientChannel)
 
-	// start prcessing
-	if simpleMode {
-		go gossiper.processSimpleMessages()
-	} else {
-		go gossiper.processStatusMessages()
-		go gossiper.processRumorMessages()
-		go gossiper.startAntiEntropy()
+	// start processing on separate goroutines
 
-		go gossiper.startRouteRumormongering()
-		go gossiper.processPrivateMessages()
+	go gossiper.processSimpleMessages()
+	go gossiper.processStatusMessages()
+	go gossiper.processRumorMessages()
+	go gossiper.startAntiEntropy()
 
-		go gossiper.processDataRequest()
-		go gossiper.processDataReply()
+	go gossiper.startRouteRumormongering()
+	go gossiper.processPrivateMessages()
 
-		go gossiper.processSearchRequest()
-		go gossiper.processSearchReply()
+	go gossiper.processDataRequest()
+	go gossiper.processDataReply()
 
-		go gossiper.processTLCMessage()
-		go gossiper.processTLCAck()
-		go gossiper.handleTLCMessage()
+	go gossiper.processSearchRequest()
+	go gossiper.processSearchReply()
 
-		if hw3ex3Mode || hw3ex4Mode {
-			go gossiper.processClientBlocks()
-		}
-	}
+	go gossiper.processTLCMessage()
+	go gossiper.processTLCAck()
+	go gossiper.handleTLCMessage()
+
+	go gossiper.processClientBlocks()
 
 	// listen for incoming packets
 	go gossiper.receivePacketsFromClient(clientChannel)

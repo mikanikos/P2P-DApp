@@ -9,6 +9,8 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
+// printing functions, quite self-explanatory
+
 func printStatusMessage(extPacket *ExtendedGossipPacket, peers []*net.UDPAddr) {
 	message := "STATUS from " + extPacket.SenderAddr.String() + " "
 	for _, value := range extPacket.Packet.Status.Want {
@@ -98,23 +100,6 @@ func printDownloadMessage(fileName, destination string, hash []byte, seqNum uint
 	}
 }
 
-// func (gossiper *Gossiper) printTLCMessage(tlc *TLCMessage) {
-// 	messageToPrint := "GOSSIP origin " + tlc.Origin +
-// 		" ID " + fmt.Sprint(tlc.ID) +
-// 		" filename " + tlc.TxBlock.Transaction.Name +
-// 		" size " + fmt.Sprint(tlc.TxBlock.Transaction.Size) +
-// 		" metahash " +hex.EncodeToStringtlc.TxBlock.Transaction.MetafileHash)
-
-// 	if tlc.Confirmed > -1 {
-// 		fmt.Println("CONFIRMED " + messageToPrint)
-
-// 		gossiper.uiHandler.blockchainLogs <- "CONFIRMED " + messageToPrint
-
-// 	} else {
-// 		fmt.Println("UNCONFIRMED " + messageToPrint)
-// 	}
-// }
-
 func (gossiper *Gossiper) printRoundMessage(round uint32, confirmations map[string]*TLCMessage) {
 	message := "ADVANCING TO round " + fmt.Sprint(round) + " BASED ON CONFIRMED MESSAGES "
 
@@ -125,7 +110,7 @@ func (gossiper *Gossiper) printRoundMessage(round uint32, confirmations map[stri
 	}
 	if hw3ex3Mode {
 		fmt.Println(message[:len(message)-2])
-		go func (m string) {
+		go func(m string) {
 			gossiper.blockchainHandler.blockchainLogs <- m[:len(m)-2]
 		}(message)
 	}

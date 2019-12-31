@@ -7,12 +7,18 @@ import (
 
 // GossipHandler struct
 type GossipHandler struct {
-	seqID             uint32
-	messageStorage    sync.Map
-	myStatus          *VectorClock
-	statusChannels    sync.Map
+	// seq id for gossips
+	seqID uint32
+	// store gossip messages sent and received
+	messageStorage sync.Map
+	// my current status (vector clock)
+	myStatus *VectorClock
+	// status channels used to process status sync with peers in paraller
+	statusChannels sync.Map
+	// channels used to communicate the arrival of status packets for active rumormongering goroutines
 	mongeringChannels sync.Map
-	latestRumors      chan *RumorMessage
+	// send rumors to gui
+	latestRumors chan *RumorMessage
 }
 
 // NewGossipHandler create new gossip handler

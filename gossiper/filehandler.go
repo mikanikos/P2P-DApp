@@ -14,12 +14,18 @@ import (
 
 // FileHandler struct
 type FileHandler struct {
-	hashDataMap        sync.Map
-	filesMetadata      sync.Map
-	hashChannels       sync.Map
+	// save data (chunk/metafile) by hash
+	hashDataMap sync.Map
+	// save filemetadata by filename and hash (unique identifier)
+	filesMetadata sync.Map
+	// channels by hash to send incoming data reply to active goroutines
+	hashChannels sync.Map
+	// store last search request by keywords and orgin
 	lastSearchRequests *SafeRequestMap
-	chunkOwnership     *ChunkOwnersMap
+	// track which peers have a chunk (by hash)
+	chunkOwnership *ChunkOwnersMap
 
+	// channels to show files on gui
 	filesIndexed    chan *FileGUI
 	filesDownloaded chan *FileGUI
 	filesSearched   chan *FileGUI
@@ -34,9 +40,9 @@ func NewFileHandler() *FileHandler {
 		lastSearchRequests: &SafeRequestMap{OriginTimeMap: make(map[string]time.Time)},
 		chunkOwnership:     &ChunkOwnersMap{ChunkOwners: make(map[string][]string)},
 
-		filesIndexed:    make(chan *FileGUI, 10),
-		filesDownloaded: make(chan *FileGUI, 10),
-		filesSearched:   make(chan *FileGUI, 10),
+		filesIndexed:    make(chan *FileGUI, maxChannelSize),
+		filesDownloaded: make(chan *FileGUI, maxChannelSize),
+		filesSearched:   make(chan *FileGUI, maxChannelSize),
 	}
 }
 
@@ -165,6 +171,7 @@ func (fileHandler *FileHandler) checkAllChunksLocation(fileMetadata *FileMetadat
 	return true
 }
 
+// update chunk owner map
 func (fileHandler *FileHandler) updateChunkOwnerMap(destination string, chunkMap []uint64, fileMetadata *FileMetadata, metafilePointer *[]byte) {
 
 	fileHandler.chunkOwnership.Mutex.Lock()
@@ -176,20 +183,3 @@ func (fileHandler *FileHandler) updateChunkOwnerMap(destination string, chunkMap
 		fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)] = helpers.RemoveDuplicatesFromStringSlice(append(fileHandler.chunkOwnership.ChunkOwners[hex.EncodeToString(chunkHash)], destination))
 	}
 }
-
-// // add search result to gui
-// func (fileHandler *FileHandler) addSearchFileForGUI(fileMetadata *FileMetadata) {
-
-// 	element := FileGUI{Name: fileMetadata.FileName, MetaHash: hex.EncodeToString(fileMetadata.MetafileHash)}
-// 	contains := false
-// 	for _, elem := range fileHandler.filesSearched {
-// 		if elem.Name == element.Name && elem.MetaHash == element.MetaHash {
-// 			contains = true
-// 			break
-// 		}
-// 	}
-
-// 	if !contains {
-// 		fileHandler.filesSearched = append(fileHandler.filesSearched, element)
-// 	}
-// }

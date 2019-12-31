@@ -9,7 +9,9 @@ import (
 
 // RoutingHandler struct
 type RoutingHandler struct {
+	// routing table peer->nexthop
 	routingTable map[string]*net.UDPAddr
+	// track current last id (just an optimization in order to not iterate on the message storage every time)
 	originLastID *VectorClock
 	mutex        sync.RWMutex
 }

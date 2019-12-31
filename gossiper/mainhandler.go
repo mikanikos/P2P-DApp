@@ -8,6 +8,8 @@ import (
 	"github.com/mikanikos/Peerster/helpers"
 )
 
+// FOUND IT MORE USEFUL TO PUT ALL MAIN PROCESSING GOROUTINES IN ONE PLACE
+
 // process tlc message
 func (gossiper *Gossiper) processTLCMessage() {
 	for extPacket := range packetChannels["tlcMes"] {

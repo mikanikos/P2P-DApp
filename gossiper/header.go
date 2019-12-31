@@ -4,8 +4,9 @@ import (
 	"time"
 )
 
-var hw1 = false
-var hw2 = false
+// flags
+var hw1 = true
+var hw2 = true
 var hw3 = true
 var debug = true
 
@@ -20,9 +21,12 @@ var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", 
 // channels used throgout the app to exchange messages
 var packetChannels map[string]chan *ExtendedGossipPacket
 
+// constants
+
 var maxBufferSize = 60000
 var maxChannelSize = 100
 
+// timeouts in seconds if not specified
 var rumorTimeout = 10
 var stubbornTimeout = 10
 var routeRumorTimeout = 0
@@ -30,6 +34,7 @@ var antiEntropyTimeout = 10
 var requestTimeout = 5
 var searchTimeout = 1
 var searchRequestDuplicateTimeout = 500 * time.Millisecond
+var tlcQueueTimeout = 1
 
 var latestMessagesBuffer = 30
 var hopLimit = 10
