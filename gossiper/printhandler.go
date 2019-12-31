@@ -55,7 +55,10 @@ func (gossiper *Gossiper) printPeerMessage(extPacket *ExtendedGossipPacket, peer
 		if extPacket.Packet.TLCMessage.Confirmed > -1 {
 			fmt.Println("CONFIRMED " + messageToPrint)
 
-			gossiper.blockchainHandler.blockchainLogs <- "CONFIRMED " + messageToPrint
+			message := "CONFIRMED " + messageToPrint
+			go func(m string) {
+				gossiper.blockchainHandler.blockchainLogs <- message
+			}(message)
 
 		} else {
 			fmt.Println("UNCONFIRMED " + messageToPrint)
@@ -122,7 +125,9 @@ func (gossiper *Gossiper) printRoundMessage(round uint32, confirmations map[stri
 	}
 	if hw3ex3Mode {
 		fmt.Println(message[:len(message)-2])
-		gossiper.blockchainHandler.blockchainLogs <- message[:len(message)-2]
+		go func (m string) {
+			gossiper.blockchainHandler.blockchainLogs <- m[:len(m)-2]
+		}(message)
 	}
 }
 
@@ -154,5 +159,7 @@ func (gossiper *Gossiper) printConsensusMessage(tlcChosen *TLCMessage) {
 	message = message + filenames + "size " + fmt.Sprint(tlcChosen.TxBlock.Transaction.Size) + " metahash " + hex.EncodeToString(tlcChosen.TxBlock.Transaction.MetafileHash)
 
 	fmt.Println(message)
-	gossiper.blockchainHandler.blockchainLogs <- message
+	go func(m string) {
+		gossiper.blockchainHandler.blockchainLogs <- m
+	}(message)
 }

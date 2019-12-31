@@ -37,8 +37,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 	gossiper.blockchainHandler.tlcAckChan = make(chan *TLCAck, maxChannelSize)
 	go gossiper.startRumorMongering(extPacket, gossiper.name, tlc.ID)
 
-
-	if waitConfirmations && gossiper.checkForConfirmationsMajority(tlc, true) {	
+	if waitConfirmations && gossiper.checkForConfirmationsMajority(tlc, false) {	
 		return
 	}
 
@@ -63,12 +62,13 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 					if len(witnesses) > int(gossiper.peersData.Size/2) {
 		
 						// create tlc confirmed message
-						gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(extPacket.Packet.TLCMessage.TxBlock, int(tlc.ID), extPacket.Packet.TLCMessage.Fitness), witnesses)
+						confirmedPacket := gossiper.createTLCMessage(tlc.TxBlock, int(tlc.ID), tlc.Fitness)
+						gossiper.sendGossipWithConfirmation(confirmedPacket, witnesses)
 						delivered = true
 
 						// send confirmation
 						if waitConfirmations {
-							gossiper.blockchainHandler.saveConfirmation(atomic.LoadUint32(&gossiper.blockchainHandler.myTime), extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage)
+							gossiper.blockchainHandler.saveConfirmation(atomic.LoadUint32(&gossiper.blockchainHandler.myTime), confirmedPacket.Packet.TLCMessage.Origin, confirmedPacket.Packet.TLCMessage)
 
 							go func() {
 								gossiper.blockchainHandler.tlcConfirmChan <- true
@@ -87,11 +87,6 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 
 			// periodically resend tlc message
 			case <-timer.C:
-
-				// if waitConfirmations && gossiper.checkForConfirmationsMajority(tlc, true) {	
-				// 	return
-				// }
-
 				if hw3ex2Mode {
 					gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 				}
@@ -142,7 +137,8 @@ func (gossiper *Gossiper) checkForConfirmationsMajority(tlc *TLCMessage, deliver
 			gossiper.printRoundMessage(gossiper.blockchainHandler.myTime, confirmations)
 
 			if !delivered {
-				gossiper.sendGossipWithConfirmation(gossiper.createTLCMessage(tlc.TxBlock, int(tlc.ID), tlc.Fitness), getIDForConfirmations(confirmations))
+				confirmedPacket := gossiper.createTLCMessage(tlc.TxBlock, int(tlc.ID), tlc.Fitness)
+				gossiper.sendGossipWithConfirmation(confirmedPacket, getIDForConfirmations(confirmations))
 			}
 
 			return true

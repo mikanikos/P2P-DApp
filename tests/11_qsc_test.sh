@@ -27,9 +27,14 @@ dAddr="127.0.0.1:$dPort"
 msgA1="Istartsharing!"
 msgD1="Readytoreceive!"
 
-sharedFileName1="1M_file.txt"
-sharedFileName2="gui_test.txt"
-sharedFileName3="pic1.jpg"
+sharedFileName1="file1.txt"
+sharedFileName2="file2.txt"
+sharedFileName3="file3.txt"
+sharedFileName4="file4.txt"
+sharedFileName5="file5.txt"
+sharedFileName6="file6.txt"
+sharedFileName7="file7.txt"
+sharedFileName8="file8.txt"
 #downloadedFileName="downloaded-$sharedFileName"
 
 cd ..
@@ -38,10 +43,10 @@ cd client
 go build
 cd ..
 
-./Peerster -name=a -peers="$bAddr"        -UIPort=$aUIPort -gossipAddr=$aAddr -rtimer=5 -antiEntropy=3 -hopLimit=10 -stubbornTimeout=3 -hw3ex2=true -hw3ex3=true -hw3ex4=true -N=4 > "./tests/out/A.out" &
-./Peerster -name=b -peers="$aAddr,$cAddr" -UIPort=$bUIPort -gossipAddr=$bAddr -rtimer=5 -antiEntropy=3 -hopLimit=10 -stubbornTimeout=3 -hw3ex2=true -hw3ex3=true -hw3ex4=true -N=4 > "./tests/out/B.out" &
-./Peerster -name=c -peers="$bAddr,$dAddr" -UIPort=$cUIPort -gossipAddr=$cAddr -rtimer=5 -antiEntropy=3 -hopLimit=10 -stubbornTimeout=3 -hw3ex2=true -hw3ex3=true -hw3ex4=true -N=4 > "./tests/out/C.out" &
-./Peerster -name=d -peers="$cAddr"        -UIPort=$dUIPort -gossipAddr=$dAddr -rtimer=5 -antiEntropy=3 -hopLimit=10 -stubbornTimeout=3 -hw3ex2=true -hw3ex3=true -hw3ex4=true -N=4 > "./tests/out/D.out" &
+./Peerster -name=a -peers="$bAddr"        -UIPort=$aUIPort -gossipAddr=$aAddr -rtimer=5 -antiEntropy=5 -hopLimit=5 -stubbornTimeout=10 -hw3ex2=true -hw3ex3=true -hw3ex4=true -N=4 > "./tests/out/A.out" &
+./Peerster -name=b -peers="$aAddr,$cAddr" -UIPort=$bUIPort -gossipAddr=$bAddr -rtimer=5 -antiEntropy=5 -hopLimit=5 -stubbornTimeout=10 -hw3ex2=true -hw3ex3=true -hw3ex4=true -N=4 > "./tests/out/B.out" &
+./Peerster -name=c -peers="$bAddr,$dAddr" -UIPort=$cUIPort -gossipAddr=$cAddr -rtimer=5 -antiEntropy=5 -hopLimit=5 -stubbornTimeout=10 -hw3ex2=true -hw3ex3=true -hw3ex4=true -N=4 > "./tests/out/C.out" &
+./Peerster -name=d -peers="$cAddr"        -UIPort=$dUIPort -gossipAddr=$dAddr -rtimer=5 -antiEntropy=5 -hopLimit=5 -stubbornTimeout=10 -hw3ex2=true -hw3ex3=true -hw3ex4=true -N=4 > "./tests/out/D.out" &
 
 # let the gossipers initialize
 sleep 1
@@ -52,7 +57,7 @@ sleep 1
 ./client/client -UIPort="$aUIPort" -msg="LetsKnowEachOther3"
 ./client/client -UIPort="$dUIPort" -msg="LetsKnowEachOther4"
 
-sleep 5
+sleep 3
 echo "~~~~~~ Initial rumor-mongering done, requesting file sharing ~~~~~~"
 
 # prepare file to send:
@@ -63,6 +68,11 @@ rm "$sharedFileName3"
 dd if=/dev/urandom of="$sharedFileName1"  bs=1MB  count=1
 dd if=/dev/urandom of="$sharedFileName2"  bs=1MB  count=1
 dd if=/dev/urandom of="$sharedFileName3"  bs=1MB  count=1
+dd if=/dev/urandom of="$sharedFileName4"  bs=1MB  count=1
+dd if=/dev/urandom of="$sharedFileName5"  bs=1MB  count=1
+dd if=/dev/urandom of="$sharedFileName6"  bs=1MB  count=1
+dd if=/dev/urandom of="$sharedFileName7"  bs=1MB  count=1
+dd if=/dev/urandom of="$sharedFileName8"  bs=1MB  count=1
 cd ..
 # cd _Downloads
 # rm "b1-$downloadedFileName"
@@ -73,31 +83,31 @@ cd ..
 # share big file on "a":
 ./client/client -UIPort="$aUIPort" -file="$sharedFileName1"
 
-sleep 2
+sleep 1
 
 ./client/client -UIPort="$bUIPort" -file="$sharedFileName2"
 
-./client/client -UIPort="$dUIPort" -file="$sharedFileName1"
+./client/client -UIPort="$dUIPort" -file="$sharedFileName3"
 
-sleep 3
+sleep 1
 
-./client/client -UIPort="$cUIPort" -file="$sharedFileName3"
+./client/client -UIPort="$cUIPort" -file="$sharedFileName4"
 
-# sleep 2
+sleep 2
 
-# ./client/client -UIPort="$aUIPort" -file="$sharedFileName3"
+./client/client -UIPort="$aUIPort" -file="$sharedFileName5"
 
-# sleep 1
+sleep 1
 
-# ./client/client -UIPort="$bUIPort" -file="$sharedFileName1"
+./client/client -UIPort="$bUIPort" -file="$sharedFileName6"
 
-# ./client/client -UIPort="$dUIPort" -file="$sharedFileName2"
+./client/client -UIPort="$dUIPort" -file="$sharedFileName7"
 
-# sleep 2
+sleep 2
 
-# ./client/client -UIPort="$cUIPort" -file="$sharedFileName2"
+./client/client -UIPort="$cUIPort" -file="$sharedFileName8"
 
-sleep 10
+sleep 5
 
 echo "Kill all the peerster processes..."
 #kill $(ps aux | grep '\.\/[P]eerster' | awk '{print $2}')

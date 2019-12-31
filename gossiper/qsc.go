@@ -48,7 +48,6 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 
 	// round s + 1
 	gossiper.tlcRound(gossiper.createTLCMessage(highestTLCRoundS.TxBlock, -1, highestTLCRoundS.Fitness))
-
 	value, loaded = gossiper.blockchainHandler.confirmations.Load(roundS + 1)
 	if !loaded {
 		fmt.Println("ERROR: no new round")
