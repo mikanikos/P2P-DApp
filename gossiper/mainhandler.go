@@ -16,8 +16,10 @@ func (gossiper *Gossiper) processTLCMessage() {
 		go gossiper.handleGossipMessage(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
 		// handle tlc message
-		if hw3ex2Mode || hw3ex3Mode || hw3ex4Mode {
-			go gossiper.handleTLCMessage(extPacket)
+		if (hw3ex2Mode || hw3ex3Mode || hw3ex4Mode) && extPacket.Packet.TLCMessage.Origin != gossiper.name {
+			go func(e *ExtendedGossipPacket) {
+				packetChannels["tlcCausal"] <- e
+			}(extPacket)
 		}
 	}
 }

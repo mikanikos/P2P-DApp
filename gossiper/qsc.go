@@ -32,7 +32,10 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 	}
 
 	// get confirmations and highest fitness tlc
-	confirmationsRoundS := value.(map[string]*TLCMessage)
+	confMapS := value.(*SafeTLCMessagesMap)
+	confMapS.Mutex.RLock()
+	confirmationsRoundS := confMapS.OriginMessage
+	confMapS.Mutex.RUnlock()
 	highestTLCRoundS := getTLCWithHighestFitness(confirmationsRoundS)
 
 	if debug {
@@ -53,11 +56,15 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 	}
 
 	// get confirmations and highest fitness tlc
-	confirmationsRoundS1 := value.(map[string]*TLCMessage)
+	confMapS1 := value.(*SafeTLCMessagesMap)
+	confMapS1.Mutex.RLock()
+	confirmationsRoundS1 := confMapS1.OriginMessage
+	confMapS1.Mutex.RUnlock()
+
 	highestTLCRoundS1 := getTLCWithHighestFitness(confirmationsRoundS1)
 
 	if debug {
-		fmt.Println("Highest in round s : " + highestTLCRoundS1.Origin + " " + fmt.Sprint(highestTLCRoundS1.ID) + " " + fmt.Sprint(highestTLCRoundS1.Fitness))
+		fmt.Println("Highest in round s + 1 : " + highestTLCRoundS1.Origin + " " + fmt.Sprint(highestTLCRoundS1.ID) + " " + fmt.Sprint(highestTLCRoundS1.Fitness))
 	}
 
 	if debug {
@@ -152,7 +159,11 @@ func (blockchainHandler *BlockchainHandler) checkIfConsensusReached(confirmation
 	}
 
 	value, _ := blockchainHandler.messageSeen.Load(initialRound)
-	messageSeen := value.(map[string]*TLCMessage)
+	tlcMap := value.(*SafeTLCMessagesMap)
+
+	tlcMap.Mutex.RLock()
+	messageSeen := tlcMap.OriginMessage
+	tlcMap.Mutex.RUnlock()
 
 	for _, saw := range messageSeen {
 		if saw.Fitness >= best.Fitness && saw.TxBlock.Hash() != best.TxBlock.Hash() {
