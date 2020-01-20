@@ -12,7 +12,7 @@ import (
 
 // process tlc message
 func (gossiper *Gossiper) processTLCMessage() {
-	for extPacket := range packetChannels["tlcMes"] {
+	for extPacket := range PacketChannels["tlcMes"] {
 
 		// handle gossip message
 		go gossiper.handleGossipMessage(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
@@ -20,7 +20,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 		// handle tlc message
 		if (hw3ex2Mode || hw3ex3Mode || hw3ex4Mode) && extPacket.Packet.TLCMessage.Origin != gossiper.name {
 			go func(e *ExtendedGossipPacket) {
-				packetChannels["tlcCausal"] <- e
+				PacketChannels["tlcCausal"] <- e
 			}(extPacket)
 		}
 	}
@@ -28,7 +28,7 @@ func (gossiper *Gossiper) processTLCMessage() {
 
 // process tlc acks
 func (gossiper *Gossiper) processTLCAck() {
-	for extPacket := range packetChannels["tlcAck"] {
+	for extPacket := range PacketChannels["tlcAck"] {
 		if extPacket.Packet.Ack.Destination == gossiper.name {
 
 			if debug {
@@ -48,7 +48,7 @@ func (gossiper *Gossiper) processTLCAck() {
 
 // process search request
 func (gossiper *Gossiper) processSearchRequest() {
-	for extPacket := range packetChannels["searchRequest"] {
+	for extPacket := range PacketChannels["searchRequest"] {
 		if !gossiper.fileHandler.isRecentSearchRequest(extPacket.Packet.SearchRequest) {
 			// check if search request is not recent
 			if extPacket.Packet.SearchRequest.Origin != gossiper.name {
@@ -79,7 +79,7 @@ func (gossiper *Gossiper) processSearchRequest() {
 
 // process search replies
 func (gossiper *Gossiper) processSearchReply() {
-	for extPacket := range packetChannels["searchReply"] {
+	for extPacket := range PacketChannels["searchReply"] {
 
 		// if it's for me, I handle search results
 		if extPacket.Packet.SearchReply.Destination == gossiper.name {
@@ -97,7 +97,7 @@ func (gossiper *Gossiper) processSearchReply() {
 
 // process data request
 func (gossiper *Gossiper) processDataRequest() {
-	for extPacket := range packetChannels["dataRequest"] {
+	for extPacket := range PacketChannels["dataRequest"] {
 
 		// if for me, I I handle the data request
 		if extPacket.Packet.DataRequest.Destination == gossiper.name {
@@ -133,7 +133,7 @@ func (gossiper *Gossiper) processDataRequest() {
 
 // process data reply
 func (gossiper *Gossiper) processDataReply() {
-	for extPacket := range packetChannels["dataReply"] {
+	for extPacket := range PacketChannels["dataReply"] {
 
 		if debug {
 			fmt.Println("Got data reply from " + extPacket.Packet.DataReply.Destination)
@@ -170,7 +170,7 @@ func (gossiper *Gossiper) processDataReply() {
 
 // process private message
 func (gossiper *Gossiper) processPrivateMessages() {
-	for extPacket := range packetChannels["private"] {
+	for extPacket := range PacketChannels["private"] {
 
 		// update routing table
 		gossiper.routingHandler.updateRoutingTable(extPacket.Packet.Private.Destination, extPacket.Packet.Private.Text, extPacket.Packet.Private.ID, extPacket.SenderAddr)
@@ -269,7 +269,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 
 // process simple message
 func (gossiper *Gossiper) processSimpleMessages() {
-	for extPacket := range packetChannels["simple"] {
+	for extPacket := range PacketChannels["simple"] {
 
 		if hw1 {
 			gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
@@ -284,7 +284,7 @@ func (gossiper *Gossiper) processSimpleMessages() {
 
 // process rumor message
 func (gossiper *Gossiper) processRumorMessages() {
-	for extPacket := range packetChannels["rumor"] {
+	for extPacket := range PacketChannels["rumor"] {
 
 		// handle gossip message
 		gossiper.handleGossipMessage(extPacket, extPacket.Packet.Rumor.Origin, extPacket.Packet.Rumor.ID)
@@ -293,7 +293,7 @@ func (gossiper *Gossiper) processRumorMessages() {
 
 // process status message
 func (gossiper *Gossiper) processStatusMessages() {
-	for extPacket := range packetChannels["status"] {
+	for extPacket := range PacketChannels["status"] {
 
 		if hw1 {
 			printStatusMessage(extPacket, gossiper.GetPeers())

@@ -80,14 +80,14 @@ func (gossiper *Gossiper) createAndPublishTxBlock(fileMetadata *FileMetadata) {
 	} else {
 		// send data to round block queue
 		go func(e *ExtendedGossipPacket) {
-			packetChannels["clientBlock"] <- e
+			PacketChannels["clientBlock"] <- e
 		}(extPacket)
 	}
 }
 
 // process incoming blocks from client (namely new files to be indexed) and choose to use qsc or tlc according to flags
 func (gossiper *Gossiper) processClientBlocks() {
-	for extPacket := range packetChannels["clientBlock"] {
+	for extPacket := range PacketChannels["clientBlock"] {
 		if hw3ex4Mode {
 			gossiper.qscRound(extPacket)
 		} else {
@@ -102,7 +102,7 @@ func (gossiper *Gossiper) processClientBlocks() {
 
 // process tlc message
 func (gossiper *Gossiper) handleTLCMessage() {
-	for extPacket := range packetChannels["tlcCausal"] {
+	for extPacket := range PacketChannels["tlcCausal"] {
 
 		// get round of the message
 		messageRound := gossiper.getMessageOriginalRound(extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID, extPacket.Packet.TLCMessage.Confirmed)
@@ -157,7 +157,7 @@ func (gossiper *Gossiper) handleTLCMessage() {
 				// re-send it to the queue after timeout
 				go func(ext *ExtendedGossipPacket) {
 					time.Sleep(time.Duration(tlcQueueTimeout) * time.Second)
-					packetChannels["tlcCausal"] <- ext
+					PacketChannels["tlcCausal"] <- ext
 				}(extPacket)
 			}
 		}
