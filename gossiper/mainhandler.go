@@ -3,12 +3,96 @@ package gossiper
 import (
 	"encoding/hex"
 	"fmt"
+	mapset "github.com/deckarep/golang-set"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/mikanikos/Peerster/whisper"
 	"strings"
+	"time"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
 
 // FOUND IT MORE USEFUL TO PUT ALL MAIN PROCESSING GOROUTINES IN ONE PLACE
+
+// process whisper envelope
+func (gossiper *Gossiper) processWhisperPacket() {
+	for extPacket := range PacketChannels["whisperPacket"] {
+
+		// handle gossip message
+		go gossiper.handleGossipMessage(extPacket, extPacket.Packet.WhisperPacket.Origin, extPacket.Packet.WhisperPacket.ID)
+
+		// handle whisper message
+		var envelope *Envelope
+		if err := extPacket.Packet.WhisperPacket.DecodeEnvelope(envelope); err != nil {
+			if debug {
+				fmt.Println("failed to decode envelopes, peer will be disconnected")
+			}
+			continue
+		}
+
+		now := uint32(time.Now().Unix())
+		sent := envelope.Expiry - envelope.TTL
+
+		if sent > now {
+			if sent-DefaultSyncAllowance > now {
+				if debug {
+					fmt.Println("envelope created in the future")
+				}
+				continue
+			}
+			// recalculate PoW, adjusted for the time difference, plus one second for latency
+			envelope.calculatePoW(sent - now + 1)
+		}
+
+		if envelope.Expiry < now {
+			if envelope.Expiry+DefaultSyncAllowance*2 < now {
+				if debug {
+					fmt.Println("very old message")
+				}
+			}
+			fmt.Println("expired envelope dropped")
+			continue // drop envelope without error
+		}
+
+		if uint32(envelope.size()) > whisper.MaxMessageSize() {
+			if debug {
+				fmt.Println("huge messages are not allowed")
+			}
+			continue
+		}
+
+		if envelope.PoW() < whisper.MinPow() {
+			if debug {
+				fmt.Println("envelope with low PoW received")
+			}
+			continue
+		}
+
+		if !BloomFilterMatch(whisper.BloomFilter(), envelope.Bloom()) {
+			if debug {
+				fmt.Println("envelope does not match bloom filter")
+			}
+			continue
+		}
+
+		hash := envelope.Hash()
+
+		gossiper.whisper.poolMu.Lock()
+		_, alreadyCached := whisper.envelopes[hash]
+		if !alreadyCached {
+			gossiper.whisper.envelopes[hash] = envelope
+			if gossiper.whisper.expirations[envelope.Expiry] == nil {
+				gossiper.whisper.expirations[envelope.Expiry] = mapset.NewThreadUnsafeSet()
+			}
+			if !gossiper.whisper.expirations[envelope.Expiry].Contains(hash) {
+				gossiper.whisper.expirations[envelope.Expiry].Add(hash)
+			}
+		}
+		gossiper.whisper.poolMu.Unlock()
+
+		gossiper.whisper.filters.NotifyWatchers(envelope)
+	}
+}
 
 // process tlc message
 func (gossiper *Gossiper) processTLCMessage() {

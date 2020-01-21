@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package gossiper
+package whisper
 
 import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/mikanikos/Peerster/gossiper"
 	"sync"
 	"time"
 
@@ -195,16 +196,16 @@ func (api *PublicWhisperAPI) DeleteSymKey(ctx context.Context, id string) bool {
 
 // NewMessage represents a new whisper message that is posted through the RPC.
 type NewMessage struct {
-	SymKeyID   string    `json:"symKeyID"`
-	PublicKey  []byte    `json:"pubKey"`
-	Sig        string    `json:"sig"`
-	TTL        uint32    `json:"ttl"`
-	Topic      TopicType `json:"topic"`
-	Payload    []byte    `json:"payload"`
-	Padding    []byte    `json:"padding"`
-	PowTime    uint32    `json:"powTime"`
-	PowTarget  float64   `json:"powTarget"`
-	TargetPeer string    `json:"targetPeer"`
+	SymKeyID   string             `json:"symKeyID"`
+	PublicKey  []byte             `json:"pubKey"`
+	Sig        string             `json:"sig"`
+	TTL        uint32             `json:"ttl"`
+	Topic      gossiper.TopicType `json:"topic"`
+	Payload    []byte             `json:"payload"`
+	Padding    []byte             `json:"padding"`
+	PowTime    uint32             `json:"powTime"`
+	PowTarget  float64            `json:"powTarget"`
+	TargetPeer string             `json:"targetPeer"`
 }
 
 type newMessageOverride struct {
@@ -227,7 +228,7 @@ func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) (hexutil.
 		return nil, ErrSymAsym
 	}
 
-	params := &MessageParams{
+	params := &gossiper.MessageParams{
 		TTL:      req.TTL,
 		Payload:  req.Payload,
 		Padding:  req.Padding,
@@ -245,13 +246,13 @@ func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) (hexutil.
 
 	// Set symmetric key that is used to encrypt the message
 	if symKeyGiven {
-		if params.Topic == (TopicType{}) { // topics are mandatory with symmetric encryption
+		if params.Topic == (gossiper.TopicType{}) { // topics are mandatory with symmetric encryption
 			return nil, ErrNoTopics
 		}
 		if params.KeySym, err = api.w.GetSymKey(req.SymKeyID); err != nil {
 			return nil, err
 		}
-		if !validateDataIntegrity(params.KeySym, aesKeyLength) {
+		if !validateDataIntegrity(params.KeySym, gossiper.aesKeyLength) {
 			return nil, ErrInvalidSymmetricKey
 		}
 	}
@@ -264,7 +265,7 @@ func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) (hexutil.
 	}
 
 	// encrypt and sent message
-	whisperMsg, err := NewSentMessage(params)
+	whisperMsg, err := gossiper.NewSentMessage(params)
 	if err != nil {
 		return nil, err
 	}
@@ -306,12 +307,12 @@ func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) (hexutil.
 
 // Criteria holds various filter options for inbound messages.
 type Criteria struct {
-	SymKeyID     string      `json:"symKeyID"`
-	PrivateKeyID string      `json:"privateKeyID"`
-	Sig          []byte      `json:"sig"`
-	MinPow       float64     `json:"minPow"`
-	Topics       []TopicType `json:"topics"`
-	AllowP2P     bool        `json:"allowP2P"`
+	SymKeyID     string               `json:"symKeyID"`
+	PrivateKeyID string               `json:"privateKeyID"`
+	Sig          []byte               `json:"sig"`
+	MinPow       float64              `json:"minPow"`
+	Topics       []gossiper.TopicType `json:"topics"`
+	AllowP2P     bool                 `json:"allowP2P"`
 }
 
 type criteriaOverride struct {
@@ -338,9 +339,9 @@ func (api *PublicWhisperAPI) Messages(ctx context.Context, crit Criteria) (*rpc.
 		return nil, ErrSymAsym
 	}
 
-	filter := Filter{
+	filter := gossiper.Filter{
 		PoW:      crit.MinPow,
-		Messages: make(map[common.Hash]*ReceivedMessage),
+		Messages: make(map[common.Hash]*gossiper.ReceivedMessage),
 		AllowP2P: crit.AllowP2P,
 	}
 
@@ -366,7 +367,7 @@ func (api *PublicWhisperAPI) Messages(ctx context.Context, crit Criteria) (*rpc.
 		if err != nil {
 			return nil, err
 		}
-		if !validateDataIntegrity(key, aesKeyLength) {
+		if !validateDataIntegrity(key, gossiper.aesKeyLength) {
 			return nil, ErrInvalidSymmetricKey
 		}
 		filter.KeySym = key
@@ -420,15 +421,15 @@ func (api *PublicWhisperAPI) Messages(ctx context.Context, crit Criteria) (*rpc.
 
 // Message is the RPC representation of a whisper message.
 type Message struct {
-	Sig       []byte    `json:"sig,omitempty"`
-	TTL       uint32    `json:"ttl"`
-	Timestamp uint32    `json:"timestamp"`
-	Topic     TopicType `json:"topic"`
-	Payload   []byte    `json:"payload"`
-	Padding   []byte    `json:"padding"`
-	PoW       float64   `json:"pow"`
-	Hash      []byte    `json:"hash"`
-	Dst       []byte    `json:"recipientPublicKey,omitempty"`
+	Sig       []byte             `json:"sig,omitempty"`
+	TTL       uint32             `json:"ttl"`
+	Timestamp uint32             `json:"timestamp"`
+	Topic     gossiper.TopicType `json:"topic"`
+	Payload   []byte             `json:"payload"`
+	Padding   []byte             `json:"padding"`
+	PoW       float64            `json:"pow"`
+	Hash      []byte             `json:"hash"`
+	Dst       []byte             `json:"recipientPublicKey,omitempty"`
 }
 
 type messageOverride struct {
@@ -440,7 +441,7 @@ type messageOverride struct {
 }
 
 // ToWhisperMessage converts an internal message into an API version.
-func ToWhisperMessage(message *ReceivedMessage) *Message {
+func ToWhisperMessage(message *gossiper.ReceivedMessage) *Message {
 	msg := Message{
 		Payload:   message.Payload,
 		Padding:   message.Padding,
@@ -458,7 +459,7 @@ func ToWhisperMessage(message *ReceivedMessage) *Message {
 		}
 	}
 
-	if isMessageSigned(message.Raw[0]) {
+	if gossiper.isMessageSigned(message.Raw[0]) {
 		b := crypto.FromECDSAPub(message.SigToPubKey())
 		if b != nil {
 			msg.Sig = b
@@ -469,7 +470,7 @@ func ToWhisperMessage(message *ReceivedMessage) *Message {
 }
 
 // toMessage converts a set of messages to its RPC representation.
-func toMessage(messages []*ReceivedMessage) []*Message {
+func toMessage(messages []*gossiper.ReceivedMessage) []*Message {
 	msgs := make([]*Message, len(messages))
 	for i, msg := range messages {
 		msgs[i] = ToWhisperMessage(msg)
@@ -537,7 +538,7 @@ func (api *PublicWhisperAPI) NewMessageFilter(req Criteria) (string, error) {
 		if keySym, err = api.w.GetSymKey(req.SymKeyID); err != nil {
 			return "", err
 		}
-		if !validateDataIntegrity(keySym, aesKeyLength) {
+		if !validateDataIntegrity(keySym, gossiper.aesKeyLength) {
 			return "", ErrInvalidSymmetricKey
 		}
 	}
@@ -551,19 +552,19 @@ func (api *PublicWhisperAPI) NewMessageFilter(req Criteria) (string, error) {
 	if len(req.Topics) > 0 {
 		topics = make([][]byte, len(req.Topics))
 		for i, topic := range req.Topics {
-			topics[i] = make([]byte, TopicLength)
+			topics[i] = make([]byte, gossiper.TopicLength)
 			copy(topics[i], topic[:])
 		}
 	}
 
-	f := &Filter{
+	f := &gossiper.Filter{
 		Src:      src,
 		KeySym:   keySym,
 		KeyAsym:  keyAsym,
 		PoW:      req.MinPow,
 		AllowP2P: req.AllowP2P,
 		Topics:   topics,
-		Messages: make(map[common.Hash]*ReceivedMessage),
+		Messages: make(map[common.Hash]*gossiper.ReceivedMessage),
 	}
 
 	id, err := api.w.Subscribe(f)

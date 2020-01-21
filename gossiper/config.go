@@ -23,9 +23,6 @@ import (
 
 // Whisper protocol parameters
 const (
-	//ProtocolVersion    = uint64(6) // Protocol version number
-	//ProtocolVersionStr = "6.0"     // The same, as a string
-	//ProtocolName       = "shh"     // Nickname of the protocol in geth
 
 	// whisper protocol message codes, according to EIP-627
 	//statusCode           = 0   // used by whisper protocol
@@ -62,17 +59,3 @@ const (
 	DefaultTTL           = 50 // seconds
 	DefaultSyncAllowance = 10 // seconds
 )
-
-// Config represents the configuration state of a whisper node.
-type Config struct {
-	MaxMessageSize                        uint32  `toml:",omitempty"`
-	MinimumAcceptedPOW                    float64 `toml:",omitempty"`
-	RestrictConnectionBetweenLightClients bool    `toml:",omitempty"`
-}
-
-// DefaultConfig represents (shocker!) the default configuration.
-var DefaultConfig = Config{
-	MaxMessageSize:                        DefaultMaxMessageSize,
-	MinimumAcceptedPOW:                    DefaultMinimumPoW,
-	RestrictConnectionBetweenLightClients: true,
-}

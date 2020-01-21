@@ -1,21 +1,3 @@
-// Copyright 2016 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
-// Contains the Whisper protocol Envelope element.
-
 package gossiper
 
 import (
@@ -23,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/dedis/protobuf"
+	"github.com/mikanikos/Peerster/whisper"
 	gmath "math"
 	"math/big"
 	"time"
@@ -53,15 +36,15 @@ func (e *Envelope) size() int {
 	return EnvelopeHeaderLength + len(e.Data)
 }
 
-// rlpWithoutNonce returns the RLP encoded envelope contents, except the nonce.
-func (e *Envelope) rlpWithoutNonce() []byte {
+// EncodeWithoutNonce returns the RLP encoded envelope contents, except the nonce.
+func (e *Envelope) EncodeWithoutNonce() []byte {
 	res, _ := protobuf.Encode([]interface{}{e.Expiry, e.TTL, e.Topic, e.Data})
 	return res
 }
 
 // NewEnvelope wraps a Whisper message with expiration and destination data
 // included into an envelope for network forwarding.
-func NewEnvelope(ttl uint32, topic TopicType, msg *sentMessage) *Envelope {
+func NewEnvelope(ttl uint32, topic TopicType, msg *whisper.sentMessage) *Envelope {
 	env := Envelope{
 		Expiry: uint32(time.Now().Add(time.Second * time.Duration(ttl)).Unix()),
 		TTL:    ttl,
@@ -83,15 +66,12 @@ func (e *Envelope) Seal(options *MessageParams) error {
 
 	var target, bestLeadingZeros int
 	if options.PoW < 0 {
-		// target is not set - the function should run for a period
-		// of time specified in WorkTime param. Since we can predict
-		// the execution time, we can also adjust Expiry.
 		e.Expiry += options.WorkTime
 	} else {
 		target = e.powToFirstBit(options.PoW)
 	}
 
-	rlp := e.rlpWithoutNonce()
+	rlp := e.EncodeWithoutNonce()
 	buf := make([]byte, len(rlp)+8)
 	copy(buf, rlp)
 	asAnInt := new(big.Int)
@@ -130,7 +110,7 @@ func (e *Envelope) PoW() float64 {
 }
 
 func (e *Envelope) calculatePoW(diff uint32) {
-	rlp := e.rlpWithoutNonce()
+	rlp := e.EncodeWithoutNonce()
 	buf := make([]byte, len(rlp)+8)
 	copy(buf, rlp)
 	binary.BigEndian.PutUint64(buf[len(rlp):], e.Nonce)
@@ -162,16 +142,6 @@ func (e *Envelope) Hash() common.Hash {
 		e.hash = crypto.Keccak256Hash(encoded)
 	}
 	return e.hash
-}
-
-// DecodeRLP decodes an Envelope from an RLP data stream.
-func (e *Envelope) DecodeRLP(raw []byte) error {
-	type rlpenv Envelope
-	if err := protobuf.Decode(raw, (*rlpenv)(e)); err != nil {
-		return err
-	}
-	e.hash = crypto.Keccak256Hash(raw)
-	return nil
 }
 
 // OpenAsymmetric tries to decrypt an envelope, potentially encrypted with a particular key.
@@ -264,7 +234,7 @@ func TopicToBloom(topic TopicType) []byte {
 
 // GetEnvelope retrieves an envelope from the message queue by its hash.
 // It returns nil if the envelope can not be found.
-func (w *Whisper) GetEnvelope(hash common.Hash) *Envelope {
+func (w *whisper.Whisper) GetEnvelope(hash common.Hash) *Envelope {
 	w.poolMu.RLock()
 	defer w.poolMu.RUnlock()
 	return w.envelopes[hash]

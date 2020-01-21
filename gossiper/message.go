@@ -25,6 +25,7 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"errors"
+	"github.com/mikanikos/Peerster/whisper"
 	mrand "math/rand"
 	"strconv"
 
@@ -169,7 +170,7 @@ func (msg *sentMessage) sign(key *ecdsa.PrivateKey) error {
 
 // encryptAsymmetric encrypts a message with a public key.
 func (msg *sentMessage) encryptAsymmetric(key *ecdsa.PublicKey) error {
-	if !ValidatePublicKey(key) {
+	if !whisper.ValidatePublicKey(key) {
 		return errors.New("invalid public key provided for asymmetric encryption")
 	}
 	encrypted, err := ecies.Encrypt(crand.Reader, ecies.ImportECDSAPublic(key), msg.Raw, nil, nil)

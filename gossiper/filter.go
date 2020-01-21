@@ -19,6 +19,7 @@ package gossiper
 import (
 	"crypto/ecdsa"
 	"fmt"
+	whisper2 "github.com/mikanikos/Peerster/whisper"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -72,7 +73,7 @@ func (fs *Filters) Install(watcher *Filter) (string, error) {
 		watcher.Messages = make(map[common.Hash]*ReceivedMessage)
 	}
 
-	id, err := GenerateRandomID()
+	id, err := whisper2.GenerateRandomID()
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +155,7 @@ func (fs *Filters) Get(id string) *Filter {
 
 // NotifyWatchers notifies any filter that has declared interest
 // for the envelope's topic.
-func (fs *Filters) NotifyWatchers(env *Envelope, p2pMessage bool) {
+func (fs *Filters) NotifyWatchers(env *Envelope) {
 	var msg *ReceivedMessage
 
 	fs.mutex.RLock()
@@ -162,24 +163,16 @@ func (fs *Filters) NotifyWatchers(env *Envelope, p2pMessage bool) {
 
 	candidates := fs.getWatchersByTopic(env.Topic)
 	for _, watcher := range candidates {
-		if p2pMessage && !watcher.AllowP2P {
-			log.Trace(fmt.Sprintf("msg [%x], filter [%s]: p2p messages are not allowed", env.Hash(), watcher.id))
-			continue
-		}
-
 		var match bool
-		if msg != nil {
-			match = watcher.MatchMessage(msg)
-		} else {
-			match = watcher.MatchEnvelope(env)
-			if match {
-				msg = env.Open(watcher)
-				if msg == nil {
-					log.Trace("processing message: failed to open", "message", env.Hash().Hex(), "filter", watcher.id)
-				}
-			} else {
-				log.Trace("processing message: does not match", "message", env.Hash().Hex(), "filter", watcher.id)
+
+		match = watcher.MatchEnvelope(env)
+		if match {
+			msg = env.Open(watcher)
+			if msg == nil {
+				log.Trace("processing message: failed to open", "message", env.Hash().Hex(), "filter", watcher.id)
 			}
+		} else {
+			log.Trace("processing message: does not match", "message", env.Hash().Hex(), "filter", watcher.id)
 		}
 
 		if match && msg != nil {
@@ -229,18 +222,18 @@ func (f *Filter) Retrieve() (all []*ReceivedMessage) {
 // message (i.e. a Message that has already been handled by
 // MatchEnvelope when checked by a previous filter).
 // Topics are not checked here, since this is done by topic matchers.
-func (f *Filter) MatchMessage(msg *ReceivedMessage) bool {
-	if f.PoW > 0 && msg.PoW < f.PoW {
-		return false
-	}
-
-	if f.expectsAsymmetricEncryption() && msg.isAsymmetricEncryption() {
-		return IsPubKeyEqual(&f.KeyAsym.PublicKey, msg.Dst)
-	} else if f.expectsSymmetricEncryption() && msg.isSymmetricEncryption() {
-		return f.SymKeyHash == msg.SymKeyHash
-	}
-	return false
-}
+//func (f *Filter) MatchMessage(msg *ReceivedMessage) bool {
+//	if f.PoW > 0 && msg.PoW < f.PoW {
+//		return false
+//	}
+//
+//	if f.expectsAsymmetricEncryption() && msg.isAsymmetricEncryption() {
+//		return IsPubKeyEqual(&f.KeyAsym.PublicKey, msg.Dst)
+//	} else if f.expectsSymmetricEncryption() && msg.isSymmetricEncryption() {
+//		return f.SymKeyHash == msg.SymKeyHash
+//	}
+//	return false
+//}
 
 // MatchEnvelope checks if it's worth decrypting the message. If
 // it returns `true`, client code is expected to attempt decrypting
@@ -252,9 +245,9 @@ func (f *Filter) MatchEnvelope(envelope *Envelope) bool {
 
 // IsPubKeyEqual checks that two public keys are equal
 func IsPubKeyEqual(a, b *ecdsa.PublicKey) bool {
-	if !ValidatePublicKey(a) {
+	if !whisper2.ValidatePublicKey(a) {
 		return false
-	} else if !ValidatePublicKey(b) {
+	} else if !whisper2.ValidatePublicKey(b) {
 		return false
 	}
 	// the curve is always the same, just compare the points

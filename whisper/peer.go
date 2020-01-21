@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package gossiper
+package whisper
 
 import (
+	"github.com/mikanikos/Peerster/gossiper"
 	"net"
 	"sync"
 	"time"
@@ -141,9 +142,9 @@ func (peer *Peer) handshake() error {
 // and expiration.
 func (peer *Peer) update() {
 	// Start the tickers for the updates
-	expire := time.NewTicker(expirationCycle)
+	expire := time.NewTicker(gossiper.expirationCycle)
 	defer expire.Stop()
-	transmit := time.NewTicker(transmissionCycle)
+	transmit := time.NewTicker(gossiper.transmissionCycle)
 	defer transmit.Stop()
 
 	// Loop and transmit until termination is requested
@@ -184,7 +185,7 @@ func (peer *Peer) expire() {
 // ones over the network.
 func (peer *Peer) broadcast() error {
 	envelopes := peer.host.Envelopes()
-	bundle := make([]*Envelope, 0, len(envelopes))
+	bundle := make([]*gossiper.Envelope, 0, len(envelopes))
 	for _, envelope := range envelopes {
 		if envelope.PoW() >= peer.powRequirement && peer.bloomMatch(envelope) {
 			bundle = append(bundle, envelope)
@@ -195,7 +196,7 @@ func (peer *Peer) broadcast() error {
 		// transmit the batch of envelopes
 
 		for _, env := range bundle {
-			if err := peer.host.gossiper.SendWhisperEnvelope(messagesCode, env); err != nil {
+			if err := peer.host.gossiper.SendWhisperEnvelope(gossiper.messagesCode, env); err != nil {
 				return err
 			}
 		}
@@ -220,7 +221,7 @@ func (peer *Peer) broadcast() error {
 //	return p2p.Send(peer.ws, bloomFilterExCode, bloom)
 //}
 
-func (peer *Peer) bloomMatch(env *Envelope) bool {
+func (peer *Peer) bloomMatch(env *gossiper.Envelope) bool {
 	peer.bloomMu.Lock()
 	defer peer.bloomMu.Unlock()
 	return peer.fullNode || BloomFilterMatch(peer.bloomFilter, env.Bloom())
@@ -237,8 +238,8 @@ func (peer *Peer) setBloomFilter(bloom []byte) {
 }
 
 func MakeFullNodeBloom() []byte {
-	bloom := make([]byte, BloomFilterSize)
-	for i := 0; i < BloomFilterSize; i++ {
+	bloom := make([]byte, gossiper.BloomFilterSize)
+	for i := 0; i < gossiper.BloomFilterSize; i++ {
 		bloom[i] = 0xFF
 	}
 	return bloom

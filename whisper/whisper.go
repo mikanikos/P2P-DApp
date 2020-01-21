@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package gossiper
+package whisper
 
 import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"fmt"
+	gossiper2 "github.com/mikanikos/Peerster/gossiper"
 	"net"
 	"runtime"
 	"sync"
@@ -57,21 +58,21 @@ const (
 // Whisper represents a dark communication interface through the Ethereum
 // network, using its very own P2P communication layer.
 type Whisper struct {
-	gossiper *Gossiper // Protocol description and parameters
-	filters  *Filters     // Message filters installed with Subscribe function
+	gossiper *gossiper2.Gossiper // Protocol description and parameters
+	filters  *gossiper2.Filters  // Message filters installed with Subscribe function
 
 	privateKeys map[string]*ecdsa.PrivateKey // Private key storage
 	symKeys     map[string][]byte            // Symmetric key storage
 	keyMu       sync.RWMutex                 // Mutex associated with key storages
 
-	poolMu      sync.RWMutex              // Mutex to sync the message and expiration pools
-	envelopes   map[common.Hash]*Envelope // Pool of envelopes currently tracked by this node
-	expirations map[uint32]mapset.Set     // Message expiration pool
+	poolMu      sync.RWMutex                        // Mutex to sync the message and expiration pools
+	envelopes   map[common.Hash]*gossiper2.Envelope // Pool of envelopes currently tracked by this node
+	expirations map[uint32]mapset.Set               // Message expiration pool
 
 	peerMu sync.RWMutex       // Mutex to sync the active peer set
 	peers  map[*Peer]struct{} // Set of currently active peers
 
-	messageQueue chan *Envelope // Message queue for normal whisper messages
+	messageQueue chan *gossiper2.Envelope // Message queue for normal whisper messages
 	//p2pMsgQueue  chan *Envelope // Message queue for peer-to-peer messages (not to be forwarded any further)
 	quit         chan struct{}  // Channel used for graceful exit
 
@@ -84,24 +85,24 @@ type Whisper struct {
 }
 
 // New creates a Whisper client ready to communicate through the Ethereum P2P network.
-func New(cfg *Config) *Whisper {
+func New(cfg *gossiper2.Config) *Whisper {
 	if cfg == nil {
-		cfg = &DefaultConfig
+		cfg = &gossiper2.DefaultConfig
 	}
 
 	whisper := &Whisper{
 		privateKeys:   make(map[string]*ecdsa.PrivateKey),
 		symKeys:       make(map[string][]byte),
-		envelopes:     make(map[common.Hash]*Envelope),
+		envelopes:     make(map[common.Hash]*gossiper2.Envelope),
 		expirations:   make(map[uint32]mapset.Set),
 		peers:         make(map[*Peer]struct{}),
-		messageQueue:  make(chan *Envelope, messageQueueLimit),
+		messageQueue:  make(chan *gossiper2.Envelope, gossiper2.messageQueueLimit),
 		//p2pMsgQueue:   make(chan *Envelope, messageQueueLimit),
 		quit:          make(chan struct{}),
-		syncAllowance: DefaultSyncAllowance,
+		syncAllowance: gossiper2.DefaultSyncAllowance,
 	}
 
-	whisper.filters = NewFilters(whisper)
+	whisper.filters = gossiper2.NewFilters(whisper)
 
 	whisper.settings.Store(minPowIdx, cfg.MinimumAcceptedPOW)
 	whisper.settings.Store(maxMsgSizeIdx, cfg.MaxMessageSize)
@@ -130,12 +131,12 @@ func New(cfg *Config) *Whisper {
 func (whisper *Whisper) MinPow() float64 {
 	val, exist := whisper.settings.Load(minPowIdx)
 	if !exist || val == nil {
-		return DefaultMinimumPoW
+		return gossiper2.DefaultMinimumPoW
 	}
 	v, ok := val.(float64)
 	if !ok {
 		log.Error("Error loading minPowIdx, using default")
-		return DefaultMinimumPoW
+		return gossiper2.DefaultMinimumPoW
 	}
 	return v
 }
@@ -146,7 +147,7 @@ func (whisper *Whisper) MinPow() float64 {
 func (whisper *Whisper) MinPowTolerance() float64 {
 	val, exist := whisper.settings.Load(minPowToleranceIdx)
 	if !exist || val == nil {
-		return DefaultMinimumPoW
+		return gossiper2.DefaultMinimumPoW
 	}
 	return val.(float64)
 }
@@ -217,8 +218,8 @@ func (whisper *Whisper) Overflow() bool {
 
 // SetMaxMessageSize sets the maximal message size allowed by this node
 func (whisper *Whisper) SetMaxMessageSize(size uint32) error {
-	if size > MaxMessageSize {
-		return fmt.Errorf("message size too large [%d>%d]", size, MaxMessageSize)
+	if size > gossiper2.MaxMessageSize {
+		return fmt.Errorf("message size too large [%d>%d]", size, gossiper2.MaxMessageSize)
 	}
 	whisper.settings.Store(maxMsgSizeIdx, size)
 	return nil
@@ -226,11 +227,11 @@ func (whisper *Whisper) SetMaxMessageSize(size uint32) error {
 
 // SetBloomFilter sets the new bloom filter
 func (whisper *Whisper) SetBloomFilter(bloom []byte) error {
-	if len(bloom) != BloomFilterSize {
+	if len(bloom) != gossiper2.BloomFilterSize {
 		return fmt.Errorf("invalid bloom filter size: %d", len(bloom))
 	}
 
-	b := make([]byte, BloomFilterSize)
+	b := make([]byte, gossiper2.BloomFilterSize)
 	copy(b, bloom)
 
 	whisper.settings.Store(bloomFilterIdx, b)
@@ -464,10 +465,10 @@ func (whisper *Whisper) GetPrivateKey(id string) (*ecdsa.PrivateKey, error) {
 // GenerateSymKey generates a random symmetric key and stores it under id,
 // which is then returned. Will be used in the future for session key exchange.
 func (whisper *Whisper) GenerateSymKey() (string, error) {
-	key, err := generateSecureRandomData(aesKeyLength)
+	key, err := gossiper2.generateSecureRandomData(gossiper2.aesKeyLength)
 	if err != nil {
 		return "", err
-	} else if !validateDataIntegrity(key, aesKeyLength) {
+	} else if !validateDataIntegrity(key, gossiper2.aesKeyLength) {
 		return "", fmt.Errorf("error in GenerateSymKey: crypto/rand failed to generate random data")
 	}
 
@@ -488,7 +489,7 @@ func (whisper *Whisper) GenerateSymKey() (string, error) {
 
 // AddSymKeyDirect stores the key, and returns its id.
 func (whisper *Whisper) AddSymKeyDirect(key []byte) (string, error) {
-	if len(key) != aesKeyLength {
+	if len(key) != gossiper2.aesKeyLength {
 		return "", fmt.Errorf("wrong key size: %d", len(key))
 	}
 
@@ -519,7 +520,7 @@ func (whisper *Whisper) AddSymKeyFromPassword(password string) (string, error) {
 
 	// kdf should run no less than 0.1 seconds on an average computer,
 	// because it's an once in a session experience
-	derived := pbkdf2.Key([]byte(password), nil, 65356, aesKeyLength, sha256.New)
+	derived := pbkdf2.Key([]byte(password), nil, 65356, gossiper2.aesKeyLength, sha256.New)
 	if err != nil {
 		return "", err
 	}
@@ -566,7 +567,7 @@ func (whisper *Whisper) GetSymKey(id string) ([]byte, error) {
 
 // Subscribe installs a new message handler used for filtering, decrypting
 // and subsequent storing of incoming messages.
-func (whisper *Whisper) Subscribe(f *Filter) (string, error) {
+func (whisper *Whisper) Subscribe(f *gossiper2.Filter) (string, error) {
 	s, err := whisper.filters.Install(f)
 	if err == nil {
 		whisper.updateBloomFilter(f)
@@ -576,11 +577,11 @@ func (whisper *Whisper) Subscribe(f *Filter) (string, error) {
 
 // updateBloomFilter recalculates the new value of bloom filter,
 // and informs the peers if necessary.
-func (whisper *Whisper) updateBloomFilter(f *Filter) {
-	aggregate := make([]byte, BloomFilterSize)
+func (whisper *Whisper) updateBloomFilter(f *gossiper2.Filter) {
+	aggregate := make([]byte, gossiper2.BloomFilterSize)
 	for _, t := range f.Topics {
-		top := BytesToTopic(t)
-		b := TopicToBloom(top)
+		top := gossiper2.BytesToTopic(t)
+		b := gossiper2.TopicToBloom(top)
 		aggregate = addBloom(aggregate, b)
 	}
 
@@ -592,7 +593,7 @@ func (whisper *Whisper) updateBloomFilter(f *Filter) {
 }
 
 // GetFilter returns the filter by id.
-func (whisper *Whisper) GetFilter(id string) *Filter {
+func (whisper *Whisper) GetFilter(id string) *gossiper2.Filter {
 	return whisper.filters.Get(id)
 }
 
@@ -607,7 +608,7 @@ func (whisper *Whisper) Unsubscribe(id string) error {
 
 // Send injects a message into the whisper send queue, to be distributed in the
 // network in the coming cycles.
-func (whisper *Whisper) Send(envelope *Envelope) error {
+func (whisper *Whisper) Send(envelope *gossiper2.Envelope) error {
 	ok, err := whisper.add(envelope)
 	if err == nil && !ok {
 		return fmt.Errorf("failed to add envelope")
@@ -659,13 +660,14 @@ func (whisper *Whisper) HandlePeer(peer *net.UDPAddr) error {
 	whisperPeer.start()
 	defer whisperPeer.stop()
 
+	select{}
 	return nil
 	//return whisper.runMessageLoop(whisperPeer)
 }
 
 // runMessageLoop reads and processes inbound messages directly to merge into client-global state.
 func (whisper *Whisper) runMessageLoop() error {
-	for extPacket := range PacketChannels["whisperPacket"] {
+	for extPacket := range gossiper2.PacketChannels["whisperPacket"] {
 		packet := extPacket.Packet.WhisperPacket
 
 		//// fetch the next packet
@@ -683,9 +685,9 @@ func (whisper *Whisper) runMessageLoop() error {
 		//case statusCode:
 		//	// this should not happen, but no need to panic; just ignore this message.
 		//	log.Warn("unxepected status message received", "peer", p.peer.String())
-		case messagesCode:
+		case gossiper2.messagesCode:
 			// decode the contained envelope
-			var envelope *Envelope
+			var envelope *gossiper2.Envelope
 			if err := packet.DecodeEnvelope(envelope); err != nil {
 				log.Warn("failed to decode envelopes, peer will be disconnected", "peer", extPacket.SenderAddr.String(), "err", err)
 				return errors.New("invalid envelopes")
@@ -783,12 +785,12 @@ func (whisper *Whisper) runMessageLoop() error {
 // whisper network. It also inserts the envelope into the expiration pool at the
 // appropriate time-stamp. In case of error, connection should be dropped.
 // param isP2P indicates whether the message is peer-to-peer (should not be forwarded).
-func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
+func (whisper *Whisper) add(envelope *gossiper2.Envelope) (bool, error) {
 	now := uint32(time.Now().Unix())
 	sent := envelope.Expiry - envelope.TTL
 
 	if sent > now {
-		if sent-DefaultSyncAllowance > now {
+		if sent-gossiper2.DefaultSyncAllowance > now {
 			return false, fmt.Errorf("envelope created in the future [%x]", envelope.Hash())
 		}
 		// recalculate PoW, adjusted for the time difference, plus one second for latency
@@ -796,7 +798,7 @@ func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 	}
 
 	if envelope.Expiry < now {
-		if envelope.Expiry+DefaultSyncAllowance*2 < now {
+		if envelope.Expiry+gossiper2.DefaultSyncAllowance*2 < now {
 			return false, fmt.Errorf("very old message")
 		}
 		log.Debug("expired envelope dropped", "hash", envelope.Hash().Hex())
@@ -857,7 +859,7 @@ func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 }
 
 // postEvent queues the message for further processing.
-func (whisper *Whisper) postEvent(envelope *Envelope) {
+func (whisper *Whisper) postEvent(envelope *gossiper2.Envelope) {
 	whisper.checkOverflow()
 	whisper.messageQueue <- envelope
 
@@ -867,12 +869,12 @@ func (whisper *Whisper) postEvent(envelope *Envelope) {
 func (whisper *Whisper) checkOverflow() {
 	queueSize := len(whisper.messageQueue)
 
-	if queueSize == messageQueueLimit {
+	if queueSize == gossiper2.messageQueueLimit {
 		if !whisper.Overflow() {
 			whisper.settings.Store(overflowIdx, true)
 			log.Warn("message queue overflow")
 		}
-	} else if queueSize <= messageQueueLimit/2 {
+	} else if queueSize <= gossiper2.messageQueueLimit/2 {
 		if whisper.Overflow() {
 			whisper.settings.Store(overflowIdx, false)
 			log.Warn("message queue overflow fixed (back to normal)")
@@ -882,7 +884,7 @@ func (whisper *Whisper) checkOverflow() {
 
 // processQueue delivers the messages to the watchers during the lifetime of the whisper node.
 func (whisper *Whisper) processQueue() {
-	var e *Envelope
+	var e *gossiper2.Envelope
 	for {
 		select {
 		case <-whisper.quit:
@@ -901,7 +903,7 @@ func (whisper *Whisper) processQueue() {
 // state by expiring stale messages from the pool.
 func (whisper *Whisper) update() {
 	// Start a ticker to check for expirations
-	expire := time.NewTicker(expirationCycle)
+	expire := time.NewTicker(gossiper2.expirationCycle)
 
 	// Repeat updates until termination is requested
 	for {
@@ -951,11 +953,11 @@ func (whisper *Whisper) Stats() Statistics {
 }
 
 // Envelopes retrieves all the messages currently pooled by the node.
-func (whisper *Whisper) Envelopes() []*Envelope {
+func (whisper *Whisper) Envelopes() []*gossiper2.Envelope {
 	whisper.poolMu.RLock()
 	defer whisper.poolMu.RUnlock()
 
-	all := make([]*Envelope, 0, len(whisper.envelopes))
+	all := make([]*gossiper2.Envelope, 0, len(whisper.envelopes))
 	for _, envelope := range whisper.envelopes {
 		all = append(all, envelope)
 	}
@@ -1036,11 +1038,11 @@ func BytesToUintBigEndian(b []byte) (res uint64) {
 
 // GenerateRandomID generates a random string, which is then returned to be used as a key id
 func GenerateRandomID() (id string, err error) {
-	buf, err := generateSecureRandomData(keyIDSize)
+	buf, err := gossiper2.generateSecureRandomData(gossiper2.keyIDSize)
 	if err != nil {
 		return "", err
 	}
-	if !validateDataIntegrity(buf, keyIDSize) {
+	if !validateDataIntegrity(buf, gossiper2.keyIDSize) {
 		return "", fmt.Errorf("error in generateRandomID: crypto/rand failed to generate random data")
 	}
 	id = common.Bytes2Hex(buf)
@@ -1064,7 +1066,7 @@ func BloomFilterMatch(filter, sample []byte) bool {
 		return true
 	}
 
-	for i := 0; i < BloomFilterSize; i++ {
+	for i := 0; i < gossiper2.BloomFilterSize; i++ {
 		f := filter[i]
 		s := sample[i]
 		if (f | s) != f {
@@ -1076,8 +1078,8 @@ func BloomFilterMatch(filter, sample []byte) bool {
 }
 
 func addBloom(a, b []byte) []byte {
-	c := make([]byte, BloomFilterSize)
-	for i := 0; i < BloomFilterSize; i++ {
+	c := make([]byte, gossiper2.BloomFilterSize)
+	for i := 0; i < gossiper2.BloomFilterSize; i++ {
 		c[i] = a[i] | b[i]
 	}
 	return c
