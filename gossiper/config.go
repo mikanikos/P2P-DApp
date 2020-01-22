@@ -17,7 +17,7 @@
 package gossiper
 
 import (
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/mikanikos/Peerster/crypto"
 	"time"
 )
 
@@ -62,17 +62,3 @@ const (
 	DefaultTTL           = 50 // seconds
 	DefaultSyncAllowance = 10 // seconds
 )
-
-// Config represents the configuration state of a whisper node.
-type Config struct {
-	MaxMessageSize                        uint32  `toml:",omitempty"`
-	MinimumAcceptedPOW                    float64 `toml:",omitempty"`
-	RestrictConnectionBetweenLightClients bool    `toml:",omitempty"`
-}
-
-// DefaultConfig represents (shocker!) the default configuration.
-var DefaultConfig = Config{
-	MaxMessageSize:                        DefaultMaxMessageSize,
-	MinimumAcceptedPOW:                    DefaultMinimumPoW,
-	RestrictConnectionBetweenLightClients: true,
-}

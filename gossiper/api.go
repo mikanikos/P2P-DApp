@@ -21,12 +21,9 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/mikanikos/Peerster/crypto"
 	"sync"
 	"time"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // List of errors
@@ -93,7 +90,7 @@ func (api *PublicWhisperAPI) SetMinPoW(ctx context.Context, pow float64) (bool, 
 }
 
 // SetBloomFilter sets the new value of bloom filter, and notifies the peers.
-func (api *PublicWhisperAPI) SetBloomFilter(ctx context.Context, bloom hexutil.Bytes) (bool, error) {
+func (api *PublicWhisperAPI) SetBloomFilter(ctx context.Context, bloom []byte) (bool, error) {
 	return true, api.w.SetBloomFilter(bloom)
 }
 
@@ -114,7 +111,7 @@ func (api *PublicWhisperAPI) NewKeyPair(ctx context.Context) (string, error) {
 }
 
 // AddPrivateKey imports the given private key.
-func (api *PublicWhisperAPI) AddPrivateKey(ctx context.Context, privateKey hexutil.Bytes) (string, error) {
+func (api *PublicWhisperAPI) AddPrivateKey(ctx context.Context, privateKey []byte) (string, error) {
 	key, err := crypto.ToECDSA(privateKey)
 	if err != nil {
 		return "", err
@@ -137,20 +134,20 @@ func (api *PublicWhisperAPI) HasKeyPair(ctx context.Context, id string) bool {
 
 // GetPublicKey returns the public key associated with the given key. The key is the hex
 // encoded representation of a key in the form specified in section 4.3.6 of ANSI X9.62.
-func (api *PublicWhisperAPI) GetPublicKey(ctx context.Context, id string) (hexutil.Bytes, error) {
+func (api *PublicWhisperAPI) GetPublicKey(ctx context.Context, id string) ([]byte, error) {
 	key, err := api.w.GetPrivateKey(id)
 	if err != nil {
-		return hexutil.Bytes{}, err
+		return []byte{}, err
 	}
 	return crypto.FromECDSAPub(&key.PublicKey), nil
 }
 
 // GetPrivateKey returns the private key associated with the given key. The key is the hex
 // encoded representation of a key in the form specified in section 4.3.6 of ANSI X9.62.
-func (api *PublicWhisperAPI) GetPrivateKey(ctx context.Context, id string) (hexutil.Bytes, error) {
+func (api *PublicWhisperAPI) GetPrivateKey(ctx context.Context, id string) ([]byte, error) {
 	key, err := api.w.GetPrivateKey(id)
 	if err != nil {
-		return hexutil.Bytes{}, err
+		return []byte{}, err
 	}
 	return crypto.FromECDSA(key), nil
 }
@@ -165,7 +162,7 @@ func (api *PublicWhisperAPI) NewSymKey(ctx context.Context) (string, error) {
 // AddSymKey import a symmetric key.
 // It returns an ID that can be used to refer to the key.
 // Can be used encrypting and decrypting messages where the key is known to both parties.
-func (api *PublicWhisperAPI) AddSymKey(ctx context.Context, key hexutil.Bytes) (string, error) {
+func (api *PublicWhisperAPI) AddSymKey(ctx context.Context, key []byte) (string, error) {
 	return api.w.AddSymKeyDirect([]byte(key))
 }
 
@@ -180,7 +177,7 @@ func (api *PublicWhisperAPI) HasSymKey(ctx context.Context, id string) bool {
 }
 
 // GetSymKey returns the symmetric key associated with the given id.
-func (api *PublicWhisperAPI) GetSymKey(ctx context.Context, id string) (hexutil.Bytes, error) {
+func (api *PublicWhisperAPI) GetSymKey(ctx context.Context, id string) ([]byte, error) {
 	return api.w.GetSymKey(id)
 }
 
@@ -206,14 +203,14 @@ type NewMessage struct {
 }
 
 type newMessageOverride struct {
-	PublicKey hexutil.Bytes
-	Payload   hexutil.Bytes
-	Padding   hexutil.Bytes
+	PublicKey []byte
+	Payload   []byte
+	Padding   []byte
 }
 
 // Post posts a message on the Whisper network.
 // returns the hash of the message in case of success.
-func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) (hexutil.Bytes, error) {
+func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) ([]byte, error) {
 	var (
 		symKeyGiven = len(req.SymKeyID) > 0
 		pubKeyGiven = len(req.PublicKey) > 0
@@ -313,7 +310,7 @@ type Criteria struct {
 }
 
 type criteriaOverride struct {
-	Sig hexutil.Bytes
+	Sig []byte
 }
 
 // Messages set up a subscription that fires events when messages arrive that match
@@ -338,7 +335,7 @@ type criteriaOverride struct {
 //
 //	filter := Filter{
 //		PoW:      crit.MinPow,
-//		Messages: make(map[common.Hash]*ReceivedMessage),
+//		Messages: make(map[[32]byte]*ReceivedMessage),
 //		AllowP2P: crit.AllowP2P,
 //	}
 //
@@ -397,7 +394,7 @@ type criteriaOverride struct {
 //				if filter := api.w.GetFilter(id); filter != nil {
 //					for _, rpcMessage := range toMessage(filter.Retrieve()) {
 //						if err := notifier.Notify(rpcSub.ID, rpcMessage); err != nil {
-//							log.Error("Failed to send notification", "err", err)
+//							fmt.Println("Failed to send notification", "err", err)
 //						}
 //					}
 //				}
@@ -430,11 +427,11 @@ type Message struct {
 }
 
 type messageOverride struct {
-	Sig     hexutil.Bytes
-	Payload hexutil.Bytes
-	Padding hexutil.Bytes
-	Hash    hexutil.Bytes
-	Dst     hexutil.Bytes
+	Sig     []byte
+	Payload []byte
+	Padding []byte
+	Hash    []byte
+	Dst     []byte
 }
 
 // ToWhisperMessage converts an internal message into an API version.
@@ -445,7 +442,7 @@ func ToWhisperMessage(message *ReceivedMessage) *Message {
 		Timestamp: message.Sent,
 		TTL:       message.TTL,
 		PoW:       message.PoW,
-		Hash:      message.EnvelopeHash.Bytes(),
+		Hash:      message.EnvelopeHash[:],
 		Topic:     message.Topic,
 	}
 
@@ -561,7 +558,7 @@ func (api *PublicWhisperAPI) NewMessageFilter(req Criteria) (string, error) {
 		PoW:      req.MinPow,
 		AllowP2P: req.AllowP2P,
 		Topics:   topics,
-		Messages: make(map[common.Hash]*ReceivedMessage),
+		Messages: make(map[[32]byte]*ReceivedMessage),
 	}
 
 	id, err := api.w.Subscribe(f)

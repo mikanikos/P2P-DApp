@@ -18,10 +18,6 @@
 
 package gossiper
 
-import (
-	"github.com/ethereum/go-ethereum/common/hexutil"
-)
-
 // TopicType represents a cryptographically secure, probabilistic partial
 // classifications of a message, determined as the first (left) 4 bytes of the
 // SHA3 hash of some arbitrary data given by the original author of the message.
@@ -40,17 +36,17 @@ func BytesToTopic(b []byte) (t TopicType) {
 	return t
 }
 
-// String converts a topic byte array to a string representation.
-func (t *TopicType) String() string {
-	return hexutil.Encode(t[:])
-}
+//// String converts a topic byte array to a string representation.
+//func (t *TopicType) String() string {
+//	return hexutil.Encode(t[:])
+//}
 
-// MarshalText returns the hex representation of t.
-func (t TopicType) MarshalText() ([]byte, error) {
-	return hexutil.Bytes(t[:]).MarshalText()
-}
-
-// UnmarshalText parses a hex representation to a topic.
-func (t *TopicType) UnmarshalText(input []byte) error {
-	return hexutil.UnmarshalFixedText("Topic", input, t[:])
-}
+//// MarshalText returns the hex representation of t.
+//func (t TopicType) MarshalText() ([]byte, error) {
+//	return []byte(t[:]).MarshalText()
+//}
+//
+//// UnmarshalText parses a hex representation to a topic.
+//func (t *TopicType) UnmarshalText(input []byte) error {
+//	return hexutil.UnmarshalFixedText("Topic", input, t[:])
+//}

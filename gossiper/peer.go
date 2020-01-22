@@ -18,15 +18,12 @@ package gossiper
 
 import (
 	"fmt"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/dedis/protobuf"
 	"math"
 	"net"
 	"sync"
 	"time"
-
-	mapset "github.com/deckarep/golang-set"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // Peer represents a whisper protocol peer connection.
@@ -63,13 +60,13 @@ func newPeer(host *Whisper, remote *net.UDPAddr) *Peer {
 // into the network.
 func (peer *Peer) start() {
 	go peer.update()
-	log.Trace("start", "peer", peer.peer.String())
+	fmt.Println("start", "peer", peer.peer.String())
 }
 
 // stop terminates the peer updater, stopping message forwarding to it.
 func (peer *Peer) stop() {
 	close(peer.quit)
-	log.Trace("stop", "peer", peer.peer.String())
+	fmt.Println("stop", "peer", peer.peer.String())
 }
 
 type WhisperStatus struct {
@@ -147,7 +144,7 @@ func (peer *Peer) update() {
 
 		case <-transmit.C:
 			if err := peer.broadcast(); err != nil {
-				log.Trace("broadcast failed", "reason", err, "peer", peer.peer.String())
+				fmt.Println("broadcast failed", "reason", err, "peer", peer.peer.String())
 				return
 			}
 
@@ -160,10 +157,10 @@ func (peer *Peer) update() {
 // expire iterates over all the known envelopes in the host and removes all
 // expired (unknown) ones from the known list.
 func (peer *Peer) expire() {
-	unmark := make(map[common.Hash]struct{})
+	unmark := make(map[[32]byte]struct{})
 	peer.known.Each(func(v interface{}) bool {
-		if !peer.host.isEnvelopeCached(v.(common.Hash)) {
-			unmark[v.(common.Hash)] = struct{}{}
+		if !peer.host.isEnvelopeCached(v.([32]byte)) {
+			unmark[v.([32]byte)] = struct{}{}
 		}
 		return true
 	})
@@ -197,7 +194,7 @@ func (peer *Peer) broadcast() error {
 			}
 		}
 
-		log.Trace("broadcast", "num. messages", len(bundle))
+		fmt.Println("broadcast", "num. messages", len(bundle))
 	}
 	return nil
 }

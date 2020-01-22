@@ -19,6 +19,7 @@ package gossiper
 import (
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"net"
@@ -27,9 +28,7 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/mikanikos/Peerster/crypto"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -66,7 +65,7 @@ type Whisper struct {
 	keyMu       sync.RWMutex                 // Mutex associated with key storages
 
 	poolMu      sync.RWMutex              // Mutex to sync the message and expiration pools
-	envelopes   map[common.Hash]*Envelope // Pool of envelopes currently tracked by this node
+	envelopes   map[[32]byte]*Envelope // Pool of envelopes currently tracked by this node
 	expirations map[uint32]mapset.Set     // Message expiration pool
 
 	peerMu sync.RWMutex       // Mutex to sync the active peer set
@@ -92,7 +91,7 @@ func New(gossiper *Gossiper) *Whisper {
 		gossiper: gossiper,
 		privateKeys:   make(map[string]*ecdsa.PrivateKey),
 		symKeys:       make(map[string][]byte),
-		envelopes:     make(map[common.Hash]*Envelope),
+		envelopes:     make(map[[32]byte]*Envelope),
 		expirations:   make(map[uint32]mapset.Set),
 		peers:         make(map[*Peer]struct{}),
 		messageQueue:  make(chan *Envelope, messageQueueLimit),
@@ -134,7 +133,7 @@ func (whisper *Whisper) MinPow() float64 {
 	}
 	v, ok := val.(float64)
 	if !ok {
-		log.Error("Error loading minPowIdx, using default")
+		fmt.Println("Error loading minPowIdx, using default")
 		return DefaultMinimumPoW
 	}
 	return v
@@ -304,7 +303,7 @@ func (whisper *Whisper) notifyPeersAboutPowRequirementChange(pow float64) {
 			err = p.notifyAboutPowRequirementChange(pow)
 		}
 		if err != nil {
-			log.Warn("failed to notify peer about new pow requirement", "peer", p.peer.String(), "error", err)
+			fmt.Println("failed to notify peer about new pow requirement", "peer", p.peer.String(), "error", err)
 		}
 	}
 }
@@ -318,7 +317,7 @@ func (whisper *Whisper) notifyPeersAboutBloomFilterChange(bloom []byte) {
 			err = p.notifyAboutBloomFilterChange(bloom)
 		}
 		if err != nil {
-			log.Warn("failed to notify peer about new bloom filter", "peer", p.peer.String(), "error", err)
+			fmt.Println("failed to notify peer about new bloom filter", "peer", p.peer.String(), "error", err)
 		}
 	}
 }
@@ -632,7 +631,7 @@ func (whisper *Whisper) Start() error {
 // of the Whisper protocol.
 func (whisper *Whisper) Stop() error {
 	close(whisper.quit)
-	log.Info("whisper stopped")
+	fmt.Println("whisper stopped")
 	return nil
 }
 
@@ -672,23 +671,23 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 		//// fetch the next packet
 		//packet, err := rw.ReadMsg()
 		//if err != nil {
-		//	log.Info("message loop", "peer", p.peer.ID(), "err", err)
+		//	fmt.Println("message loop", "peer", p.peer.ID(), "err", err)
 		//	return err
 		//}
 		if packet.Size > whisper.MaxMessageSize() {
-			//log.Warn("oversized message received", "peer", p.peer.String())
+			//fmt.Println("oversized message received", "peer", p.peer.String())
 			return errors.New("oversized message received")
 		}
 
 		switch packet.Code {
 		//case statusCode:
 		//	// this should not happen, but no need to panic; just ignore this message.
-		//	log.Warn("unxepected status message received", "peer", p.peer.String())
+		//	fmt.Println("unxepected status message received", "peer", p.peer.String())
 		case messagesCode:
 			// decode the contained envelope
 			var envelope *Envelope
 			if err := packet.DecodeEnvelope(envelope); err != nil {
-				log.Warn("failed to decode envelopes, peer will be disconnected", "peer", extPacket.SenderAddr.String(), "err", err)
+				fmt.Println("failed to decode envelopes, peer will be disconnected", "peer", extPacket.SenderAddr.String(), "err", err)
 				return errors.New("invalid envelopes")
 			}
 
@@ -696,7 +695,7 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 			_, err := whisper.add(envelope)
 			if err != nil {
 				trouble = true
-				log.Error("bad envelope received, peer will be disconnected", "peer", extPacket.SenderAddr.String(), "err", err)
+				fmt.Println("bad envelope received, peer will be disconnected", "peer", extPacket.SenderAddr.String(), "err", err)
 			}
 			//if cached {
 			//	p.mark(envelope)
@@ -711,7 +710,7 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 			//	cached, err := whisper.add(env, whisper.LightClientMode())
 			//	if err != nil {
 			//		trouble = true
-			//		log.Error("bad envelope received, peer will be disconnected", "peer", p.peer.ID(), "err", err)
+			//		fmt.Println("bad envelope received, peer will be disconnected", "peer", p.peer.ID(), "err", err)
 			//	}
 			//	if cached {
 			//		p.mark(env)
@@ -725,12 +724,12 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 			var i uint64
 			err := packet.DecodePow(&i)
 			if err != nil {
-				log.Warn("failed to decode powRequirementCode message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				fmt.Println("failed to decode powRequirementCode message, peer will be disconnected", "peer", p.peer.String(), "err", err)
 				return errors.New("invalid powRequirementCode message")
 			}
 			f := math.Float64frombits(i)
 			if math.IsInf(f, 0) || math.IsNaN(f) || f < 0.0 {
-				log.Warn("invalid value in powRequirementCode message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				fmt.Println("invalid value in powRequirementCode message, peer will be disconnected", "peer", p.peer.String(), "err", err)
 				return errors.New("invalid value in powRequirementCode message")
 			}
 			p.powRequirement = f
@@ -742,7 +741,7 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 			}
 
 			if err != nil {
-				log.Warn("failed to decode bloom filter exchange message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				fmt.Println("failed to decode bloom filter exchange message, peer will be disconnected", "peer", p.peer.String(), "err", err)
 				return errors.New("invalid bloom filter exchange message")
 			}
 			p.setBloomFilter(bloom)
@@ -777,7 +776,7 @@ func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 		if envelope.Expiry+DefaultSyncAllowance*2 < now {
 			return false, fmt.Errorf("very old message")
 		}
-		log.Debug("expired envelope dropped", "hash", envelope.Hash().Hex())
+		fmt.Println("expired envelope dropped", "hash", envelope.Hash())
 		return false, nil // drop envelope without error
 	}
 
@@ -790,7 +789,7 @@ func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 		// in this case the previous value is retrieved by MinPowTolerance()
 		// for a short period of peer synchronization.
 		if envelope.PoW() < whisper.MinPowTolerance() {
-			return false, fmt.Errorf("envelope with low PoW received: PoW=%f, hash=[%v]", envelope.PoW(), envelope.Hash().Hex())
+			return false, fmt.Errorf("envelope with low PoW received: PoW=%f, hash=[%v]", envelope.PoW(), envelope.Hash())
 		}
 	}
 
@@ -800,7 +799,7 @@ func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 		// for a short period of peer synchronization.
 		//if !BloomFilterMatch(whisper.BloomFilterTolerance(), envelope.Bloom()) {
 			return false, fmt.Errorf("envelope does not match bloom filter, hash=[%v], bloom: \n%x \n%x \n%x",
-				envelope.Hash().Hex(), whisper.BloomFilter(), envelope.Bloom(), envelope.Topic)
+				envelope.Hash(), whisper.BloomFilter(), envelope.Bloom(), envelope.Topic)
 		//}
 	}
 
@@ -820,9 +819,9 @@ func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 	whisper.poolMu.Unlock()
 
 	if alreadyCached {
-		log.Trace("whisper envelope already cached", "hash", envelope.Hash().Hex())
+		fmt.Println("whisper envelope already cached", "hash", envelope.Hash())
 	} else {
-		log.Trace("cached whisper envelope", "hash", envelope.Hash().Hex())
+		fmt.Println("cached whisper envelope", "hash", envelope.Hash())
 		whisper.statsMu.Lock()
 		whisper.stats.memoryUsed += envelope.size()
 		whisper.statsMu.Unlock()
@@ -848,12 +847,12 @@ func (whisper *Whisper) checkOverflow() {
 	if queueSize == messageQueueLimit {
 		if !whisper.Overflow() {
 			whisper.settings.Store(overflowIdx, true)
-			log.Warn("message queue overflow")
+			fmt.Println("message queue overflow")
 		}
 	} else if queueSize <= messageQueueLimit/2 {
 		if whisper.Overflow() {
 			whisper.settings.Store(overflowIdx, false)
-			log.Warn("message queue overflow fixed (back to normal)")
+			fmt.Println("message queue overflow fixed (back to normal)")
 		}
 	}
 }
@@ -907,8 +906,8 @@ func (whisper *Whisper) expire() {
 		if expiry < now {
 			// Dump all expired messages and remove timestamp
 			hashSet.Each(func(v interface{}) bool {
-				sz := whisper.envelopes[v.(common.Hash)].size()
-				delete(whisper.envelopes, v.(common.Hash))
+				sz := whisper.envelopes[v.([32]byte)].size()
+				delete(whisper.envelopes, v.([32]byte))
 				whisper.stats.messagesCleared++
 				whisper.stats.memoryCleared += sz
 				whisper.stats.memoryUsed -= sz
@@ -941,7 +940,7 @@ func (whisper *Whisper) Envelopes() []*Envelope {
 }
 
 // isEnvelopeCached checks if envelope with specific hash has already been received and cached.
-func (whisper *Whisper) isEnvelopeCached(hash common.Hash) bool {
+func (whisper *Whisper) isEnvelopeCached(hash [32]byte) bool {
 	whisper.poolMu.Lock()
 	defer whisper.poolMu.Unlock()
 
@@ -972,7 +971,7 @@ func validatePrivateKey(k *ecdsa.PrivateKey) bool {
 }
 
 // validateDataIntegrity returns false if the data have the wrong or contains all zeros,
-// which is the simplest and the most common bug.
+// which is the simplest and the most  bug.
 func validateDataIntegrity(k []byte, expectedSize int) bool {
 	if len(k) != expectedSize {
 		return false
@@ -1021,7 +1020,7 @@ func GenerateRandomID() (id string, err error) {
 	if !validateDataIntegrity(buf, keyIDSize) {
 		return "", fmt.Errorf("error in generateRandomID: crypto/rand failed to generate random data")
 	}
-	id = common.Bytes2Hex(buf)
+	id = hex.EncodeToString(buf)
 	return id, err
 }
 

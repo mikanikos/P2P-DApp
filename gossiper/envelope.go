@@ -27,9 +27,8 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/mikanikos/Peerster/crypto"
+	"github.com/mikanikos/Peerster/crypto/ecies"
 )
 
 // Envelope represents a clear-text data packet to transmit through the Whisper
@@ -44,7 +43,7 @@ type Envelope struct {
 	pow float64 // Message-specific PoW as described in the Whisper specification.
 
 	// the following variables should not be accessed directly, use the corresponding function instead: Hash(), Bloom()
-	hash  common.Hash // Cached hash of the envelope to avoid rehashing every time.
+	hash  [32]byte // Cached hash of the envelope to avoid rehashing every time.
 	bloom []byte
 }
 
@@ -156,8 +155,8 @@ func (e *Envelope) powToFirstBit(pow float64) int {
 }
 
 // Hash returns the SHA3 hash of the envelope, calculating it if not yet done.
-func (e *Envelope) Hash() common.Hash {
-	if (e.hash == common.Hash{}) {
+func (e *Envelope) Hash() [32]byte {
+	if (e.hash == [32]byte{}) {
 		encoded, _ := protobuf.Encode(e)
 		e.hash = crypto.Keccak256Hash(encoded)
 	}
@@ -264,7 +263,7 @@ func TopicToBloom(topic TopicType) []byte {
 
 // GetEnvelope retrieves an envelope from the message queue by its hash.
 // It returns nil if the envelope can not be found.
-func (w *Whisper) GetEnvelope(hash common.Hash) *Envelope {
+func (w *Whisper) GetEnvelope(hash [32]byte) *Envelope {
 	w.poolMu.RLock()
 	defer w.poolMu.RUnlock()
 	return w.envelopes[hash]

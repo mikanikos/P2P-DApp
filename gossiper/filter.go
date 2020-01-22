@@ -21,9 +21,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/mikanikos/Peerster/crypto"
 )
 
 // Filter represents a Whisper message filter
@@ -34,10 +32,10 @@ type Filter struct {
 	Topics     [][]byte          // Topics to filter messages with
 	PoW        float64           // Proof of work as described in the Whisper spec
 	AllowP2P   bool              // Indicates whether this filter is interested in direct peer-to-peer messages
-	SymKeyHash common.Hash       // The Keccak256Hash of the symmetric key, needed for optimization
+	SymKeyHash [32]byte       // The Keccak256Hash of the symmetric key, needed for optimization
 	id         string            // unique identifier
 
-	Messages map[common.Hash]*ReceivedMessage
+	Messages map[[32]byte]*ReceivedMessage
 	mutex    sync.RWMutex
 }
 
@@ -69,7 +67,7 @@ func (fs *Filters) Install(watcher *Filter) (string, error) {
 	}
 
 	if watcher.Messages == nil {
-		watcher.Messages = make(map[common.Hash]*ReceivedMessage)
+		watcher.Messages = make(map[[32]byte]*ReceivedMessage)
 	}
 
 	id, err := GenerateRandomID()
@@ -163,7 +161,7 @@ func (fs *Filters) NotifyWatchers(env *Envelope, p2pMessage bool) {
 	candidates := fs.getWatchersByTopic(env.Topic)
 	for _, watcher := range candidates {
 		if p2pMessage && !watcher.AllowP2P {
-			log.Trace(fmt.Sprintf("msg [%x], filter [%s]: p2p messages are not allowed", env.Hash(), watcher.id))
+			fmt.Println(fmt.Sprintf("msg [%x], filter [%s]: p2p messages are not allowed", env.Hash(), watcher.id))
 			continue
 		}
 
@@ -175,15 +173,15 @@ func (fs *Filters) NotifyWatchers(env *Envelope, p2pMessage bool) {
 			if match {
 				msg = env.Open(watcher)
 				if msg == nil {
-					log.Trace("processing message: failed to open", "message", env.Hash().Hex(), "filter", watcher.id)
+					fmt.Println("processing message: failed to open", "message", env.Hash(), "filter", watcher.id)
 				}
 			} else {
-				log.Trace("processing message: does not match", "message", env.Hash().Hex(), "filter", watcher.id)
+				fmt.Println("processing message: does not match", "message", env.Hash(), "filter", watcher.id)
 			}
 		}
 
 		if match && msg != nil {
-			log.Trace("processing message: decrypted", "hash", env.Hash().Hex())
+			fmt.Println("processing message: decrypted", "hash", env.Hash())
 			if watcher.Src == nil || IsPubKeyEqual(msg.Src, watcher.Src) {
 				watcher.Trigger(msg)
 			}
@@ -221,7 +219,7 @@ func (f *Filter) Retrieve() (all []*ReceivedMessage) {
 		all = append(all, msg)
 	}
 
-	f.Messages = make(map[common.Hash]*ReceivedMessage) // delete old messages
+	f.Messages = make(map[[32]byte]*ReceivedMessage) // delete old messages
 	return all
 }
 

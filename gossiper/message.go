@@ -25,13 +25,12 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	mrand "math/rand"
 	"strconv"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/mikanikos/Peerster/crypto"
+	"github.com/mikanikos/Peerster/crypto/ecies"
 )
 
 // MessageParams specifies the exact way a message should be wrapped
@@ -72,8 +71,8 @@ type ReceivedMessage struct {
 	Dst   *ecdsa.PublicKey // Message recipient (identity used to decode the message)
 	Topic TopicType
 
-	SymKeyHash   common.Hash // The Keccak256Hash of the key
-	EnvelopeHash common.Hash // Message envelope hash to act as a unique id
+	SymKeyHash   [32]byte // The Keccak256Hash of the key
+	EnvelopeHash [32]byte // Message envelope hash to act as a unique id
 }
 
 func isMessageSigned(flags byte) bool {
@@ -81,7 +80,7 @@ func isMessageSigned(flags byte) bool {
 }
 
 func (msg *ReceivedMessage) isSymmetricEncryption() bool {
-	return msg.SymKeyHash != common.Hash{}
+	return msg.SymKeyHash != [32]byte{}
 }
 
 func (msg *ReceivedMessage) isAsymmetricEncryption() bool {
@@ -152,7 +151,7 @@ func (msg *sentMessage) appendPadding(params *MessageParams) error {
 func (msg *sentMessage) sign(key *ecdsa.PrivateKey) error {
 	if isMessageSigned(msg.Raw[0]) {
 		// this should not happen, but no reason to panic
-		log.Error("failed to sign the message: already signed")
+		fmt.Println("failed to sign the message: already signed")
 		return nil
 	}
 
@@ -339,7 +338,7 @@ func (msg *ReceivedMessage) SigToPubKey() *ecdsa.PublicKey {
 
 	pub, err := crypto.SigToPub(msg.hash(), msg.Signature)
 	if err != nil {
-		log.Error("failed to recover public key from signature", "err", err)
+		fmt.Println("failed to recover public key from signature", "err", err)
 		return nil
 	}
 	return pub
