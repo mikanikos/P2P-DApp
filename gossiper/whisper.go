@@ -638,6 +638,9 @@ func (whisper *Whisper) Stop() error {
 //HandlePeer is called by the underlying P2P layer when the whisper sub-protocol
 //connection is negotiated.
 func (whisper *Whisper) HandlePeer(peer *net.UDPAddr) error {
+	
+	fmt.Println("Handle " + peer.String())
+	
 	// Create the new peer and start tracking it
 	whisperPeer := newPeer(whisper, peer)
 
@@ -653,19 +656,29 @@ func (whisper *Whisper) HandlePeer(peer *net.UDPAddr) error {
 
 	// Run the peer handshake and state updates
 	if err := whisperPeer.handshake(); err != nil {
+		fmt.Println("Handshake failed")
 		return err
+	} else {
+		fmt.Println("Handshake ok")
 	}
 	whisperPeer.start()
 	defer whisperPeer.stop()
 
-	PacketChannels[peer.String()] = make(chan *ExtendedGossipPacket, maxChannelSize)
+	loop := whisper.runMessageLoop(whisperPeer)
 
-	return whisper.runMessageLoop(whisperPeer)
+	fmt.Println("Error")
+
+	fmt.Println(loop)
+
+	return loop
 }
 
 // runMessageLoop reads and processes inbound messages directly to merge into client-global state.
 func (whisper *Whisper) runMessageLoop(p *Peer) error {
-	for extPacket := range PacketChannels[p.peer.String()] {
+	for extPacket := range PeerChannels[p.peer.String()] {
+
+		fmt.Println("maaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
 		packet := extPacket.Packet.WhisperPacket
 
 		//// fetch the next packet
@@ -680,12 +693,12 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 		}
 
 		switch packet.Code {
-		//case statusCode:
-		//	// this should not happen, but no need to panic; just ignore this message.
-		//	fmt.Println("unxepected status message received", "peer", p.peer.String())
+		case statusCode:
+			fmt.Println("Status packet, ignore")
+
 		case messagesCode:
 			// decode the contained envelope
-			var envelope *Envelope
+			envelope := &Envelope{}
 			if err := packet.DecodeEnvelope(envelope); err != nil {
 				fmt.Println("failed to decode envelopes, peer will be disconnected", "peer", extPacket.SenderAddr.String(), "err", err)
 				return errors.New("invalid envelopes")
@@ -752,6 +765,8 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 
 		//packet.Discard()
 	}
+
+	fmt.Println("aoooooooooooooo")
 
 	return nil
 }

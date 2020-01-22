@@ -63,7 +63,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 		}
 
 		// decode message
-		protobuf.Decode(packetBytes[:n], messageFromClient)
+		err = protobuf.Decode(packetBytes[:n], messageFromClient)
 		helpers.ErrorCheck(err, false)
 
 		// send it to channel
@@ -76,8 +76,6 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 // process incoming packets from other peers and send them dynamically to the appropriate channel for further processing
 func (gossiper *Gossiper) receivePacketsFromPeers() {
 	for {
-		fmt.Println("arrivatooo")
-
 		packetFromPeer := &GossipPacket{}
 		packetBytes := make([]byte, maxBufferSize)
 
@@ -103,9 +101,10 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		if modeType != "unknwon" {
 			if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
 				packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
-				go func(p *ExtendedGossipPacket) {
-					PacketChannels[modeType] <- p
-				}(packet)
+				go func(p *ExtendedGossipPacket, m string) {
+					fmt.Println(m)
+					PacketChannels[m] <- p
+				}(packet, modeType)
 			} else {
 				fmt.Println("ERROR: message can't be accepted in this operation mode")
 			}

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/dedis/protobuf"
+	"github.com/mikanikos/Peerster/helpers"
 	"math"
 	"net"
 	"sync"
@@ -78,33 +79,40 @@ type WhisperStatus struct {
 // verifies the remote status too.
 func (peer *Peer) handshake() error {
 	// Send the handshake status message asynchronously
-	errc := make(chan error, 1)
+	//errc := make(chan error, 1)
+
 	go func() {
 		pow := peer.host.MinPow()
 		powConverted := math.Float64bits(pow)
 		bloom := peer.host.BloomFilter()
 
-		packetToSend, _ := protobuf.Encode(&WhisperStatus{Bloom: bloom, Pow: powConverted})
-		peer.host.gossiper.SendWhisperPacket(statusCode, packetToSend)
+		status := &WhisperStatus{Bloom: bloom, Pow: powConverted}
+		packetToSend, err := protobuf.Encode(status)
+		if err != nil {
+			helpers.ErrorCheck(err, false)
+		}
+
+		wPacket := &WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.name, ID: 0,}
+		packet := &GossipPacket{WhisperPacket: wPacket}
+		peer.host.gossiper.connectionHandler.sendPacket(packet, peer.peer)
+
+		fmt.Println("Sent to " + peer.peer.String())
 	}()
 
-	fmt.Println("wooooooooow")
-	// Fetch the remote status packet and verify protocol match
+	fmt.Println("Waiting " + peer.peer.String())
 
-	extpacket := <-PacketChannels[peer.peer.String()]
-	fmt.Println("maaaaaaaaaaa")
-	packet := extpacket.Packet.WhisperPacket
-	if packet.Code != statusCode {
-		return fmt.Errorf("peer [%x] sent packet %x before status packet", peer.peer.String(), packet.Code)
-	}
+	extPacket := <-PeerChannels[peer.peer.String()]
+	
+	fmt.Println("arrivatooo")
 
-	var status *WhisperStatus
+	packet := extPacket.Packet.WhisperPacket
+	status := &WhisperStatus{}
 	err := packet.DecodeStatus(status)
 	if err != nil {
 		return fmt.Errorf("peer [%x] sent bad status message: %v", peer.peer.String(), err)
 	}
 
-	// only version is mandatory, subsequent parameters are optional
+	// subsequent parameters are optional
 	powRaw := status.Pow
 
 	pow := math.Float64frombits(powRaw)
@@ -121,9 +129,14 @@ func (peer *Peer) handshake() error {
 	}
 	peer.setBloomFilter(bloom)
 
-	if err := <-errc; err != nil {
-		return fmt.Errorf("peer [%x] failed to send status packet: %v", peer.peer.String(), err)
-	}
+	// Fetch the remote status packet and verify protocol match
+
+	// extpacket := <-PacketChannels[peer.peer.String()]
+	// fmt.Println("maaaaaaaaaaa")
+	
+	// if err := <-errc; err != nil {
+	// 	return fmt.Errorf("peer [%x] failed to send status packet: %v", peer.peer.String(), err)
+	// }
 	return nil
 }
 
@@ -210,8 +223,13 @@ func (peer *Peer) notifyAboutPowRequirementChange(pow float64) error {
 	packetToSend, err := protobuf.Encode(&i)
 	if err != nil {
 		return err
-	}
-	return peer.host.gossiper.SendWhisperPacket(powRequirementCode, packetToSend)
+	} 
+
+	wPacket := &WhisperPacket{Code: powRequirementCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.name, ID: 0,}
+	packet := &GossipPacket{WhisperPacket: wPacket}
+	peer.host.gossiper.connectionHandler.sendPacket(packet, peer.peer)
+
+	return nil
 }
 
 func (peer *Peer) notifyAboutBloomFilterChange(bloom []byte) error {
@@ -219,7 +237,11 @@ func (peer *Peer) notifyAboutBloomFilterChange(bloom []byte) error {
 	if err != nil {
 		return err
 	}
-	return peer.host.gossiper.SendWhisperPacket(bloomFilterExCode, packetToSend)
+	wPacket := &WhisperPacket{Code: bloomFilterExCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.name, ID: 0,}
+	packet := &GossipPacket{WhisperPacket: wPacket}
+	peer.host.gossiper.connectionHandler.sendPacket(packet, peer.peer)
+
+	return nil
 }
 
 func (peer *Peer) bloomMatch(env *Envelope) bool {

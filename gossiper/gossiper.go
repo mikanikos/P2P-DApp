@@ -57,7 +57,7 @@ func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum ui
 	gossiper.whisper = New(gossiper)
 
 	for _, peer := range gossiper.peersData.Peers {
-		gossiper.whisper.HandlePeer(peer)
+		go gossiper.whisper.HandlePeer(peer)
 	}
 
 	return gossiper
@@ -101,6 +101,7 @@ func Init() {
 func initPacketChannels() {
 	// initialize channels used in the application
 	PacketChannels = make(map[string]chan *ExtendedGossipPacket)
+	PeerChannels = make(map[string]chan *ExtendedGossipPacket)
 	for _, t := range modeTypes {
 		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
 			PacketChannels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
@@ -125,6 +126,8 @@ func (gossiper *Gossiper) Run() {
 
 	rand.Seed(time.Now().UnixNano())
 
+	gossiper.whisper.Start()
+
 	// create client channel
 	clientChannel := make(chan *helpers.Message, maxChannelSize)
 	go gossiper.processClientMessages(clientChannel)
@@ -135,6 +138,8 @@ func (gossiper *Gossiper) Run() {
 	go gossiper.processStatusMessages()
 	go gossiper.processRumorMessages()
 	go gossiper.startAntiEntropy()
+
+	go gossiper.processWhisperPacket()
 
 	go gossiper.startRouteRumormongering()
 	go gossiper.processPrivateMessages()
@@ -150,8 +155,6 @@ func (gossiper *Gossiper) Run() {
 	go gossiper.handleTLCMessage()
 
 	go gossiper.processClientBlocks()
-
-	go gossiper.whisper.Start()
 
 	// listen for incoming packets
 	go gossiper.receivePacketsFromClient(clientChannel)

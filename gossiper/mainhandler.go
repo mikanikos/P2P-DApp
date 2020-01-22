@@ -15,11 +15,16 @@ func (gossiper *Gossiper) processWhisperPacket() {
 	for extPacket := range PacketChannels["whisperPacket"] {
 
 		// handle gossip message
-		go gossiper.handleGossipMessage(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
+		if extPacket.Packet.WhisperPacket.Code == messagesCode {
+			go gossiper.handleGossipMessage(extPacket, extPacket.Packet.WhisperPacket.Origin, extPacket.Packet.WhisperPacket.ID)
+		}
+
+		fmt.Println("Ok quaaaa")
+		fmt.Println(extPacket.SenderAddr)
 
 		// handle whisper envelope
 		go func(e *ExtendedGossipPacket) {
-			PacketChannels[extPacket.SenderAddr.String()] <- e
+			PeerChannels[e.SenderAddr.String()] <- e
 		}(extPacket)
 	}
 }

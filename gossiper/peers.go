@@ -28,6 +28,7 @@ func createPeersData(peers string, size uint64) *PeersData {
 		addressPeer, err := net.ResolveUDPAddr("udp4", peer)
 		if err == nil {
 			peersAddresses = append(peersAddresses, addressPeer)
+			PeerChannels[addressPeer.String()] = make(chan *ExtendedGossipPacket, maxChannelSize)
 		}
 	}
 
@@ -47,7 +48,8 @@ func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
 	}
 	if !contains {
 		gossiper.peersData.Peers = append(gossiper.peersData.Peers, peer)
-		gossiper.whisper.HandlePeer(peer)
+		PeerChannels[peer.String()] = make(chan *ExtendedGossipPacket, maxChannelSize)
+		go gossiper.whisper.HandlePeer(peer)
 	}
 }
 
