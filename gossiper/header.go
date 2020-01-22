@@ -20,7 +20,7 @@ var ackAllMode = false
 
 var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck", "clientBlock", "tlcCausal", "whisperPacket"}
 
-// channels used throgout the app to exchange messages
+// channels used throughout the app to exchange messages
 var PacketChannels map[string]chan *ExtendedGossipPacket
 
 // constants
@@ -168,54 +168,50 @@ type TLCAck PrivateMessage
 type WhisperPacket struct {
 	Origin string
 	ID 	uint32
-	Code  	uint
+	Code  	uint32
 	Size 	uint32
 	Payload []byte
 }
 
 func (wp *WhisperPacket) DecodeEnvelope(envelope *Envelope) error {
 
-	whisperEnvelope := &Envelope{}
 	packetBytes := make([]byte, maxBufferSize)
-
 	// decode message
-	err := protobuf.Decode(packetBytes[:wp.Size], whisperEnvelope)
-	if err != nil {
-		return err
-	}
+	return protobuf.Decode(packetBytes[:wp.Size], envelope)
+}
 
-	envelope = whisperEnvelope
+func (wp *WhisperPacket) DecodePow(pow *uint64) error {
 
-	return nil
+	packetBytes := make([]byte, maxBufferSize)
+	// decode message
+	return protobuf.Decode(packetBytes[:wp.Size], pow)
 }
 
 func (wp *WhisperPacket) DecodeBloom(bloom *[]byte) error {
 
-	bloomFilter := &[]byte{}
 	packetBytes := make([]byte, maxBufferSize)
-
 	// decode message
-	err := protobuf.Decode(packetBytes[:wp.Size], bloomFilter)
-	if err != nil {
-		return err
-	}
-
-	bloom = bloomFilter
-
-	return nil
+	return protobuf.Decode(packetBytes[:wp.Size], bloom)
 }
 
-func (gossiper *Gossiper) SendWhisperEnvelope(code uint, envelope *Envelope) error {
+func (wp *WhisperPacket) DecodeStatus(status *WhisperStatus) error {
 
-	packetToSend, err := protobuf.Encode(envelope)
-	if err != nil {
-		return err
-	}
+	packetBytes := make([]byte, maxBufferSize)
+	// decode message
+	return protobuf.Decode(packetBytes[:wp.Size], status)
+}
+
+func (gossiper *Gossiper) SendWhisperPacket(code uint32, payload []byte) error {
+	//
+	//packetToSend, err := protobuf.Encode(envelope)
+	//if err != nil {
+	//	return err
+	//}
 
 	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 
-	wPacket := &WhisperPacket{Code: code, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: gossiper.name, ID: id,}
+	wPacket := &WhisperPacket{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: gossiper.name, ID: id,}
 	extPacket := &ExtendedGossipPacket{SenderAddr: gossiper.connectionHandler.gossiperData.Address, Packet: &GossipPacket{WhisperPacket: wPacket}}
 
 	// store message

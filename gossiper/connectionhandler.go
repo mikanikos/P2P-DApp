@@ -76,6 +76,8 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 // process incoming packets from other peers and send them dynamically to the appropriate channel for further processing
 func (gossiper *Gossiper) receivePacketsFromPeers() {
 	for {
+		fmt.Println("arrivatooo")
+
 		packetFromPeer := &GossipPacket{}
 		packetBytes := make([]byte, maxBufferSize)
 
@@ -113,6 +115,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 
 // send given packet to the address specified
 func (connectionHandler *ConnectionHandler) sendPacket(packet *GossipPacket, address *net.UDPAddr) {
+
 	// encode message
 	packetToSend, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err, false)

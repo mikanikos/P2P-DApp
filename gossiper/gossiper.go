@@ -52,8 +52,9 @@ func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum ui
 		routingHandler:    NewRoutingHandler(),
 		fileHandler:       NewFileHandler(),
 		blockchainHandler: NewBlockchainHandler(),
-		whisper: New(&DefaultConfig),
 	}
+
+	gossiper.whisper = New(gossiper)
 
 	for _, peer := range gossiper.peersData.Peers {
 		gossiper.whisper.HandlePeer(peer)
@@ -149,6 +150,8 @@ func (gossiper *Gossiper) Run() {
 	go gossiper.handleTLCMessage()
 
 	go gossiper.processClientBlocks()
+
+	go gossiper.whisper.Start()
 
 	// listen for incoming packets
 	go gossiper.receivePacketsFromClient(clientChannel)

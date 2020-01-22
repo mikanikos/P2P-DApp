@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"fmt"
+	"math"
 	"net"
 	"runtime"
 	"sync"
@@ -84,12 +85,11 @@ type Whisper struct {
 }
 
 // New creates a Whisper client ready to communicate through the Ethereum P2P network.
-func New(cfg *Config) *Whisper {
-	if cfg == nil {
-		cfg = &DefaultConfig
-	}
+func New(gossiper *Gossiper) *Whisper {
+
 
 	whisper := &Whisper{
+		gossiper: gossiper,
 		privateKeys:   make(map[string]*ecdsa.PrivateKey),
 		symKeys:       make(map[string][]byte),
 		envelopes:     make(map[common.Hash]*Envelope),
@@ -103,8 +103,8 @@ func New(cfg *Config) *Whisper {
 
 	whisper.filters = NewFilters(whisper)
 
-	whisper.settings.Store(minPowIdx, cfg.MinimumAcceptedPOW)
-	whisper.settings.Store(maxMsgSizeIdx, cfg.MaxMessageSize)
+	whisper.settings.Store(minPowIdx, DefaultMinimumPoW)
+	whisper.settings.Store(maxMsgSizeIdx, DefaultMaxMessageSize)
 	whisper.settings.Store(overflowIdx, false)
 	//whisper.settings.Store(restrictConnectionBetweenLightClientsIdx, cfg.RestrictConnectionBetweenLightClients)
 
@@ -234,7 +234,7 @@ func (whisper *Whisper) SetBloomFilter(bloom []byte) error {
 	copy(b, bloom)
 
 	whisper.settings.Store(bloomFilterIdx, b)
-	//whisper.notifyPeersAboutBloomFilterChange(b)
+	whisper.notifyPeersAboutBloomFilterChange(b)
 
 	go func() {
 		// allow some time before all the peers have processed the notification
@@ -252,7 +252,7 @@ func (whisper *Whisper) SetMinimumPoW(val float64) error {
 	}
 
 	whisper.settings.Store(minPowIdx, val)
-	//whisper.notifyPeersAboutPowRequirementChange(val)
+	whisper.notifyPeersAboutPowRequirementChange(val)
 
 	go func() {
 		// allow some time before all the peers have processed the notification
@@ -295,33 +295,33 @@ func (whisper *Whisper) SetMinimumPoW(val float64) error {
 //	return v && ok
 //}
 
-//func (whisper *Whisper) notifyPeersAboutPowRequirementChange(pow float64) {
-//	arr := whisper.getPeers()
-//	for _, p := range arr {
-//		err := p.notifyAboutPowRequirementChange(pow)
-//		if err != nil {
-//			// allow one retry
-//			err = p.notifyAboutPowRequirementChange(pow)
-//		}
-//		if err != nil {
-//			log.Warn("failed to notify peer about new pow requirement", "peer", p.ID(), "error", err)
-//		}
-//	}
-//}
-//
-//func (whisper *Whisper) notifyPeersAboutBloomFilterChange(bloom []byte) {
-//	arr := whisper.getPeers()
-//	for _, p := range arr {
-//		err := p.notifyAboutBloomFilterChange(bloom)
-//		if err != nil {
-//			// allow one retry
-//			err = p.notifyAboutBloomFilterChange(bloom)
-//		}
-//		if err != nil {
-//			log.Warn("failed to notify peer about new bloom filter", "peer", p.ID(), "error", err)
-//		}
-//	}
-//}
+func (whisper *Whisper) notifyPeersAboutPowRequirementChange(pow float64) {
+	arr := whisper.getPeers()
+	for _, p := range arr {
+		err := p.notifyAboutPowRequirementChange(pow)
+		if err != nil {
+			// allow one retry
+			err = p.notifyAboutPowRequirementChange(pow)
+		}
+		if err != nil {
+			log.Warn("failed to notify peer about new pow requirement", "peer", p.peer.String(), "error", err)
+		}
+	}
+}
+
+func (whisper *Whisper) notifyPeersAboutBloomFilterChange(bloom []byte) {
+	arr := whisper.getPeers()
+	for _, p := range arr {
+		err := p.notifyAboutBloomFilterChange(bloom)
+		if err != nil {
+			// allow one retry
+			err = p.notifyAboutBloomFilterChange(bloom)
+		}
+		if err != nil {
+			log.Warn("failed to notify peer about new bloom filter", "peer", p.peer.String(), "error", err)
+		}
+	}
+}
 
 func (whisper *Whisper) getPeers() []*Peer {
 	arr := make([]*Peer, len(whisper.peers))
@@ -659,13 +659,14 @@ func (whisper *Whisper) HandlePeer(peer *net.UDPAddr) error {
 	whisperPeer.start()
 	defer whisperPeer.stop()
 
-	return nil
-	//return whisper.runMessageLoop(whisperPeer)
+	PacketChannels[peer.String()] = make(chan *ExtendedGossipPacket, maxChannelSize)
+
+	return whisper.runMessageLoop(whisperPeer)
 }
 
 // runMessageLoop reads and processes inbound messages directly to merge into client-global state.
-func (whisper *Whisper) runMessageLoop() error {
-	for extPacket := range PacketChannels["whisperPacket"] {
+func (whisper *Whisper) runMessageLoop(p *Peer) error {
+	for extPacket := range PacketChannels[p.peer.String()] {
 		packet := extPacket.Packet.WhisperPacket
 
 		//// fetch the next packet
@@ -720,54 +721,31 @@ func (whisper *Whisper) runMessageLoop() error {
 			//if trouble {
 			//	return errors.New("invalid envelope")
 			//}
-		//case powRequirementCode:
-		//	s := rlp.NewStream(packet.Payload, uint64(packet.Size))
-		//	i, err := s.Uint()
-		//	if err != nil {
-		//		log.Warn("failed to decode powRequirementCode message, peer will be disconnected", "peer", p.peer.ID(), "err", err)
-		//		return errors.New("invalid powRequirementCode message")
-		//	}
-		//	f := math.Float64frombits(i)
-		//	if math.IsInf(f, 0) || math.IsNaN(f) || f < 0.0 {
-		//		log.Warn("invalid value in powRequirementCode message, peer will be disconnected", "peer", p.peer.ID(), "err", err)
-		//		return errors.New("invalid value in powRequirementCode message")
-		//	}
-		//	p.powRequirement = f
-		//case bloomFilterExCode:
-		//	var bloom []byte
-		//	err := packet.DecodeBloom(&bloom)
-		//	if err == nil && len(bloom) != BloomFilterSize {
-		//		err = fmt.Errorf("wrong bloom filter size %d", len(bloom))
-		//	}
-		//
-		//	if err != nil {
-		//		log.Warn("failed to decode bloom filter exchange message, peer will be disconnected", "peer", p.peer.String(), "err", err)
-		//		return errors.New("invalid bloom filter exchange message")
-		//	}
-		//	p.setBloomFilter(bloom)
-		//case p2pMessageCode:
-		//	// peer-to-peer message, sent directly to peer bypassing PoW checks, etc.
-		//	// this message is not supposed to be forwarded to other peers, and
-		//	// therefore might not satisfy the PoW, expiry and other requirements.
-		//	// these messages are only accepted from the trusted peer.
-		//	if p.trusted {
-		//		var envelope Envelope
-		//		if err := packet.Decode(&envelope); err != nil {
-		//			log.Warn("failed to decode direct message, peer will be disconnected", "peer", p.peer.ID(), "err", err)
-		//			return errors.New("invalid direct message")
-		//		}
-		//		whisper.postEvent(&envelope, true)
-		//	}
-		//case p2pRequestCode:
-		//	// Must be processed if mail server is implemented. Otherwise ignore.
-		//	if whisper.mailServer != nil {
-		//		var request Envelope
-		//		if err := packet.Decode(&request); err != nil {
-		//			log.Warn("failed to decode p2p request message, peer will be disconnected", "peer", p.peer.ID(), "err", err)
-		//			return errors.New("invalid p2p request")
-		//		}
-		//		whisper.mailServer.DeliverMail(p, &request)
-		//	}
+		case powRequirementCode:
+			var i uint64
+			err := packet.DecodePow(&i)
+			if err != nil {
+				log.Warn("failed to decode powRequirementCode message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				return errors.New("invalid powRequirementCode message")
+			}
+			f := math.Float64frombits(i)
+			if math.IsInf(f, 0) || math.IsNaN(f) || f < 0.0 {
+				log.Warn("invalid value in powRequirementCode message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				return errors.New("invalid value in powRequirementCode message")
+			}
+			p.powRequirement = f
+		case bloomFilterExCode:
+			var bloom []byte
+			err := packet.DecodeBloom(&bloom)
+			if err == nil && len(bloom) != BloomFilterSize {
+				err = fmt.Errorf("wrong bloom filter size %d", len(bloom))
+			}
+
+			if err != nil {
+				log.Warn("failed to decode bloom filter exchange message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				return errors.New("invalid bloom filter exchange message")
+			}
+			p.setBloomFilter(bloom)
 		default:
 			// New message types might be implemented in the future versions of Whisper.
 			// For forward compatibility, just ignore.

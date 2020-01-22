@@ -11,6 +11,20 @@ import (
 // FOUND IT MORE USEFUL TO PUT ALL MAIN PROCESSING GOROUTINES IN ONE PLACE
 
 // process tlc message
+func (gossiper *Gossiper) processWhisperPacket() {
+	for extPacket := range PacketChannels["whisperPacket"] {
+
+		// handle gossip message
+		go gossiper.handleGossipMessage(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
+
+		// handle whisper envelope
+		go func(e *ExtendedGossipPacket) {
+			PacketChannels[extPacket.SenderAddr.String()] <- e
+		}(extPacket)
+	}
+}
+
+// process tlc message
 func (gossiper *Gossiper) processTLCMessage() {
 	for extPacket := range PacketChannels["tlcMes"] {
 

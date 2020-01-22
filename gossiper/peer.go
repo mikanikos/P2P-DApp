@@ -17,6 +17,9 @@
 package gossiper
 
 import (
+	"fmt"
+	"github.com/dedis/protobuf"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -69,71 +72,61 @@ func (peer *Peer) stop() {
 	log.Trace("stop", "peer", peer.peer.String())
 }
 
+type WhisperStatus struct {
+	Pow   uint64
+	Bloom []byte
+}
+
 // handshake sends the protocol initiation status message to the remote peer and
 // verifies the remote status too.
 func (peer *Peer) handshake() error {
-	//// Send the handshake status message asynchronously
-	//errc := make(chan error, 1)
-	//isLightNode := peer.host.LightClientMode()
-	//isRestrictedLightNodeConnection := peer.host.LightClientModeConnectionRestricted()
-	//go func() {
-	//	pow := peer.host.MinPow()
-	//	powConverted := math.Float64bits(pow)
-	//	bloom := peer.host.BloomFilter()
-	//
-	//	errc <- p2p.SendItems(peer.ws, statusCode, ProtocolVersion, powConverted, bloom, isLightNode)
-	//}()
-	//
-	//// Fetch the remote status packet and verify protocol match
-	//packet, err := peer.ws.ReadMsg()
-	//if err != nil {
-	//	return err
-	//}
-	//if packet.Code != statusCode {
-	//	return fmt.Errorf("peer [%x] sent packet %x before status packet", peer.ID(), packet.Code)
-	//}
-	//s := rlp.NewStream(packet.Payload, uint64(packet.Size))
-	//_, err = s.List()
-	//if err != nil {
-	//	return fmt.Errorf("peer [%x] sent bad status message: %v", peer.ID(), err)
-	//}
-	//peerVersion, err := s.Uint()
-	//if err != nil {
-	//	return fmt.Errorf("peer [%x] sent bad status message (unable to decode version): %v", peer.ID(), err)
-	//}
-	//if peerVersion != ProtocolVersion {
-	//	return fmt.Errorf("peer [%x]: protocol version mismatch %d != %d", peer.ID(), peerVersion, ProtocolVersion)
-	//}
-	//
-	//// only version is mandatory, subsequent parameters are optional
-	//powRaw, err := s.Uint()
-	//if err == nil {
-	//	pow := math.Float64frombits(powRaw)
-	//	if math.IsInf(pow, 0) || math.IsNaN(pow) || pow < 0.0 {
-	//		return fmt.Errorf("peer [%x] sent bad status message: invalid pow", peer.ID())
-	//	}
-	//	peer.powRequirement = pow
-	//
-	//	var bloom []byte
-	//	err = s.Decode(&bloom)
-	//	if err == nil {
-	//		sz := len(bloom)
-	//		if sz != BloomFilterSize && sz != 0 {
-	//			return fmt.Errorf("peer [%x] sent bad status message: wrong bloom filter size %d", peer.ID(), sz)
-	//		}
-	//		peer.setBloomFilter(bloom)
-	//	}
-	//}
-	//
-	//isRemotePeerLightNode, _ := s.Bool()
-	//if isRemotePeerLightNode && isLightNode && isRestrictedLightNodeConnection {
-	//	return fmt.Errorf("peer [%x] is useless: two light client communication restricted", peer.ID())
-	//}
-	//
-	//if err := <-errc; err != nil {
-	//	return fmt.Errorf("peer [%x] failed to send status packet: %v", peer.ID(), err)
-	//}
-	//return nil
+	// Send the handshake status message asynchronously
+	errc := make(chan error, 1)
+	go func() {
+		pow := peer.host.MinPow()
+		powConverted := math.Float64bits(pow)
+		bloom := peer.host.BloomFilter()
+
+		packetToSend, _ := protobuf.Encode(&WhisperStatus{Bloom: bloom, Pow: powConverted})
+		peer.host.gossiper.SendWhisperPacket(statusCode, packetToSend)
+	}()
+
+	fmt.Println("wooooooooow")
+	// Fetch the remote status packet and verify protocol match
+
+	extpacket := <-PacketChannels[peer.peer.String()]
+	fmt.Println("maaaaaaaaaaa")
+	packet := extpacket.Packet.WhisperPacket
+	if packet.Code != statusCode {
+		return fmt.Errorf("peer [%x] sent packet %x before status packet", peer.peer.String(), packet.Code)
+	}
+
+	var status *WhisperStatus
+	err := packet.DecodeStatus(status)
+	if err != nil {
+		return fmt.Errorf("peer [%x] sent bad status message: %v", peer.peer.String(), err)
+	}
+
+	// only version is mandatory, subsequent parameters are optional
+	powRaw := status.Pow
+
+	pow := math.Float64frombits(powRaw)
+	if math.IsInf(pow, 0) || math.IsNaN(pow) || pow < 0.0 {
+		return fmt.Errorf("peer [%x] sent bad status message: invalid pow", peer.peer.String())
+	}
+	peer.powRequirement = pow
+
+	bloom := status.Bloom
+
+	sz := len(bloom)
+	if sz != BloomFilterSize && sz != 0 {
+		return fmt.Errorf("peer [%x] sent bad status message: wrong bloom filter size %d", peer.peer.String(), sz)
+	}
+	peer.setBloomFilter(bloom)
+
+	if err := <-errc; err != nil {
+		return fmt.Errorf("peer [%x] failed to send status packet: %v", peer.peer.String(), err)
+	}
 	return nil
 }
 
@@ -195,7 +188,11 @@ func (peer *Peer) broadcast() error {
 		// transmit the batch of envelopes
 
 		for _, env := range bundle {
-			if err := peer.host.gossiper.SendWhisperEnvelope(messagesCode, env); err != nil {
+			packetToSend, err := protobuf.Encode(&env)
+			if err != nil {
+				return err
+			}
+			if err := peer.host.gossiper.SendWhisperPacket(messagesCode, packetToSend); err != nil {
 				return err
 			}
 		}
@@ -211,14 +208,22 @@ func (peer *Peer) broadcast() error {
 //	return id[:]
 //}
 
-//func (peer *Peer) notifyAboutPowRequirementChange(pow float64) error {
-//	i := math.Float64bits(pow)
-//	return p2p.Send(peer.ws, powRequirementCode, i)
-//}
-//
-//func (peer *Peer) notifyAboutBloomFilterChange(bloom []byte) error {
-//	return p2p.Send(peer.ws, bloomFilterExCode, bloom)
-//}
+func (peer *Peer) notifyAboutPowRequirementChange(pow float64) error {
+	i := math.Float64bits(pow)
+	packetToSend, err := protobuf.Encode(&i)
+	if err != nil {
+		return err
+	}
+	return peer.host.gossiper.SendWhisperPacket(powRequirementCode, packetToSend)
+}
+
+func (peer *Peer) notifyAboutBloomFilterChange(bloom []byte) error {
+	packetToSend, err := protobuf.Encode(&bloom)
+	if err != nil {
+		return err
+	}
+	return peer.host.gossiper.SendWhisperPacket(bloomFilterExCode, packetToSend)
+}
 
 func (peer *Peer) bloomMatch(env *Envelope) bool {
 	peer.bloomMu.Lock()

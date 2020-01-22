@@ -27,8 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // List of errors
@@ -275,7 +273,7 @@ func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) (hexutil.
 		return nil, err
 	}
 
-	// send to specific node (skip PoW check)
+	//send to specific node (skip PoW check)
 	//if len(req.TargetPeer) > 0 {
 	//	n, err := enode.Parse(enode.ValidSchemes, req.TargetPeer)
 	//	if err != nil {
@@ -320,101 +318,101 @@ type criteriaOverride struct {
 
 // Messages set up a subscription that fires events when messages arrive that match
 // the given set of criteria.
-func (api *PublicWhisperAPI) Messages(ctx context.Context, crit Criteria) (*rpc.Subscription, error) {
-	var (
-		symKeyGiven = len(crit.SymKeyID) > 0
-		pubKeyGiven = len(crit.PrivateKeyID) > 0
-		err         error
-	)
-
-	// ensure that the RPC connection supports subscriptions
-	notifier, supported := rpc.NotifierFromContext(ctx)
-	if !supported {
-		return nil, rpc.ErrNotificationsUnsupported
-	}
-
-	// user must specify either a symmetric or an asymmetric key
-	if (symKeyGiven && pubKeyGiven) || (!symKeyGiven && !pubKeyGiven) {
-		return nil, ErrSymAsym
-	}
-
-	filter := Filter{
-		PoW:      crit.MinPow,
-		Messages: make(map[common.Hash]*ReceivedMessage),
-		AllowP2P: crit.AllowP2P,
-	}
-
-	if len(crit.Sig) > 0 {
-		if filter.Src, err = crypto.UnmarshalPubkey(crit.Sig); err != nil {
-			return nil, ErrInvalidSigningPubKey
-		}
-	}
-
-	for i, bt := range crit.Topics {
-		if len(bt) == 0 || len(bt) > 4 {
-			return nil, fmt.Errorf("subscribe: topic %d has wrong size: %d", i, len(bt))
-		}
-		filter.Topics = append(filter.Topics, bt[:])
-	}
-
-	// listen for message that are encrypted with the given symmetric key
-	if symKeyGiven {
-		if len(filter.Topics) == 0 {
-			return nil, ErrNoTopics
-		}
-		key, err := api.w.GetSymKey(crit.SymKeyID)
-		if err != nil {
-			return nil, err
-		}
-		if !validateDataIntegrity(key, aesKeyLength) {
-			return nil, ErrInvalidSymmetricKey
-		}
-		filter.KeySym = key
-		filter.SymKeyHash = crypto.Keccak256Hash(filter.KeySym)
-	}
-
-	// listen for messages that are encrypted with the given public key
-	if pubKeyGiven {
-		filter.KeyAsym, err = api.w.GetPrivateKey(crit.PrivateKeyID)
-		if err != nil || filter.KeyAsym == nil {
-			return nil, ErrInvalidPublicKey
-		}
-	}
-
-	id, err := api.w.Subscribe(&filter)
-	if err != nil {
-		return nil, err
-	}
-
-	// create subscription and start waiting for message events
-	rpcSub := notifier.CreateSubscription()
-	go func() {
-		// for now poll internally, refactor whisper internal for channel support
-		ticker := time.NewTicker(250 * time.Millisecond)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				if filter := api.w.GetFilter(id); filter != nil {
-					for _, rpcMessage := range toMessage(filter.Retrieve()) {
-						if err := notifier.Notify(rpcSub.ID, rpcMessage); err != nil {
-							log.Error("Failed to send notification", "err", err)
-						}
-					}
-				}
-			case <-rpcSub.Err():
-				api.w.Unsubscribe(id)
-				return
-			case <-notifier.Closed():
-				api.w.Unsubscribe(id)
-				return
-			}
-		}
-	}()
-
-	return rpcSub, nil
-}
+//func (api *PublicWhisperAPI) Messages(ctx context.Context, crit Criteria) (*rpc.Subscription, error) {
+//	var (
+//		symKeyGiven = len(crit.SymKeyID) > 0
+//		pubKeyGiven = len(crit.PrivateKeyID) > 0
+//		err         error
+//	)
+//
+//	// ensure that the RPC connection supports subscriptions
+//	notifier, supported := rpc.NotifierFromContext(ctx)
+//	if !supported {
+//		return nil, rpc.ErrNotificationsUnsupported
+//	}
+//
+//	// user must specify either a symmetric or an asymmetric key
+//	if (symKeyGiven && pubKeyGiven) || (!symKeyGiven && !pubKeyGiven) {
+//		return nil, ErrSymAsym
+//	}
+//
+//	filter := Filter{
+//		PoW:      crit.MinPow,
+//		Messages: make(map[common.Hash]*ReceivedMessage),
+//		AllowP2P: crit.AllowP2P,
+//	}
+//
+//	if len(crit.Sig) > 0 {
+//		if filter.Src, err = crypto.UnmarshalPubkey(crit.Sig); err != nil {
+//			return nil, ErrInvalidSigningPubKey
+//		}
+//	}
+//
+//	for i, bt := range crit.Topics {
+//		if len(bt) == 0 || len(bt) > 4 {
+//			return nil, fmt.Errorf("subscribe: topic %d has wrong size: %d", i, len(bt))
+//		}
+//		filter.Topics = append(filter.Topics, bt[:])
+//	}
+//
+//	// listen for message that are encrypted with the given symmetric key
+//	if symKeyGiven {
+//		if len(filter.Topics) == 0 {
+//			return nil, ErrNoTopics
+//		}
+//		key, err := api.w.GetSymKey(crit.SymKeyID)
+//		if err != nil {
+//			return nil, err
+//		}
+//		if !validateDataIntegrity(key, aesKeyLength) {
+//			return nil, ErrInvalidSymmetricKey
+//		}
+//		filter.KeySym = key
+//		filter.SymKeyHash = crypto.Keccak256Hash(filter.KeySym)
+//	}
+//
+//	// listen for messages that are encrypted with the given public key
+//	if pubKeyGiven {
+//		filter.KeyAsym, err = api.w.GetPrivateKey(crit.PrivateKeyID)
+//		if err != nil || filter.KeyAsym == nil {
+//			return nil, ErrInvalidPublicKey
+//		}
+//	}
+//
+//	id, err := api.w.Subscribe(&filter)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	// create subscription and start waiting for message events
+//	rpcSub := notifier.CreateSubscription()
+//	go func() {
+//		// for now poll internally, refactor whisper internal for channel support
+//		ticker := time.NewTicker(250 * time.Millisecond)
+//		defer ticker.Stop()
+//
+//		for {
+//			select {
+//			case <-ticker.C:
+//				if filter := api.w.GetFilter(id); filter != nil {
+//					for _, rpcMessage := range toMessage(filter.Retrieve()) {
+//						if err := notifier.Notify(rpcSub.ID, rpcMessage); err != nil {
+//							log.Error("Failed to send notification", "err", err)
+//						}
+//					}
+//				}
+//			case <-rpcSub.Err():
+//				api.w.Unsubscribe(id)
+//				return
+//			case <-notifier.Closed():
+//				api.w.Unsubscribe(id)
+//				return
+//			}
+//		}
+//	}()
+//
+//	return rpcSub, nil
+//}
 
 //go:generate gencodec -type Message -field-override messageOverride -out gen_message_json.go
 
