@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"time"
+	"encoding/hex"
+	"bufio"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
@@ -163,6 +165,84 @@ func (gossiper *Gossiper) Run() {
 	if debug {
 		fmt.Println("Gossiper running")
 	}
+
+
+	api := NewPublicWhisperAPI(gossiper.whisper)
+
+    scanner := bufio.NewScanner(os.Stdin)
+    for {
+        fmt.Print("Enter Text: ")
+        // Scans a line from Stdin(Console)
+        scanner.Scan()
+        // Holds the string that scanned
+		text := scanner.Text()
+		fmt.Println(text)
+        if len(text) != 0 {
+            if text == "new key" {
+				fmt.Println("Okkkkk")
+				key, err := api.NewSymKey()
+				if err == nil {
+					fmt.Println("New key: " + key)
+				} else {
+					fmt.Println(err)
+				}
+				//scanner.Scan()
+				time.Sleep(time.Duration(3) * time.Second)
+				newKeyID := key
+				//topic := []byte("maaaaaaaaaaaaa")
+				topicType := BytesToTopic([]byte("maaaaaaaaaaaaa"))
+				fmt.Println(topicType)
+				text, _ := hex.DecodeString("ciao andrea")
+				newMessage := NewMessage {
+					SymKeyID:   newKeyID,
+					TTL:        10,
+					Topic:      topicType,
+					Payload:    text,
+					PowTime:    2,
+					PowTarget:  2.01,
+				}
+				hash, err := api.Post(newMessage)
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					fmt.Println(hash)
+				}
+			}
+			if text == "add key" {
+				scanner.Scan()
+				newKey := scanner.Text()
+				id, err := api.AddSymKey(newKey)
+				if err == nil {
+					fmt.Println("Key ID: " + id)
+				} else {
+					fmt.Println(err)
+				}
+			}
+			if text == "new mess" {
+				scanner.Scan()
+				newKeyID := scanner.Text()
+				topic, _ := hex.DecodeString("ciao")
+				text, _ := hex.DecodeString("ciao andrea")
+				newMessage := NewMessage {
+					SymKeyID:   newKeyID,
+					TTL:        30,
+					Topic:      BytesToTopic(topic),
+					Payload:    text,
+					PowTime:    2,
+					PowTarget:  2.01,
+				}
+				hash, err := api.Post(newMessage)
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					fmt.Println(hash)
+				}
+			}
+        } else {
+            break
+        }
+    }
+
 }
 
 // getters

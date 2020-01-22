@@ -81,53 +81,63 @@ func (peer *Peer) handshake() error {
 	// Send the handshake status message asynchronously
 	//errc := make(chan error, 1)
 
-	go func() {
-		pow := peer.host.MinPow()
-		powConverted := math.Float64bits(pow)
-		bloom := peer.host.BloomFilter()
+	pow := peer.host.MinPow()
+	powConverted := math.Float64bits(pow)
+	bloom := peer.host.BloomFilter()
 
-		status := &WhisperStatus{Bloom: bloom, Pow: powConverted}
-		packetToSend, err := protobuf.Encode(status)
-		if err != nil {
-			helpers.ErrorCheck(err, false)
-		}
-
-		wPacket := &WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.name, ID: 0,}
-		packet := &GossipPacket{WhisperPacket: wPacket}
-		peer.host.gossiper.connectionHandler.sendPacket(packet, peer.peer)
-
-		fmt.Println("Sent to " + peer.peer.String())
-	}()
-
-	fmt.Println("Waiting " + peer.peer.String())
-
-	extPacket := <-PeerChannels[peer.peer.String()]
-	
-	fmt.Println("arrivatooo")
-
-	packet := extPacket.Packet.WhisperPacket
-	status := &WhisperStatus{}
-	err := packet.DecodeStatus(status)
+	statusStruct := &WhisperStatus{Bloom: bloom, Pow: powConverted}
+	packetToSend, err := protobuf.Encode(statusStruct)
 	if err != nil {
-		return fmt.Errorf("peer [%x] sent bad status message: %v", peer.peer.String(), err)
+		helpers.ErrorCheck(err, false)
 	}
 
-	// subsequent parameters are optional
-	powRaw := status.Pow
+	wPacket := &WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.name, ID: 0,}
+	gossipPacket := &GossipPacket{WhisperPacket: wPacket}
 
-	pow := math.Float64frombits(powRaw)
-	if math.IsInf(pow, 0) || math.IsNaN(pow) || pow < 0.0 {
-		return fmt.Errorf("peer [%x] sent bad status message: invalid pow", peer.peer.String())
+	fmt.Println("Sent to " + peer.peer.String())
+	peer.host.gossiper.connectionHandler.sendPacket(gossipPacket, peer.peer)
+
+	// start timer for stopping download
+	repeatTimer := time.NewTicker(time.Duration(5) * time.Second)
+	defer repeatTimer.Stop()
+
+	for {
+		select {
+		case extPacket := <-PeerChannels[peer.peer.String()]:
+
+			fmt.Println("arrivatooo")
+
+			packet := extPacket.Packet.WhisperPacket
+			status := &WhisperStatus{}
+			err = packet.DecodeStatus(status)
+			if err != nil {
+				return fmt.Errorf("peer [%x] sent bad status message: %v", peer.peer.String(), err)
+			}
+
+			// subsequent parameters are optional
+			powRaw := status.Pow
+
+			pow = math.Float64frombits(powRaw)
+			if math.IsInf(pow, 0) || math.IsNaN(pow) || pow < 0.0 {
+				return fmt.Errorf("peer [%x] sent bad status message: invalid pow", peer.peer.String())
+			}
+			peer.powRequirement = pow
+
+			bloom = status.Bloom
+
+			sz := len(bloom)
+			if sz != BloomFilterSize && sz != 0 {
+				return fmt.Errorf("peer [%x] sent bad status message: wrong bloom filter size %d", peer.peer.String(), sz)
+			}
+			peer.setBloomFilter(bloom)
+			
+			return nil
+
+		case <-repeatTimer.C:
+			fmt.Println("Sent to " + peer.peer.String())
+			peer.host.gossiper.connectionHandler.sendPacket(gossipPacket, peer.peer)
+		}
 	}
-	peer.powRequirement = pow
-
-	bloom := status.Bloom
-
-	sz := len(bloom)
-	if sz != BloomFilterSize && sz != 0 {
-		return fmt.Errorf("peer [%x] sent bad status message: wrong bloom filter size %d", peer.peer.String(), sz)
-	}
-	peer.setBloomFilter(bloom)
 
 	// Fetch the remote status packet and verify protocol match
 
@@ -198,7 +208,7 @@ func (peer *Peer) broadcast() error {
 		// transmit the batch of envelopes
 
 		for _, env := range bundle {
-			packetToSend, err := protobuf.Encode(&env)
+			packetToSend, err := protobuf.Encode(env)
 			if err != nil {
 				return err
 			}

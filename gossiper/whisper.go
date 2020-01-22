@@ -25,6 +25,8 @@ import (
 	"net"
 	"runtime"
 	"sync"
+	"github.com/dedis/protobuf"
+	"github.com/mikanikos/Peerster/helpers"
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
@@ -482,6 +484,7 @@ func (whisper *Whisper) GenerateSymKey() (string, error) {
 		return "", fmt.Errorf("failed to generate unique ID")
 	}
 	whisper.symKeys[id] = key
+	fmt.Println(hex.EncodeToString(key))
 	return id, nil
 }
 
@@ -694,10 +697,25 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 
 		switch packet.Code {
 		case statusCode:
-			fmt.Println("Status packet, ignore")
+			pow := p.host.MinPow()
+			powConverted := math.Float64bits(pow)
+			bloom := p.host.BloomFilter()
+
+			statusStruct := &WhisperStatus{Bloom: bloom, Pow: powConverted}
+			packetToSend, err := protobuf.Encode(statusStruct)
+			helpers.ErrorCheck(err, false)
+			
+			wPacket := &WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: whisper.gossiper.name, ID: 0,}
+			gossipPacket := &GossipPacket{WhisperPacket: wPacket}
+
+			fmt.Println("Sent to " + p.peer.String())
+			whisper.gossiper.connectionHandler.sendPacket(gossipPacket, p.peer)
 
 		case messagesCode:
 			// decode the contained envelope
+
+			fmt.Println("Gooooooooooooooooooooooooooooooot envelopeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+
 			envelope := &Envelope{}
 			if err := packet.DecodeEnvelope(envelope); err != nil {
 				fmt.Println("failed to decode envelopes, peer will be disconnected", "peer", extPacket.SenderAddr.String(), "err", err)
@@ -780,17 +798,11 @@ func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 	sent := envelope.Expiry - envelope.TTL
 
 	if sent > now {
-		if sent-DefaultSyncAllowance > now {
-			return false, fmt.Errorf("envelope created in the future [%x]", envelope.Hash())
-		}
 		// recalculate PoW, adjusted for the time difference, plus one second for latency
 		envelope.calculatePoW(sent - now + 1)
 	}
 
 	if envelope.Expiry < now {
-		if envelope.Expiry+DefaultSyncAllowance*2 < now {
-			return false, fmt.Errorf("very old message")
-		}
 		fmt.Println("expired envelope dropped", "hash", envelope.Hash())
 		return false, nil // drop envelope without error
 	}
@@ -800,22 +812,11 @@ func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 	}
 
 	if envelope.PoW() < whisper.MinPow() {
-		// maybe the value was recently changed, and the peers did not adjust yet.
-		// in this case the previous value is retrieved by MinPowTolerance()
-		// for a short period of peer synchronization.
-		if envelope.PoW() < whisper.MinPowTolerance() {
-			return false, fmt.Errorf("envelope with low PoW received: PoW=%f, hash=[%v]", envelope.PoW(), envelope.Hash())
-		}
+		return false, fmt.Errorf("envelope with low PoW received: PoW=%f, hash=[%v]", envelope.PoW(), envelope.Hash())
 	}
 
 	if !BloomFilterMatch(whisper.BloomFilter(), envelope.Bloom()) {
-		// maybe the value was recently changed, and the peers did not adjust yet.
-		// in this case the previous value is retrieved by BloomFilterTolerance()
-		// for a short period of peer synchronization.
-		//if !BloomFilterMatch(whisper.BloomFilterTolerance(), envelope.Bloom()) {
-			return false, fmt.Errorf("envelope does not match bloom filter, hash=[%v], bloom: \n%x \n%x \n%x",
-				envelope.Hash(), whisper.BloomFilter(), envelope.Bloom(), envelope.Topic)
-		//}
+		return false, fmt.Errorf("envelope does not match bloom filter, hash=[%v], bloom: \n%x \n%x \n%x", envelope.Hash(), whisper.BloomFilter(), envelope.Bloom(), envelope.Topic)
 	}
 
 	hash := envelope.Hash()

@@ -17,12 +17,12 @@
 package gossiper
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"github.com/mikanikos/Peerster/crypto"
 	"sync"
+	"encoding/hex"
 	"time"
 )
 
@@ -55,7 +55,7 @@ func NewPublicWhisperAPI(w *Whisper) *PublicWhisperAPI {
 }
 
 //// Version returns the Whisper sub-protocol version.
-//func (api *PublicWhisperAPI) Version(ctx context.Context) string {
+//func (api *PublicWhisperAPI) Version() string {
 //	return ProtocolVersionStr
 //}
 
@@ -68,7 +68,7 @@ type Info struct {
 }
 
 // Info returns diagnostic information about the whisper node.
-func (api *PublicWhisperAPI) Info(ctx context.Context) Info {
+func (api *PublicWhisperAPI) Info() Info {
 	stats := api.w.Stats()
 	return Info{
 		Memory:         stats.memoryUsed,
@@ -80,23 +80,23 @@ func (api *PublicWhisperAPI) Info(ctx context.Context) Info {
 
 // SetMaxMessageSize sets the maximum message size that is accepted.
 // Upper limit is defined by MaxMessageSize.
-func (api *PublicWhisperAPI) SetMaxMessageSize(ctx context.Context, size uint32) (bool, error) {
+func (api *PublicWhisperAPI) SetMaxMessageSize(size uint32) (bool, error) {
 	return true, api.w.SetMaxMessageSize(size)
 }
 
 // SetMinPoW sets the minimum PoW, and notifies the peers.
-func (api *PublicWhisperAPI) SetMinPoW(ctx context.Context, pow float64) (bool, error) {
+func (api *PublicWhisperAPI) SetMinPoW(pow float64) (bool, error) {
 	return true, api.w.SetMinimumPoW(pow)
 }
 
 // SetBloomFilter sets the new value of bloom filter, and notifies the peers.
-func (api *PublicWhisperAPI) SetBloomFilter(ctx context.Context, bloom []byte) (bool, error) {
+func (api *PublicWhisperAPI) SetBloomFilter(bloom []byte) (bool, error) {
 	return true, api.w.SetBloomFilter(bloom)
 }
 
 //// MarkTrustedPeer marks a peer trusted, which will allow it to send historic (expired) messages.
 //// Note: This function is not adding new nodes, the node needs to exists as a peer.
-//func (api *PublicWhisperAPI) MarkTrustedPeer(ctx context.Context, url string) (bool, error) {
+//func (api *PublicWhisperAPI) MarkTrustedPeer(url string) (bool, error) {
 //	n, err := enode.Parse(enode.ValidSchemes, url)
 //	if err != nil {
 //		return false, err
@@ -106,12 +106,12 @@ func (api *PublicWhisperAPI) SetBloomFilter(ctx context.Context, bloom []byte) (
 
 // NewKeyPair generates a new public and private key pair for message decryption and encryption.
 // It returns an ID that can be used to refer to the keypair.
-func (api *PublicWhisperAPI) NewKeyPair(ctx context.Context) (string, error) {
+func (api *PublicWhisperAPI) NewKeyPair() (string, error) {
 	return api.w.NewKeyPair()
 }
 
 // AddPrivateKey imports the given private key.
-func (api *PublicWhisperAPI) AddPrivateKey(ctx context.Context, privateKey []byte) (string, error) {
+func (api *PublicWhisperAPI) AddPrivateKey(privateKey []byte) (string, error) {
 	key, err := crypto.ToECDSA(privateKey)
 	if err != nil {
 		return "", err
@@ -120,7 +120,7 @@ func (api *PublicWhisperAPI) AddPrivateKey(ctx context.Context, privateKey []byt
 }
 
 // DeleteKeyPair removes the key with the given key if it exists.
-func (api *PublicWhisperAPI) DeleteKeyPair(ctx context.Context, key string) (bool, error) {
+func (api *PublicWhisperAPI) DeleteKeyPair(key string) (bool, error) {
 	if ok := api.w.DeleteKeyPair(key); ok {
 		return true, nil
 	}
@@ -128,13 +128,13 @@ func (api *PublicWhisperAPI) DeleteKeyPair(ctx context.Context, key string) (boo
 }
 
 // HasKeyPair returns an indication if the node has a key pair that is associated with the given id.
-func (api *PublicWhisperAPI) HasKeyPair(ctx context.Context, id string) bool {
+func (api *PublicWhisperAPI) HasKeyPair(id string) bool {
 	return api.w.HasKeyPair(id)
 }
 
 // GetPublicKey returns the public key associated with the given key. The key is the hex
 // encoded representation of a key in the form specified in section 4.3.6 of ANSI X9.62.
-func (api *PublicWhisperAPI) GetPublicKey(ctx context.Context, id string) ([]byte, error) {
+func (api *PublicWhisperAPI) GetPublicKey(id string) ([]byte, error) {
 	key, err := api.w.GetPrivateKey(id)
 	if err != nil {
 		return []byte{}, err
@@ -144,7 +144,7 @@ func (api *PublicWhisperAPI) GetPublicKey(ctx context.Context, id string) ([]byt
 
 // GetPrivateKey returns the private key associated with the given key. The key is the hex
 // encoded representation of a key in the form specified in section 4.3.6 of ANSI X9.62.
-func (api *PublicWhisperAPI) GetPrivateKey(ctx context.Context, id string) ([]byte, error) {
+func (api *PublicWhisperAPI) GetPrivateKey(id string) ([]byte, error) {
 	key, err := api.w.GetPrivateKey(id)
 	if err != nil {
 		return []byte{}, err
@@ -155,34 +155,35 @@ func (api *PublicWhisperAPI) GetPrivateKey(ctx context.Context, id string) ([]by
 // NewSymKey generate a random symmetric key.
 // It returns an ID that can be used to refer to the key.
 // Can be used encrypting and decrypting messages where the key is known to both parties.
-func (api *PublicWhisperAPI) NewSymKey(ctx context.Context) (string, error) {
+func (api *PublicWhisperAPI) NewSymKey() (string, error) {
 	return api.w.GenerateSymKey()
 }
 
 // AddSymKey import a symmetric key.
 // It returns an ID that can be used to refer to the key.
 // Can be used encrypting and decrypting messages where the key is known to both parties.
-func (api *PublicWhisperAPI) AddSymKey(ctx context.Context, key []byte) (string, error) {
-	return api.w.AddSymKeyDirect([]byte(key))
+func (api *PublicWhisperAPI) AddSymKey(key string) (string, error) {
+	val, _ := hex.DecodeString(key)
+	return api.w.AddSymKeyDirect(val)
 }
 
 // GenerateSymKeyFromPassword derive a key from the given password, stores it, and returns its ID.
-func (api *PublicWhisperAPI) GenerateSymKeyFromPassword(ctx context.Context, passwd string) (string, error) {
+func (api *PublicWhisperAPI) GenerateSymKeyFromPassword(passwd string) (string, error) {
 	return api.w.AddSymKeyFromPassword(passwd)
 }
 
 // HasSymKey returns an indication if the node has a symmetric key associated with the given key.
-func (api *PublicWhisperAPI) HasSymKey(ctx context.Context, id string) bool {
+func (api *PublicWhisperAPI) HasSymKey(id string) bool {
 	return api.w.HasSymKey(id)
 }
 
 // GetSymKey returns the symmetric key associated with the given id.
-func (api *PublicWhisperAPI) GetSymKey(ctx context.Context, id string) ([]byte, error) {
+func (api *PublicWhisperAPI) GetSymKey(id string) ([]byte, error) {
 	return api.w.GetSymKey(id)
 }
 
 // DeleteSymKey deletes the symmetric key that is associated with the given id.
-func (api *PublicWhisperAPI) DeleteSymKey(ctx context.Context, id string) bool {
+func (api *PublicWhisperAPI) DeleteSymKey(id string) bool {
 	return api.w.DeleteSymKey(id)
 }
 
@@ -210,7 +211,7 @@ type newMessageOverride struct {
 
 // Post posts a message on the Whisper network.
 // returns the hash of the message in case of success.
-func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) ([]byte, error) {
+func (api *PublicWhisperAPI) Post(req NewMessage) ([]byte, error) {
 	var (
 		symKeyGiven = len(req.SymKeyID) > 0
 		pubKeyGiven = len(req.PublicKey) > 0
@@ -270,19 +271,19 @@ func (api *PublicWhisperAPI) Post(ctx context.Context, req NewMessage) ([]byte, 
 		return nil, err
 	}
 
-	//send to specific node (skip PoW check)
-	//if len(req.TargetPeer) > 0 {
-	//	n, err := enode.Parse(enode.ValidSchemes, req.TargetPeer)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("failed to parse target peer: %s", err)
-	//	}
-	//	err = api.w.SendP2PMessage(n.ID().String(), env)
-	//	if err == nil {
-	//		hash := env.Hash()
-	//		result = hash[:]
-	//	}
-	//	return result, err
-	//}
+	// //send to specific node (skip PoW check)
+	// if len(req.TargetPeer) > 0 {
+	// 	n, err := enode.Parse(enode.ValidSchemes, req.TargetPeer)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to parse target peer: %s", err)
+	// 	}
+	// 	err = api.w.SendP2PMessage(n.ID().String(), env)
+	// 	if err == nil {
+	// 		hash := env.Hash()
+	// 		result = hash[:]
+	// 	}
+	// 	return result, err
+	// }
 
 	// ensure that the message PoW meets the node's minimum accepted PoW
 	if req.PowTarget < api.w.MinPow() {
@@ -315,7 +316,7 @@ type criteriaOverride struct {
 
 // Messages set up a subscription that fires events when messages arrive that match
 // the given set of criteria.
-//func (api *PublicWhisperAPI) Messages(ctx context.Context, crit Criteria) (*rpc.Subscription, error) {
+//func (api *PublicWhisperAPI) Messages(crit Criteria) (*rpc.Subscription, error) {
 //	var (
 //		symKeyGiven = len(crit.SymKeyID) > 0
 //		pubKeyGiven = len(crit.PrivateKeyID) > 0

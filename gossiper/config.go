@@ -56,7 +56,7 @@ const (
 	padSizeLimit      = 256 // just an arbitrary number, could be changed without breaking the protocol
 	messageQueueLimit = 1024
 
-	expirationCycle   = time.Second
+	expirationCycle   = 5 * time.Second
 	transmissionCycle = 300 * time.Millisecond
 
 	DefaultTTL           = 50 // seconds

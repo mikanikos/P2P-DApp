@@ -8,10 +8,10 @@ import (
 )
 
 // flags
-var hw1 = true
-var hw2 = true
-var hw3 = true
-var debug = true
+var hw1 = false
+var hw2 = false
+var hw3 = false
+var debug = false
 
 var simpleMode = false
 var hw3ex2Mode = false
@@ -177,9 +177,8 @@ type WhisperPacket struct {
 
 func (wp *WhisperPacket) DecodeEnvelope(envelope *Envelope) error {
 
-	packetBytes := make([]byte, maxBufferSize)
 	// decode message
-	err := protobuf.Decode(packetBytes[:wp.Size], envelope)
+	err := protobuf.Decode(wp.Payload, envelope)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -189,9 +188,8 @@ func (wp *WhisperPacket) DecodeEnvelope(envelope *Envelope) error {
 
 func (wp *WhisperPacket) DecodePow(pow *uint64) error {
 
-	packetBytes := make([]byte, maxBufferSize)
 	// decode message
-	err := protobuf.Decode(packetBytes[:wp.Size], pow)
+	err := protobuf.Decode(wp.Payload, pow)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -201,9 +199,8 @@ func (wp *WhisperPacket) DecodePow(pow *uint64) error {
 
 func (wp *WhisperPacket) DecodeBloom(bloom *[]byte) error {
 
-	packetBytes := make([]byte, maxBufferSize)
 	// decode message
-	err := protobuf.Decode(packetBytes[:wp.Size], bloom)
+	err := protobuf.Decode(wp.Payload, bloom)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -213,9 +210,9 @@ func (wp *WhisperPacket) DecodeBloom(bloom *[]byte) error {
 
 func (wp *WhisperPacket) DecodeStatus(status *WhisperStatus) error {
 
-	packetBytes := make([]byte, maxBufferSize)
+	//packetBytes := make([]byte, maxBufferSize)
 	// decode message
-	err := protobuf.Decode(packetBytes[:wp.Size], status)
+	err := protobuf.Decode(wp.Payload, status)
 	if err != nil {
 		fmt.Println(err)
 	}
