@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"github.com/mikanikos/Peerster/whisper"
 
 	"github.com/mikanikos/Peerster/gossiper"
 	"github.com/mikanikos/Peerster/helpers"
@@ -34,16 +35,25 @@ func main() {
 	gossiper.SetAppConstants(*simple, *hw3ex2, *hw3ex3, *hw3ex4, *ackAll, *hopLimit, *stubbornTimeout, *rtimer, *antiEntropy)
 
 	// create new gossiper instance
-	gossiper := gossiper.NewGossiper(*gossipName, *gossipAddr, helpers.BaseAddress+":"+*uiPort, *peers, *peersNumber)
+	g := gossiper.NewGossiper(*gossipName, *gossipAddr, helpers.BaseAddress+":"+*uiPort, *peers, *peersNumber)
+
+	w := whisper.New(g)
+
+	for _, peer := range g.PeersData.Peers {
+		whisper.PeerChannels[peer.String()] = make(chan *gossiper.WhisperPacket, 100)
+		go w.HandlePeer(peer)
+	}
 
 	// if gui port specified, create and run the webserver (if not, avoid waste of resources for performance reasons)
 	if *guiPort != "" {
-		webserver := webserver.NewWebserver(*uiPort, gossiper)
+		webserver := webserver.NewWebserver(*uiPort, g)
 		go webserver.Run(*guiPort)
 	}
 
 	// run gossiper
-	gossiper.Run()
+	g.Run()
+
+	w.Start()
 
 	// wait forever
 	select {}

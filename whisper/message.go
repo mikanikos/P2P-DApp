@@ -16,7 +16,7 @@
 
 // Contains the Whisper protocol Message element.
 
-package gossiper
+package whisper
 
 import (
 	"crypto/aes"
@@ -24,12 +24,11 @@ import (
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"github.com/mikanikos/Peerster/crypto"
 	mrand "math/rand"
 	"strconv"
 
-	"github.com/mikanikos/Peerster/crypto"
 	"github.com/mikanikos/Peerster/crypto/ecies"
 )
 
@@ -40,7 +39,7 @@ type MessageParams struct {
 	Src      *ecdsa.PrivateKey
 	Dst      *ecdsa.PublicKey
 	KeySym   []byte
-	Topic    TopicType
+	Topic    Topic
 	WorkTime uint32
 	PoW      float64
 	Payload  []byte
@@ -69,7 +68,7 @@ type ReceivedMessage struct {
 	TTL   uint32           // Maximum time to live allowed for the message
 	Src   *ecdsa.PublicKey // Message recipient (identity used to decode the message)
 	Dst   *ecdsa.PublicKey // Message recipient (identity used to decode the message)
-	Topic TopicType
+	Topic Topic
 
 	SymKeyHash   [32]byte // The Keccak256Hash of the key
 	EnvelopeHash [32]byte // Message envelope hash to act as a unique id
@@ -140,7 +139,7 @@ func (msg *sentMessage) appendPadding(params *MessageParams) error {
 		return err
 	}
 	if !validateDataIntegrity(pad, paddingSize) {
-		return errors.New("failed to generate random padding of size " + strconv.Itoa(paddingSize))
+		return fmt.Errorf("failed to generate random padding of size " + strconv.Itoa(paddingSize))
 	}
 	msg.Raw = append(msg.Raw, pad...)
 	return nil
@@ -156,7 +155,7 @@ func (msg *sentMessage) sign(key *ecdsa.PrivateKey) error {
 	}
 
 	msg.Raw[0] |= signatureFlag // it is important to set this flag before signing
-	hash := crypto.Keccak256(msg.Raw)
+	hash := Keccak256(msg.Raw)
 	signature, err := crypto.Sign(hash, key)
 	if err != nil {
 		msg.Raw[0] &= (0xFF ^ signatureFlag) // clear the flag
@@ -169,7 +168,7 @@ func (msg *sentMessage) sign(key *ecdsa.PrivateKey) error {
 // encryptAsymmetric encrypts a message with a public key.
 func (msg *sentMessage) encryptAsymmetric(key *ecdsa.PublicKey) error {
 	if !ValidatePublicKey(key) {
-		return errors.New("invalid public key provided for asymmetric encryption")
+		return fmt.Errorf("invalid public key provided for asymmetric encryption")
 	}
 	encrypted, err := ecies.Encrypt(crand.Reader, ecies.ImportECDSAPublic(key), msg.Raw, nil, nil)
 	if err == nil {
@@ -182,7 +181,7 @@ func (msg *sentMessage) encryptAsymmetric(key *ecdsa.PublicKey) error {
 // nonce size should be 12 bytes (see cipher.gcmStandardNonceSize).
 func (msg *sentMessage) encryptSymmetric(key []byte) (err error) {
 	if !validateDataIntegrity(key, aesKeyLength) {
-		return errors.New("invalid key provided for symmetric encryption, size: " + strconv.Itoa(len(key)))
+		return fmt.Errorf("invalid key provided for symmetric encryption, size: " + strconv.Itoa(len(key)))
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -215,19 +214,19 @@ func generateSecureRandomData(length int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	} else if !validateDataIntegrity(x, length) {
-		return nil, errors.New("crypto/rand failed to generate secure random data")
+		return nil, fmt.Errorf("crypto/rand failed to generate secure random data")
 	}
 	_, err = mrand.Read(y)
 	if err != nil {
 		return nil, err
 	} else if !validateDataIntegrity(y, length) {
-		return nil, errors.New("math/rand failed to generate secure random data")
+		return nil, fmt.Errorf("math/rand failed to generate secure random data")
 	}
 	for i := 0; i < length; i++ {
 		res[i] = x[i] ^ y[i]
 	}
 	if !validateDataIntegrity(res, length) {
-		return nil, errors.New("failed to generate secure random data")
+		return nil, fmt.Errorf("failed to generate secure random data")
 	}
 	return res, nil
 }
@@ -247,7 +246,7 @@ func (msg *sentMessage) Wrap(options *MessageParams) (envelope *Envelope, err er
 	} else if options.KeySym != nil {
 		err = msg.encryptSymmetric(options.KeySym)
 	} else {
-		err = errors.New("unable to encrypt the message: neither symmetric nor assymmetric key provided")
+		err = fmt.Errorf("unable to encrypt the message: neither symmetric nor assymmetric key provided")
 	}
 	if err != nil {
 		return nil, err
@@ -265,7 +264,7 @@ func (msg *sentMessage) Wrap(options *MessageParams) (envelope *Envelope, err er
 func (msg *ReceivedMessage) decryptSymmetric(key []byte) error {
 	// symmetric messages are expected to contain the 12-byte nonce at the end of the payload
 	if len(msg.Raw) < aesNonceLength {
-		return errors.New("missing salt or invalid payload in symmetric message")
+		return fmt.Errorf("missing salt or invalid payload in symmetric message")
 	}
 	salt := msg.Raw[len(msg.Raw)-aesNonceLength:]
 
@@ -335,7 +334,7 @@ func (msg *ReceivedMessage) ValidateAndParse() bool {
 // signature.
 func (msg *ReceivedMessage) SigToPubKey() *ecdsa.PublicKey {
 	defer func() { recover() }() // in case of invalid signature
-
+	
 	pub, err := crypto.SigToPub(msg.hash(), msg.Signature)
 	if err != nil {
 		fmt.Println("failed to recover public key from signature", "err", err)
@@ -348,7 +347,7 @@ func (msg *ReceivedMessage) SigToPubKey() *ecdsa.PublicKey {
 func (msg *ReceivedMessage) hash() []byte {
 	if isMessageSigned(msg.Raw[0]) {
 		sz := len(msg.Raw) - signatureLength
-		return crypto.Keccak256(msg.Raw[:sz])
+		return Keccak256(msg.Raw[:sz])
 	}
-	return crypto.Keccak256(msg.Raw)
+	return Keccak256(msg.Raw)
 }

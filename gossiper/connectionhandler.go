@@ -54,7 +54,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, _, err := gossiper.connectionHandler.clientData.Connection.ReadFromUDP(packetBytes)
+		n, _, err := gossiper.ConnectionHandler.clientData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err, false)
 
 		if n > maxBufferSize {
@@ -80,7 +80,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, addr, err := gossiper.connectionHandler.gossiperData.Connection.ReadFromUDP(packetBytes)
+		n, addr, err := gossiper.ConnectionHandler.gossiperData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err, false)
 
 		if n > maxBufferSize {
@@ -113,7 +113,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 }
 
 // send given packet to the address specified
-func (connectionHandler *ConnectionHandler) sendPacket(packet *GossipPacket, address *net.UDPAddr) {
+func (connectionHandler *ConnectionHandler) SendPacket(packet *GossipPacket, address *net.UDPAddr) {
 
 	// encode message
 	packetToSend, err := protobuf.Encode(packet)
@@ -129,7 +129,7 @@ func (connectionHandler *ConnectionHandler) broadcastToPeers(packet *ExtendedGos
 	//peers := gossiper.GetPeersAtomic()
 	for _, peer := range peers {
 		if peer.String() != packet.SenderAddr.String() {
-			connectionHandler.sendPacket(packet.Packet, peer)
+			connectionHandler.SendPacket(packet.Packet, peer)
 		}
 	}
 }

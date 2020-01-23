@@ -3,9 +3,9 @@ package gossiper
 import (
 	"fmt"
 	"github.com/dedis/protobuf"
+	"net"
 	"sync/atomic"
 	"time"
-	"net"
 )
 
 // flags
@@ -24,7 +24,6 @@ var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", 
 
 // channels used throughout the app to exchange messages
 var PacketChannels map[string]chan *ExtendedGossipPacket
-var PeerChannels map[string]chan *ExtendedGossipPacket
 
 // constants
 
@@ -176,44 +175,55 @@ type WhisperPacket struct {
 	Payload []byte
 }
 
-func (wp *WhisperPacket) DecodeEnvelope(envelope *Envelope) error {
+//func (wp *WhisperPacket) DecodePacket(envelope *whisper.Envelope) error {
+//
+//	// decode message
+//	err := protobuf.Decode(wp.Payload, envelope)
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//
+//	return err
+//}
+//
+//func (wp *WhisperPacket) DecodePacket(pow *uint64) error {
+//
+//	// decode message
+//	err := protobuf.Decode(wp.Payload, pow)
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//
+//	return err
+//}
+//
+//func (wp *WhisperPacket) DecodePacket(bloom *[]byte) error {
+//
+//	// decode message
+//	err := protobuf.Decode(wp.Payload, bloom)
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//
+//	return err
+//}
+//
+//func (wp *WhisperPacket) DecodePacket(status *whisper.WhisperStatus) error {
+//
+//	//packetBytes := make([]byte, maxBufferSize)
+//	// decode message
+//	err := protobuf.Decode(wp.Payload, status)
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//
+//	return err
+//}
+
+func (wp *WhisperPacket) DecodePacket(int interface{}) error {
 
 	// decode message
-	err := protobuf.Decode(wp.Payload, envelope)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	return err
-}
-
-func (wp *WhisperPacket) DecodePow(pow *uint64) error {
-
-	// decode message
-	err := protobuf.Decode(wp.Payload, pow)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	return err
-}
-
-func (wp *WhisperPacket) DecodeBloom(bloom *[]byte) error {
-
-	// decode message
-	err := protobuf.Decode(wp.Payload, bloom)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	return err
-}
-
-func (wp *WhisperPacket) DecodeStatus(status *WhisperStatus) error {
-
-	//packetBytes := make([]byte, maxBufferSize)
-	// decode message
-	err := protobuf.Decode(wp.Payload, status)
+	err := protobuf.Decode(wp.Payload, int)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -231,14 +241,14 @@ func (gossiper *Gossiper) SendWhisperPacket(code uint32, payload []byte, address
 	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 
-	wPacket := &WhisperPacket{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: gossiper.name, ID: id,}
+	wPacket := &WhisperPacket{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: gossiper.Name, ID: id,}
 	packet := &GossipPacket{WhisperPacket: wPacket}
 
 	// store message
-	gossiper.gossipHandler.storeMessage(packet, gossiper.name, id)
+	gossiper.gossipHandler.storeMessage(packet, gossiper.Name, id)
 
 	// send directly
-	gossiper.connectionHandler.sendPacket(packet, address)
+	gossiper.ConnectionHandler.SendPacket(packet, address)
 	
 	//go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 

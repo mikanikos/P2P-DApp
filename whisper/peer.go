@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package gossiper
+package whisper
 
 import (
 	"fmt"
 	mapset "github.com/deckarep/golang-set"
 	"github.com/dedis/protobuf"
+	"github.com/mikanikos/Peerster/gossiper"
 	"github.com/mikanikos/Peerster/helpers"
 	"math"
 	"net"
@@ -36,7 +37,7 @@ type Peer struct {
 	powRequirement float64
 	bloomMu        sync.Mutex
 	bloomFilter    []byte
-	fullNode       bool
+	noFilter       bool
 
 	known mapset.Set // Messages already known by the peer to avoid wasting bandwidth
 
@@ -52,8 +53,8 @@ func newPeer(host *Whisper, remote *net.UDPAddr) *Peer {
 		powRequirement: 0.0,
 		known:          mapset.NewSet(),
 		quit:           make(chan struct{}),
-		bloomFilter:    MakeFullNodeBloom(),
-		fullNode:       true,
+		bloomFilter:    ResetBloomFilter(),
+		noFilter:       true,
 	}
 }
 
@@ -70,32 +71,26 @@ func (peer *Peer) stop() {
 	fmt.Println("stop", "peer", peer.peer.String())
 }
 
-type WhisperStatus struct {
-	Pow   uint64
-	Bloom []byte
-}
-
 // handshake sends the protocol initiation status message to the remote peer and
 // verifies the remote status too.
 func (peer *Peer) handshake() error {
 	// Send the handshake status message asynchronously
 	//errc := make(chan error, 1)
 
-	pow := peer.host.MinPow()
-	powConverted := math.Float64bits(pow)
-	bloom := peer.host.BloomFilter()
+	pow := peer.host.GetMinPow()
+	bloom := peer.host.GetBloomFilter()
 
-	statusStruct := &WhisperStatus{Bloom: bloom, Pow: powConverted}
+	statusStruct := &Status{Bloom: bloom, Pow: pow}
 	packetToSend, err := protobuf.Encode(statusStruct)
 	if err != nil {
 		helpers.ErrorCheck(err, false)
 	}
 
-	wPacket := &WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.name, ID: 0,}
-	gossipPacket := &GossipPacket{WhisperPacket: wPacket}
+	wPacket := &gossiper.WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.Name, ID: 0,}
+	gossipPacket := &gossiper.GossipPacket{WhisperPacket: wPacket}
 
 	fmt.Println("Sent to " + peer.peer.String())
-	peer.host.gossiper.connectionHandler.sendPacket(gossipPacket, peer.peer)
+	peer.host.gossiper.ConnectionHandler.SendPacket(gossipPacket, peer.peer)
 
 	// start timer for stopping download
 	repeatTimer := time.NewTicker(time.Duration(5) * time.Second)
@@ -103,21 +98,19 @@ func (peer *Peer) handshake() error {
 
 	for {
 		select {
-		case extPacket := <-PeerChannels[peer.peer.String()]:
+		case packet := <-PeerChannels[peer.peer.String()]:
 
 			fmt.Println("arrivatooo")
 
-			packet := extPacket.Packet.WhisperPacket
-			status := &WhisperStatus{}
-			err = packet.DecodeStatus(status)
+			status := &Status{}
+			err = packet.DecodePacket(status)
 			if err != nil {
 				return fmt.Errorf("peer [%x] sent bad status message: %v", peer.peer.String(), err)
 			}
 
 			// subsequent parameters are optional
-			powRaw := status.Pow
+			pow := status.Pow
 
-			pow = math.Float64frombits(powRaw)
 			if math.IsInf(pow, 0) || math.IsNaN(pow) || pow < 0.0 {
 				return fmt.Errorf("peer [%x] sent bad status message: invalid pow", peer.peer.String())
 			}
@@ -135,7 +128,7 @@ func (peer *Peer) handshake() error {
 
 		case <-repeatTimer.C:
 			fmt.Println("Sent to " + peer.peer.String())
-			peer.host.gossiper.connectionHandler.sendPacket(gossipPacket, peer.peer)
+			peer.host.gossiper.ConnectionHandler.SendPacket(gossipPacket, peer.peer)
 		}
 	}
 
@@ -228,28 +221,16 @@ func (peer *Peer) broadcast() error {
 //	return id[:]
 //}
 
-func (peer *Peer) notifyAboutPowRequirementChange(pow float64) error {
-	i := math.Float64bits(pow)
-	packetToSend, err := protobuf.Encode(&i)
-	if err != nil {
-		return err
-	} 
+func (peer *Peer) sendWhisperPacket(code uint32, data interface{}) error {
 
-	wPacket := &WhisperPacket{Code: powRequirementCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.name, ID: 0,}
-	packet := &GossipPacket{WhisperPacket: wPacket}
-	peer.host.gossiper.connectionHandler.sendPacket(packet, peer.peer)
-
-	return nil
-}
-
-func (peer *Peer) notifyAboutBloomFilterChange(bloom []byte) error {
-	packetToSend, err := protobuf.Encode(&bloom)
+	payload, err := protobuf.Encode(data)
 	if err != nil {
 		return err
 	}
-	wPacket := &WhisperPacket{Code: bloomFilterExCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.name, ID: 0,}
-	packet := &GossipPacket{WhisperPacket: wPacket}
-	peer.host.gossiper.connectionHandler.sendPacket(packet, peer.peer)
+
+	wPacket := &gossiper.WhisperPacket{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: peer.host.gossiper.Name, ID: 0,}
+	packet := &gossiper.GossipPacket{WhisperPacket: wPacket}
+	peer.host.gossiper.ConnectionHandler.SendPacket(packet, peer.peer)
 
 	return nil
 }
@@ -257,23 +238,15 @@ func (peer *Peer) notifyAboutBloomFilterChange(bloom []byte) error {
 func (peer *Peer) bloomMatch(env *Envelope) bool {
 	peer.bloomMu.Lock()
 	defer peer.bloomMu.Unlock()
-	return peer.fullNode || BloomFilterMatch(peer.bloomFilter, env.Bloom())
+	return peer.noFilter || BloomFilterMatch(peer.bloomFilter, env.Bloom())
 }
 
 func (peer *Peer) setBloomFilter(bloom []byte) {
 	peer.bloomMu.Lock()
 	defer peer.bloomMu.Unlock()
 	peer.bloomFilter = bloom
-	peer.fullNode = isFullNode(bloom)
-	if peer.fullNode && peer.bloomFilter == nil {
-		peer.bloomFilter = MakeFullNodeBloom()
+	peer.noFilter = HasAnyFilter(bloom)
+	if peer.noFilter && peer.bloomFilter == nil {
+		peer.bloomFilter = ResetBloomFilter()
 	}
-}
-
-func MakeFullNodeBloom() []byte {
-	bloom := make([]byte, BloomFilterSize)
-	for i := 0; i < BloomFilterSize; i++ {
-		bloom[i] = 0xFF
-	}
-	return bloom
 }

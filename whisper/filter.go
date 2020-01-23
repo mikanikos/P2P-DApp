@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package gossiper
+package whisper
 
 import (
 	"crypto/ecdsa"
@@ -43,8 +43,8 @@ type Filter struct {
 type Filters struct {
 	watchers map[string]*Filter
 
-	topicMatcher     map[TopicType]map[*Filter]struct{} // map a topic to the filters that are interested in being notified when a message matches that topic
-	allTopicsMatcher map[*Filter]struct{}               // list all the filters that will be notified of a new message, no matter what its topic is
+	topicMatcher     map[Topic]map[*Filter]struct{} // map a topic to the filters that are interested in being notified when a message matches that topic
+	allTopicsMatcher map[*Filter]struct{}           // list all the filters that will be notified of a new message, no matter what its topic is
 
 	whisper *Whisper
 	mutex   sync.RWMutex
@@ -54,14 +54,14 @@ type Filters struct {
 func NewFilters(w *Whisper) *Filters {
 	return &Filters{
 		watchers:         make(map[string]*Filter),
-		topicMatcher:     make(map[TopicType]map[*Filter]struct{}),
+		topicMatcher:     make(map[Topic]map[*Filter]struct{}),
 		allTopicsMatcher: make(map[*Filter]struct{}),
 		whisper:          w,
 	}
 }
 
-// Install will add a new filter to the filter collection
-func (fs *Filters) Install(watcher *Filter) (string, error) {
+// AddFilter will add a new filter to the filter collection
+func (fs *Filters) AddFilter(watcher *Filter) (string, error) {
 	if watcher.KeySym != nil && watcher.KeyAsym != nil {
 		return "", fmt.Errorf("filters must choose between symmetric and asymmetric keys")
 	}
@@ -92,9 +92,9 @@ func (fs *Filters) Install(watcher *Filter) (string, error) {
 	return id, err
 }
 
-// Uninstall will remove a filter whose id has been specified from
+// RemoveFilter will remove a filter whose id has been specified from
 // the filter collection
-func (fs *Filters) Uninstall(id string) bool {
+func (fs *Filters) RemoveFilter(id string) bool {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
 	if fs.watchers[id] != nil {
@@ -132,7 +132,7 @@ func (fs *Filters) removeFromTopicMatchers(watcher *Filter) {
 
 // getWatchersByTopic returns a slice containing the filters that
 // match a specific topic
-func (fs *Filters) getWatchersByTopic(topic TopicType) []*Filter {
+func (fs *Filters) getWatchersByTopic(topic Topic) []*Filter {
 	res := make([]*Filter, 0, len(fs.allTopicsMatcher))
 	for watcher := range fs.allTopicsMatcher {
 		res = append(res, watcher)
@@ -143,8 +143,8 @@ func (fs *Filters) getWatchersByTopic(topic TopicType) []*Filter {
 	return res
 }
 
-// Get returns a filter from the collection with a specific ID
-func (fs *Filters) Get(id string) *Filter {
+// GetFilter returns a filter from the collection with a specific ID
+func (fs *Filters) GetFilter(id string) *Filter {
 	fs.mutex.RLock()
 	defer fs.mutex.RUnlock()
 	return fs.watchers[id]

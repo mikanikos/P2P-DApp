@@ -28,7 +28,6 @@ func createPeersData(peers string, size uint64) *PeersData {
 		addressPeer, err := net.ResolveUDPAddr("udp4", peer)
 		if err == nil {
 			peersAddresses = append(peersAddresses, addressPeer)
-			PeerChannels[addressPeer.String()] = make(chan *ExtendedGossipPacket, maxChannelSize)
 		}
 	}
 
@@ -37,27 +36,25 @@ func createPeersData(peers string, size uint64) *PeersData {
 
 // AddPeer to peers list if not present
 func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
-	gossiper.peersData.Mutex.Lock()
-	defer gossiper.peersData.Mutex.Unlock()
+	gossiper.PeersData.Mutex.Lock()
+	defer gossiper.PeersData.Mutex.Unlock()
 	contains := false
-	for _, p := range gossiper.peersData.Peers {
+	for _, p := range gossiper.PeersData.Peers {
 		if p.String() == peer.String() {
 			contains = true
 			break
 		}
 	}
 	if !contains {
-		gossiper.peersData.Peers = append(gossiper.peersData.Peers, peer)
-		PeerChannels[peer.String()] = make(chan *ExtendedGossipPacket, maxChannelSize)
-		go gossiper.whisper.HandlePeer(peer)
+		gossiper.PeersData.Peers = append(gossiper.PeersData.Peers, peer)
 	}
 }
 
 // GetPeers in concurrent environment
 func (gossiper *Gossiper) GetPeers() []*net.UDPAddr {
-	gossiper.peersData.Mutex.RLock()
-	defer gossiper.peersData.Mutex.RUnlock()
-	peerCopy := make([]*net.UDPAddr, len(gossiper.peersData.Peers))
-	copy(peerCopy, gossiper.peersData.Peers)
+	gossiper.PeersData.Mutex.RLock()
+	defer gossiper.PeersData.Mutex.RUnlock()
+	peerCopy := make([]*net.UDPAddr, len(gossiper.PeersData.Peers))
+	copy(peerCopy, gossiper.PeersData.Peers)
 	return peerCopy
 }

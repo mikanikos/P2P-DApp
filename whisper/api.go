@@ -14,128 +14,125 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package gossiper
+package whisper
 
 import (
 	"crypto/ecdsa"
-	"errors"
+	"encoding/hex"
 	"fmt"
 	"github.com/mikanikos/Peerster/crypto"
-	"sync"
-	"encoding/hex"
-	"time"
 )
 
 // List of errors
 var (
-	ErrSymAsym              = errors.New("specify either a symmetric or an asymmetric key")
-	ErrInvalidSymmetricKey  = errors.New("invalid symmetric key")
-	ErrInvalidPublicKey     = errors.New("invalid public key")
-	ErrInvalidSigningPubKey = errors.New("invalid signing public key")
-	ErrTooLowPoW            = errors.New("message rejected, PoW too low")
-	ErrNoTopics             = errors.New("missing topic(s)")
+	ErrSymAsym              = fmt.Errorf("specify either a symmetric or an asymmetric key")
+	ErrInvalidSymmetricKey  = fmt.Errorf("invalid symmetric key")
+	ErrInvalidPublicKey     = fmt.Errorf("invalid public key")
+	ErrInvalidSigningPubKey = fmt.Errorf("invalid signing public key")
+	ErrTooLowPoW            = fmt.Errorf("message rejected, PoW too low")
+	ErrNoTopics             = fmt.Errorf("missing topic(s)")
 )
 
 // PublicWhisperAPI provides the whisper RPC service that can be
 // use publicly without security implications.
-type PublicWhisperAPI struct {
-	w *Whisper
-
-	mu       sync.Mutex
-	lastUsed map[string]time.Time // keeps track when a filter was polled for the last time.
-}
+//type PublicWhisperAPI struct {
+//	w *Whisper
+//
+//	mu       sync.Mutex
+//	lastUsed map[string]time.Time // keeps track when a filter was polled for the last time.
+//}
 
 // NewPublicWhisperAPI create a new RPC whisper service.
-func NewPublicWhisperAPI(w *Whisper) *PublicWhisperAPI {
-	api := &PublicWhisperAPI{
-		w:        w,
-		lastUsed: make(map[string]time.Time),
-	}
-	return api
-}
+//func NewPublicWhisperAPI(w *Whisper) *PublicWhisperAPI {
+//	api := &PublicWhisperAPI{
+//		w:        w,
+//		lastUsed: make(map[string]time.Time),
+//	}
+//	return api
+//}
 
 //// Version returns the Whisper sub-protocol version.
-//func (api *PublicWhisperAPI) Version() string {
+//func (whisper *Whisper) Version() string {
 //	return ProtocolVersionStr
 //}
 
 // Info contains diagnostic information.
-type Info struct {
-	Memory         int     `json:"memory"`         // Memory size of the floating messages in bytes.
-	Messages       int     `json:"messages"`       // Number of floating messages.
-	MinPow         float64 `json:"minPow"`         // Minimal accepted PoW
-	MaxMessageSize uint32  `json:"maxMessageSize"` // Maximum accepted message size
-}
+//type Info struct {
+//	Memory         int     `json:"memory"`         // Memory size of the floating messages in bytes.
+//	Messages       int     `json:"messages"`       // Number of floating messages.
+//	GetMinPow         float64 `json:"minPow"`         // Minimal accepted PoW
+//	MaxMessageSize uint32  `json:"maxMessageSize"` // Maximum accepted message size
+//}
 
-// Info returns diagnostic information about the whisper node.
-func (api *PublicWhisperAPI) Info() Info {
-	stats := api.w.Stats()
-	return Info{
-		Memory:         stats.memoryUsed,
-		Messages:       len(api.w.messageQueue),
-		MinPow:         api.w.MinPow(),
-		MaxMessageSize: api.w.MaxMessageSize(),
-	}
-}
+//// Info returns diagnostic information about the whisper node.
+//func (whisper *Whisper) Info() Info {
+//	stats := whisper.Stats()
+//	return Info{
+//		Memory:         stats.memoryUsed,
+//		Messages:       len(whisper.messageQueue),
+//		GetMinPow:         whisper.GetMinPow(),
+//		MaxMessageSize: whisper.MaxMessageSize(),
+//	}
+//}
 
-// SetMaxMessageSize sets the maximum message size that is accepted.
-// Upper limit is defined by MaxMessageSize.
-func (api *PublicWhisperAPI) SetMaxMessageSize(size uint32) (bool, error) {
-	return true, api.w.SetMaxMessageSize(size)
-}
-
-// SetMinPoW sets the minimum PoW, and notifies the peers.
-func (api *PublicWhisperAPI) SetMinPoW(pow float64) (bool, error) {
-	return true, api.w.SetMinimumPoW(pow)
-}
-
-// SetBloomFilter sets the new value of bloom filter, and notifies the peers.
-func (api *PublicWhisperAPI) SetBloomFilter(bloom []byte) (bool, error) {
-	return true, api.w.SetBloomFilter(bloom)
-}
+//// SetMaxMessageSize sets the maximum message size that is accepted.
+//// Upper limit is defined by MaxMessageSize.
+//func (whisper *Whisper) SetMaxMessageSize(size uint32) (bool, error) {
+//	return true, whisper.SetMaxMessageSize(size)
+//}
+//
+//// SetMinPoW sets the minimum PoW, and notifies the peers.
+//func (whisper *Whisper) SetMinPoW(pow float64) (bool, error) {
+//	return true, whisper.SetMinPoW(pow)
+//}
+//
+//// SetBloomFilter sets the new value of bloom filter, and notifies the peers.
+//func (whisper *Whisper) SetBloomFilter(bloom []byte) (bool, error) {
+//	return true, whisper.SetBloomFilter(bloom)
+//}
 
 //// MarkTrustedPeer marks a peer trusted, which will allow it to send historic (expired) messages.
 //// Note: This function is not adding new nodes, the node needs to exists as a peer.
-//func (api *PublicWhisperAPI) MarkTrustedPeer(url string) (bool, error) {
+//func (whisper *Whisper) MarkTrustedPeer(url string) (bool, error) {
 //	n, err := enode.Parse(enode.ValidSchemes, url)
 //	if err != nil {
 //		return false, err
 //	}
-//	return true, api.w.AllowP2PMessagesFromPeer(n.ID().Bytes())
+//	return true, whisper.AllowP2PMessagesFromPeer(n.ID().Bytes())
 //}
 
 // NewKeyPair generates a new public and private key pair for message decryption and encryption.
 // It returns an ID that can be used to refer to the keypair.
-func (api *PublicWhisperAPI) NewKeyPair() (string, error) {
-	return api.w.NewKeyPair()
-}
+//func (whisper *Whisper) NewKeyPair() (string, error) {
+//	return whisper.NewKeyPair()
+//}
 
 // AddPrivateKey imports the given private key.
-func (api *PublicWhisperAPI) AddPrivateKey(privateKey []byte) (string, error) {
+func (whisper *Whisper) AddPrivateKey(privateKey []byte) (string, error) {
 	key, err := crypto.ToECDSA(privateKey)
 	if err != nil {
 		return "", err
 	}
-	return api.w.AddKeyPair(key)
+	return whisper.AddKeyPair(key)
 }
 
-// DeleteKeyPair removes the key with the given key if it exists.
-func (api *PublicWhisperAPI) DeleteKeyPair(key string) (bool, error) {
-	if ok := api.w.DeleteKeyPair(key); ok {
-		return true, nil
-	}
-	return false, fmt.Errorf("key pair %s not found", key)
-}
+// DeleteKey removes the key with the given key if it exists.
+//func (whisper *Whisper) DeleteKey(key string) (bool, error) {
+//	if ok := whisper.DeleteKey(key); ok {
+//		return true, nil
+//	}
+//	return false, fmt.Errorf("key pair %s not found", key)
+//}
 
-// HasKeyPair returns an indication if the node has a key pair that is associated with the given id.
-func (api *PublicWhisperAPI) HasKeyPair(id string) bool {
-	return api.w.HasKeyPair(id)
-}
+// HasKey returns an indication if the node has a key pair that is associated with the given id.
+//func (whisper *Whisper) HasKey(id string) bool {
+//	return whisper.HasKey(id)
+//}
 
 // GetPublicKey returns the public key associated with the given key. The key is the hex
 // encoded representation of a key in the form specified in section 4.3.6 of ANSI X9.62.
-func (api *PublicWhisperAPI) GetPublicKey(id string) ([]byte, error) {
-	key, err := api.w.GetPrivateKey(id)
+func (whisper *Whisper) GetPublicKey(id string) ([]byte, error) {
+	key, err := whisper.GetPrivateKey(id)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -144,8 +141,8 @@ func (api *PublicWhisperAPI) GetPublicKey(id string) ([]byte, error) {
 
 // GetPrivateKey returns the private key associated with the given key. The key is the hex
 // encoded representation of a key in the form specified in section 4.3.6 of ANSI X9.62.
-func (api *PublicWhisperAPI) GetPrivateKey(id string) ([]byte, error) {
-	key, err := api.w.GetPrivateKey(id)
+func (whisper *Whisper) GetPrivateKeyAPI(id string) ([]byte, error) {
+	key, err := whisper.GetPrivateKey(id)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -155,63 +152,61 @@ func (api *PublicWhisperAPI) GetPrivateKey(id string) ([]byte, error) {
 // NewSymKey generate a random symmetric key.
 // It returns an ID that can be used to refer to the key.
 // Can be used encrypting and decrypting messages where the key is known to both parties.
-func (api *PublicWhisperAPI) NewSymKey() (string, error) {
-	return api.w.GenerateSymKey()
-}
+//func (whisper *Whisper) NewSymKey() (string, error) {
+//	return whisper.GenerateSymKey()
+//}
 
 // AddSymKey import a symmetric key.
 // It returns an ID that can be used to refer to the key.
 // Can be used encrypting and decrypting messages where the key is known to both parties.
-func (api *PublicWhisperAPI) AddSymKey(key string) (string, error) {
+func (whisper *Whisper) AddSymKey(key string) (string, error) {
 	val, _ := hex.DecodeString(key)
-	return api.w.AddSymKeyDirect(val)
+	return whisper.AddSymKeyDirect(val)
 }
 
-// GenerateSymKeyFromPassword derive a key from the given password, stores it, and returns its ID.
-func (api *PublicWhisperAPI) GenerateSymKeyFromPassword(passwd string) (string, error) {
-	return api.w.AddSymKeyFromPassword(passwd)
-}
+//// GenerateSymKeyFromPassword derive a key from the given password, stores it, and returns its ID.
+//func (whisper *Whisper) GenerateSymKeyFromPassword(passwd string) (string, error) {
+//	return whisper.AddSymKeyFromPassword(passwd)
+//}
 
-// HasSymKey returns an indication if the node has a symmetric key associated with the given key.
-func (api *PublicWhisperAPI) HasSymKey(id string) bool {
-	return api.w.HasSymKey(id)
-}
+//// HasSymKey returns an indication if the node has a symmetric key associated with the given key.
+//func (whisper *Whisper) HasSymKey(id string) bool {
+//	return whisper.HasSymKey(id)
+//}
 
-// GetSymKey returns the symmetric key associated with the given id.
-func (api *PublicWhisperAPI) GetSymKey(id string) ([]byte, error) {
-	return api.w.GetSymKey(id)
-}
+//// GetSymKey returns the symmetric key associated with the given id.
+//func (whisper *Whisper) GetSymKey(id string) ([]byte, error) {
+//	return whisper.GetSymKey(id)
+//}
 
 // DeleteSymKey deletes the symmetric key that is associated with the given id.
-func (api *PublicWhisperAPI) DeleteSymKey(id string) bool {
-	return api.w.DeleteSymKey(id)
-}
-
-//go:generate gencodec -type NewMessage -field-override newMessageOverride -out gen_newmessage_json.go
+//func (whisper *Whisper) DeleteSymKey(id string) bool {
+//	return whisper.DeleteSymKey(id)
+//}
 
 // NewMessage represents a new whisper message that is posted through the RPC.
 type NewMessage struct {
-	SymKeyID   string    `json:"symKeyID"`
-	PublicKey  []byte    `json:"pubKey"`
-	Sig        string    `json:"sig"`
-	TTL        uint32    `json:"ttl"`
-	Topic      TopicType `json:"topic"`
-	Payload    []byte    `json:"payload"`
-	Padding    []byte    `json:"padding"`
-	PowTime    uint32    `json:"powTime"`
-	PowTarget  float64   `json:"powTarget"`
-	TargetPeer string    `json:"targetPeer"`
+	SymKeyID   string
+	PublicKey  []byte
+	Sig        string
+	TTL        uint32
+	Topic      Topic
+	Payload    []byte
+	Padding    []byte
+	PowTime    uint32
+	PowTarget  float64
+	TargetPeer string
 }
 
-type newMessageOverride struct {
-	PublicKey []byte
-	Payload   []byte
-	Padding   []byte
-}
+//type newMessageOverride struct {
+//	PublicKey []byte
+//	Payload   []byte
+//	Padding   []byte
+//}
 
 // Post posts a message on the Whisper network.
 // returns the hash of the message in case of success.
-func (api *PublicWhisperAPI) Post(req NewMessage) ([]byte, error) {
+func (whisper *Whisper) Post(req NewMessage) ([]byte, error) {
 	var (
 		symKeyGiven = len(req.SymKeyID) > 0
 		pubKeyGiven = len(req.PublicKey) > 0
@@ -234,17 +229,17 @@ func (api *PublicWhisperAPI) Post(req NewMessage) ([]byte, error) {
 
 	// Set key that is used to sign the message
 	if len(req.Sig) > 0 {
-		if params.Src, err = api.w.GetPrivateKey(req.Sig); err != nil {
+		if params.Src, err = whisper.GetPrivateKey(req.Sig); err != nil {
 			return nil, err
 		}
 	}
 
 	// Set symmetric key that is used to encrypt the message
 	if symKeyGiven {
-		if params.Topic == (TopicType{}) { // topics are mandatory with symmetric encryption
+		if params.Topic == (Topic{}) { // topics are mandatory with symmetric encryption
 			return nil, ErrNoTopics
 		}
-		if params.KeySym, err = api.w.GetSymKey(req.SymKeyID); err != nil {
+		if params.KeySym, err = whisper.GetSymKey(req.SymKeyID); err != nil {
 			return nil, err
 		}
 		if !validateDataIntegrity(params.KeySym, aesKeyLength) {
@@ -271,26 +266,12 @@ func (api *PublicWhisperAPI) Post(req NewMessage) ([]byte, error) {
 		return nil, err
 	}
 
-	// //send to specific node (skip PoW check)
-	// if len(req.TargetPeer) > 0 {
-	// 	n, err := enode.Parse(enode.ValidSchemes, req.TargetPeer)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("failed to parse target peer: %s", err)
-	// 	}
-	// 	err = api.w.SendP2PMessage(n.ID().String(), env)
-	// 	if err == nil {
-	// 		hash := env.Hash()
-	// 		result = hash[:]
-	// 	}
-	// 	return result, err
-	// }
-
 	// ensure that the message PoW meets the node's minimum accepted PoW
-	if req.PowTarget < api.w.MinPow() {
+	if req.PowTarget < whisper.GetMinPow() {
 		return nil, ErrTooLowPoW
 	}
 
-	err = api.w.Send(env)
+	err = whisper.Send(env)
 	if err == nil {
 		hash := env.Hash()
 		result = hash[:]
@@ -298,25 +279,23 @@ func (api *PublicWhisperAPI) Post(req NewMessage) ([]byte, error) {
 	return result, err
 }
 
-//go:generate gencodec -type Criteria -field-override criteriaOverride -out gen_criteria_json.go
-
 // Criteria holds various filter options for inbound messages.
 type Criteria struct {
-	SymKeyID     string      `json:"symKeyID"`
-	PrivateKeyID string      `json:"privateKeyID"`
-	Sig          []byte      `json:"sig"`
-	MinPow       float64     `json:"minPow"`
-	Topics       []TopicType `json:"topics"`
-	AllowP2P     bool        `json:"allowP2P"`
+	SymKeyID     string
+	PrivateKeyID string
+	Sig          []byte
+	MinPow       float64
+	Topics       []Topic
+	AllowP2P     bool
 }
 
-type criteriaOverride struct {
-	Sig []byte
-}
+//type criteriaOverride struct {
+//	Sig []byte
+//}
 
 // Messages set up a subscription that fires events when messages arrive that match
 // the given set of criteria.
-//func (api *PublicWhisperAPI) Messages(crit Criteria) (*rpc.Subscription, error) {
+//func (whisper *Whisper) Messages(crit Criteria) (*rpc.Subscription, error) {
 //	var (
 //		symKeyGiven = len(crit.SymKeyID) > 0
 //		pubKeyGiven = len(crit.PrivateKeyID) > 0
@@ -335,7 +314,7 @@ type criteriaOverride struct {
 //	}
 //
 //	filter := Filter{
-//		PoW:      crit.MinPow,
+//		PoW:      crit.GetMinPow,
 //		Messages: make(map[[32]byte]*ReceivedMessage),
 //		AllowP2P: crit.AllowP2P,
 //	}
@@ -358,7 +337,7 @@ type criteriaOverride struct {
 //		if len(filter.Topics) == 0 {
 //			return nil, ErrNoTopics
 //		}
-//		key, err := api.w.GetSymKey(crit.SymKeyID)
+//		key, err := whisper.GetSymKey(crit.SymKeyID)
 //		if err != nil {
 //			return nil, err
 //		}
@@ -371,13 +350,13 @@ type criteriaOverride struct {
 //
 //	// listen for messages that are encrypted with the given public key
 //	if pubKeyGiven {
-//		filter.KeyAsym, err = api.w.GetPrivateKey(crit.PrivateKeyID)
+//		filter.KeyAsym, err = whisper.GetPrivateKey(crit.PrivateKeyID)
 //		if err != nil || filter.KeyAsym == nil {
 //			return nil, ErrInvalidPublicKey
 //		}
 //	}
 //
-//	id, err := api.w.Subscribe(&filter)
+//	id, err := whisper.Subscribe(&filter)
 //	if err != nil {
 //		return nil, err
 //	}
@@ -392,7 +371,7 @@ type criteriaOverride struct {
 //		for {
 //			select {
 //			case <-ticker.C:
-//				if filter := api.w.GetFilter(id); filter != nil {
+//				if filter := whisper.GetFilter(id); filter != nil {
 //					for _, rpcMessage := range toMessage(filter.Retrieve()) {
 //						if err := notifier.Notify(rpcSub.ID, rpcMessage); err != nil {
 //							fmt.Println("Failed to send notification", "err", err)
@@ -400,10 +379,10 @@ type criteriaOverride struct {
 //					}
 //				}
 //			case <-rpcSub.Err():
-//				api.w.Unsubscribe(id)
+//				whisper.Unsubscribe(id)
 //				return
 //			case <-notifier.Closed():
-//				api.w.Unsubscribe(id)
+//				whisper.Unsubscribe(id)
 //				return
 //			}
 //		}
@@ -412,28 +391,26 @@ type criteriaOverride struct {
 //	return rpcSub, nil
 //}
 
-//go:generate gencodec -type Message -field-override messageOverride -out gen_message_json.go
-
 // Message is the RPC representation of a whisper message.
 type Message struct {
-	Sig       []byte    `json:"sig,omitempty"`
-	TTL       uint32    `json:"ttl"`
-	Timestamp uint32    `json:"timestamp"`
-	Topic     TopicType `json:"topic"`
-	Payload   []byte    `json:"payload"`
-	Padding   []byte    `json:"padding"`
-	PoW       float64   `json:"pow"`
-	Hash      []byte    `json:"hash"`
-	Dst       []byte    `json:"recipientPublicKey,omitempty"`
+	Sig       []byte
+	TTL       uint32
+	Timestamp uint32
+	Topic     Topic
+	Payload   []byte
+	Padding   []byte
+	PoW       float64
+	Hash      []byte
+	Dst       []byte
 }
 
-type messageOverride struct {
-	Sig     []byte
-	Payload []byte
-	Padding []byte
-	Hash    []byte
-	Dst     []byte
-}
+//type messageOverride struct {
+//	Sig     []byte
+//	Payload []byte
+//	Padding []byte
+//	Hash    []byte
+//	Dst     []byte
+//}
 
 // ToWhisperMessage converts an internal message into an API version.
 func ToWhisperMessage(message *ReceivedMessage) *Message {
@@ -475,15 +452,11 @@ func toMessage(messages []*ReceivedMessage) []*Message {
 
 // GetFilterMessages returns the messages that match the filter criteria and
 // are received between the last poll and now.
-func (api *PublicWhisperAPI) GetFilterMessages(id string) ([]*Message, error) {
-	api.mu.Lock()
-	f := api.w.GetFilter(id)
+func (whisper *Whisper) GetFilterMessages(id string) ([]*Message, error) {
+	f := whisper.GetFilter(id)
 	if f == nil {
-		api.mu.Unlock()
 		return nil, fmt.Errorf("filter not found")
 	}
-	api.lastUsed[id] = time.Now()
-	api.mu.Unlock()
 
 	receivedMessages := f.Retrieve()
 	messages := make([]*Message, 0, len(receivedMessages))
@@ -495,17 +468,13 @@ func (api *PublicWhisperAPI) GetFilterMessages(id string) ([]*Message, error) {
 }
 
 // DeleteMessageFilter deletes a filter.
-func (api *PublicWhisperAPI) DeleteMessageFilter(id string) (bool, error) {
-	api.mu.Lock()
-	defer api.mu.Unlock()
-
-	delete(api.lastUsed, id)
-	return true, api.w.Unsubscribe(id)
-}
+//func (whisper *Whisper) DeleteMessageFilter(id string) (bool, error) {
+//	return true, whisper.Unsubscribe(id)
+//}
 
 // NewMessageFilter creates a new filter that can be used to poll for
 // (new) messages that satisfy the given criteria.
-func (api *PublicWhisperAPI) NewMessageFilter(req Criteria) (string, error) {
+func (whisper *Whisper) NewMessageFilter(req Criteria) (string, error) {
 	var (
 		src     *ecdsa.PublicKey
 		keySym  []byte
@@ -530,7 +499,7 @@ func (api *PublicWhisperAPI) NewMessageFilter(req Criteria) (string, error) {
 	}
 
 	if symKeyGiven {
-		if keySym, err = api.w.GetSymKey(req.SymKeyID); err != nil {
+		if keySym, err = whisper.GetSymKey(req.SymKeyID); err != nil {
 			return "", err
 		}
 		if !validateDataIntegrity(keySym, aesKeyLength) {
@@ -539,7 +508,7 @@ func (api *PublicWhisperAPI) NewMessageFilter(req Criteria) (string, error) {
 	}
 
 	if asymKeyGiven {
-		if keyAsym, err = api.w.GetPrivateKey(req.PrivateKeyID); err != nil {
+		if keyAsym, err = whisper.GetPrivateKey(req.PrivateKeyID); err != nil {
 			return "", err
 		}
 	}
@@ -562,14 +531,9 @@ func (api *PublicWhisperAPI) NewMessageFilter(req Criteria) (string, error) {
 		Messages: make(map[[32]byte]*ReceivedMessage),
 	}
 
-	id, err := api.w.Subscribe(f)
-	if err != nil {
-		return "", err
+	s, err := whisper.filters.AddFilter(f)
+	if err == nil {
+		whisper.updateBloomFilter(f)
 	}
-
-	api.mu.Lock()
-	api.lastUsed[id] = time.Now()
-	api.mu.Unlock()
-
-	return id, nil
+	return s, err
 }

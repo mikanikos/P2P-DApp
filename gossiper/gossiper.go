@@ -6,8 +6,6 @@ import (
 	"net"
 	"os"
 	"time"
-	"encoding/hex"
-	"bufio"
 
 	"github.com/mikanikos/Peerster/helpers"
 )
@@ -21,12 +19,12 @@ type ConnectionData struct {
 // Gossiper struct
 type Gossiper struct {
 	// name of the gossiper
-	name string
+	Name string
 	// save peers data (neighbours and total number of peers in the network)
-	peersData *PeersData
+	PeersData *PeersData
 
 	// handle connection with peers and client
-	connectionHandler *ConnectionHandler
+	ConnectionHandler *ConnectionHandler
 	// handle gossip messages and status messages
 	gossipHandler *GossipHandler
 	// handle routing table and forwarding
@@ -35,8 +33,6 @@ type Gossiper struct {
 	fileHandler *FileHandler
 	// handle abstractions for the blockchain (gossip with confirmation, tlc and qsc)
 	blockchainHandler *BlockchainHandler
-
-	whisper *Whisper
 }
 
 // NewGossiper constructor
@@ -46,20 +42,14 @@ func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum ui
 	Init()
 
 	gossiper := &Gossiper{
-		name:      name,
-		peersData: createPeersData(peers, peersNum),
+		Name:      name,
+		PeersData: createPeersData(peers, peersNum),
 
-		connectionHandler: NewConnectionHandler(gossiperAddress, clientAddress),
+		ConnectionHandler: NewConnectionHandler(gossiperAddress, clientAddress),
 		gossipHandler:     NewGossipHandler(),
 		routingHandler:    NewRoutingHandler(),
 		fileHandler:       NewFileHandler(),
 		blockchainHandler: NewBlockchainHandler(),
-	}
-
-	gossiper.whisper = New(gossiper)
-
-	for _, peer := range gossiper.peersData.Peers {
-		go gossiper.whisper.HandlePeer(peer)
 	}
 
 	return gossiper
@@ -103,7 +93,6 @@ func Init() {
 func initPacketChannels() {
 	// initialize channels used in the application
 	PacketChannels = make(map[string]chan *ExtendedGossipPacket)
-	PeerChannels = make(map[string]chan *ExtendedGossipPacket)
 	for _, t := range modeTypes {
 		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
 			PacketChannels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
@@ -128,8 +117,6 @@ func (gossiper *Gossiper) Run() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	gossiper.whisper.Start()
-
 	// create client channel
 	clientChannel := make(chan *helpers.Message, maxChannelSize)
 	go gossiper.processClientMessages(clientChannel)
@@ -140,8 +127,6 @@ func (gossiper *Gossiper) Run() {
 	go gossiper.processStatusMessages()
 	go gossiper.processRumorMessages()
 	go gossiper.startAntiEntropy()
-
-	go gossiper.processWhisperPacket()
 
 	go gossiper.startRouteRumormongering()
 	go gossiper.processPrivateMessages()
@@ -167,81 +152,81 @@ func (gossiper *Gossiper) Run() {
 	}
 
 
-	api := NewPublicWhisperAPI(gossiper.whisper)
-
-    scanner := bufio.NewScanner(os.Stdin)
-    for {
-        fmt.Print("Enter Text: ")
-        // Scans a line from Stdin(Console)
-        scanner.Scan()
-        // Holds the string that scanned
-		text := scanner.Text()
-		fmt.Println(text)
-        if len(text) != 0 {
-            if text == "new key" {
-				fmt.Println("Okkkkk")
-				key, err := api.NewSymKey()
-				if err == nil {
-					fmt.Println("New key: " + key)
-				} else {
-					fmt.Println(err)
-				}
-				//scanner.Scan()
-				time.Sleep(time.Duration(3) * time.Second)
-				newKeyID := key
-				//topic := []byte("maaaaaaaaaaaaa")
-				topicType := BytesToTopic([]byte("maaaaaaaaaaaaa"))
-				fmt.Println(topicType)
-				text, _ := hex.DecodeString("ciao andrea")
-				newMessage := NewMessage {
-					SymKeyID:   newKeyID,
-					TTL:        10,
-					Topic:      topicType,
-					Payload:    text,
-					PowTime:    2,
-					PowTarget:  2.01,
-				}
-				hash, err := api.Post(newMessage)
-				if err != nil {
-					fmt.Println(err)
-				} else {
-					fmt.Println(hash)
-				}
-			}
-			if text == "add key" {
-				scanner.Scan()
-				newKey := scanner.Text()
-				id, err := api.AddSymKey(newKey)
-				if err == nil {
-					fmt.Println("Key ID: " + id)
-				} else {
-					fmt.Println(err)
-				}
-			}
-			if text == "new mess" {
-				scanner.Scan()
-				newKeyID := scanner.Text()
-				topic, _ := hex.DecodeString("ciao")
-				text, _ := hex.DecodeString("ciao andrea")
-				newMessage := NewMessage {
-					SymKeyID:   newKeyID,
-					TTL:        30,
-					Topic:      BytesToTopic(topic),
-					Payload:    text,
-					PowTime:    2,
-					PowTarget:  2.01,
-				}
-				hash, err := api.Post(newMessage)
-				if err != nil {
-					fmt.Println(err)
-				} else {
-					fmt.Println(hash)
-				}
-			}
-        } else {
-            break
-        }
-    }
+	//api := whisper.NewPublicWhisperAPI(gossiper.whisper)
+	//
+    //scanner := bufio.NewScanner(os.Stdin)
+    //for {
+    //    fmt.Print("Enter Text: ")
+    //    // Scans a line from Stdin(Console)
+    //    scanner.Scan()
+    //    // Holds the string that scanned
+	//	text := scanner.Text()
+	//	fmt.Println(text)
+    //    if len(text) != 0 {
+    //        if text == "new key" {
+	//			fmt.Println("Okkkkk")
+	//			key, err := api.NewSymKey()
+	//			if err == nil {
+	//				fmt.Println("New key: " + key)
+	//			} else {
+	//				fmt.Println(err)
+	//			}
+	//			//scanner.Scan()
+	//			time.Sleep(time.Duration(3) * time.Second)
+	//			newKeyID := key
+	//			//topic := []byte("maaaaaaaaaaaaa")
+	//			topicType := whisper.BytesToTopic([]byte("maaaaaaaaaaaaa"))
+	//			fmt.Println(topicType)
+	//			text, _ := hex.DecodeString("ciao andrea")
+	//			newMessage := whisper.NewMessage{
+	//				SymKeyID:   newKeyID,
+	//				TTL:        10,
+	//				Topic:      topicType,
+	//				Payload:    text,
+	//				PowTime:    2,
+	//				PowTarget:  2.01,
+	//			}
+	//			hash, err := api.Post(newMessage)
+	//			if err != nil {
+	//				fmt.Println(err)
+	//			} else {
+	//				fmt.Println(hash)
+	//			}
+	//		}
+	//		if text == "add key" {
+	//			scanner.Scan()
+	//			newKey := scanner.Text()
+	//			id, err := api.AddSymKey(newKey)
+	//			if err == nil {
+	//				fmt.Println("Key ID: " + id)
+	//			} else {
+	//				fmt.Println(err)
+	//			}
+	//		}
+	//		if text == "new mess" {
+	//			scanner.Scan()
+	//			newKeyID := scanner.Text()
+	//			topic, _ := hex.DecodeString("ciao")
+	//			text, _ := hex.DecodeString("ciao andrea")
+	//			newMessage := whisper.NewMessage{
+	//				SymKeyID:  newKeyID,
+	//				TTL:       30,
+	//				Topic:     whisper.BytesToTopic(topic),
+	//				Payload:   text,
+	//				PowTime:   2,
+	//				PowTarget: 2.01,
+	//			}
+	//			hash, err := api.Post(newMessage)
+	//			if err != nil {
+	//				fmt.Println(err)
+	//			} else {
+	//				fmt.Println(hash)
+	//			}
+	//		}
+    //    } else {
+    //        break
+    //    }
+    //}
 
 }
 
@@ -249,7 +234,7 @@ func (gossiper *Gossiper) Run() {
 
 // GetName of the gossiper
 func (gossiper *Gossiper) GetName() string {
-	return gossiper.name
+	return gossiper.Name
 }
 
 // GetRound of the gossiper

@@ -33,7 +33,7 @@ func NewGossipHandler() *GossipHandler {
 	}
 }
 
-func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, origin string, id uint32) {
+func (gossiper *Gossiper) HandleGossipMessage(extPacket *ExtendedGossipPacket, origin string, id uint32) {
 
 	gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 
@@ -41,7 +41,7 @@ func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, o
 
 	isMessageKnown := true
 
-	if origin != gossiper.name {
+	if origin != gossiper.Name {
 
 		// update routing table
 		textMessage := ""
@@ -56,7 +56,7 @@ func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, o
 
 	// send status
 	statusToSend := gossiper.gossipHandler.myStatus.createMyStatusPacket()
-	gossiper.connectionHandler.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
+	gossiper.ConnectionHandler.SendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 
 	if !isMessageKnown {
 
@@ -77,9 +77,9 @@ func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, o
 func (gossiper *Gossiper) createRumorMessage(text string) *ExtendedGossipPacket {
 	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
-	rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: text}
-	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.connectionHandler.gossiperData.Address}
-	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.name, id)
+	rumorPacket := &RumorMessage{Origin: gossiper.Name, ID: id, Text: text}
+	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.ConnectionHandler.gossiperData.Address}
+	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.Name, id)
 
 	if text != "" {
 		go func(r *RumorMessage) {
