@@ -5,6 +5,7 @@ import (
 	"github.com/dedis/protobuf"
 	"sync/atomic"
 	"time"
+	"net"
 )
 
 // flags
@@ -31,10 +32,10 @@ var maxBufferSize = 60000
 var maxChannelSize = 100
 
 // timeouts in seconds if not specified
-var rumorTimeout = 10
+var rumorTimeout = 1
 var stubbornTimeout = 10
 var routeRumorTimeout = 0
-var antiEntropyTimeout = 10
+var antiEntropyTimeout = 1
 var requestTimeout = 5
 var searchTimeout = 1
 var searchRequestDuplicateTimeout = 500 * time.Millisecond
@@ -220,7 +221,7 @@ func (wp *WhisperPacket) DecodeStatus(status *WhisperStatus) error {
 	return err
 }
 
-func (gossiper *Gossiper) SendWhisperPacket(code uint32, payload []byte) error {
+func (gossiper *Gossiper) SendWhisperPacket(code uint32, payload []byte, address *net.UDPAddr) error {
 	//
 	//packetToSend, err := protobuf.Encode(envelope)
 	//if err != nil {
@@ -231,13 +232,15 @@ func (gossiper *Gossiper) SendWhisperPacket(code uint32, payload []byte) error {
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 
 	wPacket := &WhisperPacket{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: gossiper.name, ID: id,}
-	extPacket := &ExtendedGossipPacket{SenderAddr: gossiper.connectionHandler.gossiperData.Address, Packet: &GossipPacket{WhisperPacket: wPacket}}
+	packet := &GossipPacket{WhisperPacket: wPacket}
 
 	// store message
-	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.name, id)
+	gossiper.gossipHandler.storeMessage(packet, gossiper.name, id)
 
-	// start rumor mongering the message
-	go gossiper.startRumorMongering(extPacket, gossiper.name, id)
+	// send directly
+	gossiper.connectionHandler.sendPacket(packet, address)
+	
+	//go gossiper.startRumorMongering(extPacket, gossiper.name, id)
 
 	return nil
 }

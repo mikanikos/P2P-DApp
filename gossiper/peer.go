@@ -212,7 +212,7 @@ func (peer *Peer) broadcast() error {
 			if err != nil {
 				return err
 			}
-			if err := peer.host.gossiper.SendWhisperPacket(messagesCode, packetToSend); err != nil {
+			if err := peer.host.gossiper.SendWhisperPacket(messagesCode, packetToSend, peer.peer); err != nil {
 				return err
 			}
 		}
