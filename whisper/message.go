@@ -1,47 +1,23 @@
-// Copyright 2016 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
-// Contains the Whisper protocol Message element.
-
 package whisper
 
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/ecdsa"
-	crand "crypto/rand"
-	"encoding/binary"
+	 crand "crypto/rand"
 	"fmt"
-	"github.com/mikanikos/Peerster/crypto"
-	mrand "math/rand"
-	"strconv"
-
-	"github.com/mikanikos/Peerster/crypto/ecies"
+	"github.com/dedis/protobuf"
+	ecies "github.com/ecies/go"
+	"io"
 )
 
-// MessageParams specifies the exact way a message should be wrapped
-// into an Envelope.
+// MessageParams specifies all the parameters needed to prepare an envelope
 type MessageParams struct {
-	TTL      uint32
-	Src      *ecdsa.PrivateKey
-	Dst      *ecdsa.PublicKey
+	Src      *ecies.PrivateKey
+	Dst      *ecies.PublicKey
 	KeySym   []byte
 	Topic    Topic
-	WorkTime uint32
 	PoW      float64
+	TTL      uint32
 	Payload  []byte
 	Padding  []byte
 }
@@ -49,305 +25,247 @@ type MessageParams struct {
 // SentMessage represents an end-user data packet to transmit through the
 // Whisper protocol. These are wrapped into Envelopes that need not be
 // understood by intermediate nodes, just forwarded.
-type sentMessage struct {
-	Raw []byte
-}
+//type sentMessage struct {
+//	Raw []byte
+//}
 
-// ReceivedMessage represents a data packet to be received through the
-// Whisper protocol and successfully decrypted.
+//ReceivedMessage represents a message received and decrypted
 type ReceivedMessage struct {
-	Raw []byte
+	// Raw []byte
 
+	//Payload   []byte
+	//Padding   []byte
+	//Signature []byte
+	//Salt      []byte
+
+	Sent  uint32
+	TTL   uint32
+	Src   *ecies.PublicKey
+	Dst   *ecies.PublicKey
 	Payload   []byte
-	Padding   []byte
-	Signature []byte
-	Salt      []byte
-
-	PoW   float64          // Proof of work as described in the Whisper spec
-	Sent  uint32           // Time when the message was posted into the network
-	TTL   uint32           // Maximum time to live allowed for the message
-	Src   *ecdsa.PublicKey // Message recipient (identity used to decode the message)
-	Dst   *ecdsa.PublicKey // Message recipient (identity used to decode the message)
 	Topic Topic
 
-	SymKeyHash   [32]byte // The Keccak256Hash of the key
-	EnvelopeHash [32]byte // Message envelope hash to act as a unique id
+	SymKeyHash   [32]byte
+	EnvelopeHash [32]byte
 }
 
-func isMessageSigned(flags byte) bool {
-	return (flags & signatureFlag) != 0
-}
-
-func (msg *ReceivedMessage) isSymmetricEncryption() bool {
-	return msg.SymKeyHash != [32]byte{}
-}
-
-func (msg *ReceivedMessage) isAsymmetricEncryption() bool {
-	return msg.Dst != nil
-}
+//func (msg *ReceivedMessage) isSymmetricEncryption() bool {
+//	return msg.SymKeyHash != [32]byte{}
+//}
+//
+//func (msg *ReceivedMessage) isAsymmetricEncryption() bool {
+//	return msg.Dst != nil
+//}
 
 // NewSentMessage creates and initializes a non-signed, non-encrypted Whisper message.
-func NewSentMessage(params *MessageParams) (*sentMessage, error) {
-	const payloadSizeFieldMaxSize = 4
-	msg := sentMessage{}
-	msg.Raw = make([]byte, 1,
-		flagsLength+payloadSizeFieldMaxSize+len(params.Payload)+len(params.Padding)+signatureLength+padSizeLimit)
-	msg.Raw[0] = 0 // set all the flags to zero
-	msg.addPayloadSizeField(params.Payload)
-	msg.Raw = append(msg.Raw, params.Payload...)
-	err := msg.appendPadding(params)
-	return &msg, err
-}
-
-// addPayloadSizeField appends the auxiliary field containing the size of payload
-func (msg *sentMessage) addPayloadSizeField(payload []byte) {
-	fieldSize := getSizeOfPayloadSizeField(payload)
-	field := make([]byte, 4)
-	binary.LittleEndian.PutUint32(field, uint32(len(payload)))
-	field = field[:fieldSize]
-	msg.Raw = append(msg.Raw, field...)
-	msg.Raw[0] |= byte(fieldSize)
-}
+//func NewSentMessage(params *MessageParams) (*sentMessage, error) {
+//	const payloadSizeFieldMaxSize = 4
+//	msg := sentMessage{}
+//	msg.Raw = make([]byte, 1, flagsLength+payloadSizeFieldMaxSize+len(params.Payload)+len(params.Padding)+padSizeLimit)
+//	msg.Raw[0] = 0 // set all the flags to zero
+//	msg.addPayloadSizeField(params.Payload)
+//	msg.Raw = append(msg.Raw, params.Payload...)
+//	err := msg.appendPadding(params)
+//	return &msg, err
+//}
+//
+//// addPayloadSizeField appends the auxiliary field containing the size of payload
+//func (msg *sentMessage) addPayloadSizeField(payload []byte) {
+//	fieldSize := len(payload)
+//	field := make([]byte, 4)
+//	binary.LittleEndian.PutUint32(field, uint32(len(payload)))
+//	field = field[:fieldSize]
+//	msg.Raw = append(msg.Raw, field...)
+//	msg.Raw[0] |= byte(fieldSize)
+//}
 
 // getSizeOfPayloadSizeField returns the number of bytes necessary to encode the size of payload
-func getSizeOfPayloadSizeField(payload []byte) int {
-	s := 1
-	for i := len(payload); i >= 256; i /= 256 {
-		s++
-	}
-	return s
-}
+//func getSizeOfPayloadSizeField(payload []byte) int {
+//	s := 1
+//	for i := len(payload); i >= 256; i /= 256 {
+//		s++
+//	}
+//	return s
+//}
 
-// appendPadding appends the padding specified in params.
-// If no padding is provided in params, then random padding is generated.
-func (msg *sentMessage) appendPadding(params *MessageParams) error {
-	if len(params.Padding) != 0 {
-		// padding data was provided by the Dapp, just use it as is
-		msg.Raw = append(msg.Raw, params.Padding...)
-		return nil
-	}
-
-	rawSize := flagsLength + getSizeOfPayloadSizeField(params.Payload) + len(params.Payload)
-	if params.Src != nil {
-		rawSize += signatureLength
-	}
-	odd := rawSize % padSizeLimit
-	paddingSize := padSizeLimit - odd
-	pad := make([]byte, paddingSize)
-	_, err := crand.Read(pad)
+// appendPadding appends random padding to the message
+func (params *MessageParams) appendPadding() error {
+	bytes, err := protobuf.Encode(params)
 	if err != nil {
 		return err
 	}
-	if !validateDataIntegrity(pad, paddingSize) {
-		return fmt.Errorf("failed to generate random padding of size " + strconv.Itoa(paddingSize))
+	rawSize := len(bytes)
+	odd := rawSize % padSizeLimit
+	paddingSize := padSizeLimit - odd
+
+	pad := make([]byte, paddingSize)
+	_, err = crand.Read(pad)
+	if err != nil {
+		return err
 	}
-	msg.Raw = append(msg.Raw, pad...)
+	params.Payload = pad
+	//msg.Raw = append(msg.Raw, pad...)
 	return nil
 }
 
 // sign calculates and sets the cryptographic signature for the message,
 // also setting the sign flag.
-func (msg *sentMessage) sign(key *ecdsa.PrivateKey) error {
-	if isMessageSigned(msg.Raw[0]) {
-		// this should not happen, but no reason to panic
-		fmt.Println("failed to sign the message: already signed")
-		return nil
-	}
+//func (msg *sentMessage) sign(key *ecies.PrivateKey) error {
+//	if isMessageSigned(msg.Raw[0]) {
+//		// this should not happen, but no reason to panic
+//		fmt.Println("failed to sign the message: already signed")
+//		return nil
+//	}
+//
+//	msg.Raw[0] |= signatureFlag // it is important to set this flag before signing
+//	hash := crypto.Keccak256(msg.Raw)
+//	signature, err := crypto.Sign(hash, key)
+//	if err != nil {
+//		msg.Raw[0] &= (0xFF ^ signatureFlag) // clear the flag
+//		return err
+//	}
+//	msg.Raw = append(msg.Raw, signature...)
+//	return nil
+//}
 
-	msg.Raw[0] |= signatureFlag // it is important to set this flag before signing
-	hash := Keccak256(msg.Raw)
-	signature, err := crypto.Sign(hash, key)
-	if err != nil {
-		msg.Raw[0] &= (0xFF ^ signatureFlag) // clear the flag
-		return err
-	}
-	msg.Raw = append(msg.Raw, signature...)
-	return nil
+// encryptWithPublicKey encrypts a message with a public key.
+func encryptWithPublicKey(data []byte, key *ecies.PublicKey) ([]byte, error) {
+	return ecies.Encrypt(key, data)
 }
 
-// encryptAsymmetric encrypts a message with a public key.
-func (msg *sentMessage) encryptAsymmetric(key *ecdsa.PublicKey) error {
-	if !ValidatePublicKey(key) {
-		return fmt.Errorf("invalid public key provided for asymmetric encryption")
-	}
-	encrypted, err := ecies.Encrypt(crand.Reader, ecies.ImportECDSAPublic(key), msg.Raw, nil, nil)
-	if err == nil {
-		msg.Raw = encrypted
-	}
-	return err
-}
-
-// encryptSymmetric encrypts a message with a topic key, using AES-GCM-256.
-// nonce size should be 12 bytes (see cipher.gcmStandardNonceSize).
-func (msg *sentMessage) encryptSymmetric(key []byte) (err error) {
-	if !validateDataIntegrity(key, aesKeyLength) {
-		return fmt.Errorf("invalid key provided for symmetric encryption, size: " + strconv.Itoa(len(key)))
-	}
+// use aes-gcm
+func encryptWithSymmetricKey(data []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return err
-	}
-	salt, err := generateSecureRandomData(aesNonceLength) // never use more than 2^32 random nonces with a given key
-	if err != nil {
-		return err
-	}
-	encrypted := aesgcm.Seal(nil, salt, msg.Raw, nil)
-	msg.Raw = append(encrypted, salt...)
-	return nil
-}
-
-// generateSecureRandomData generates random data where extra security is required.
-// The purpose of this function is to prevent some bugs in software or in hardware
-// from delivering not-very-random data. This is especially useful for AES nonce,
-// where true randomness does not really matter, but it is very important to have
-// a unique nonce for every message.
-func generateSecureRandomData(length int) ([]byte, error) {
-	x := make([]byte, length)
-	y := make([]byte, length)
-	res := make([]byte, length)
-
-	_, err := crand.Read(x)
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
-	} else if !validateDataIntegrity(x, length) {
-		return nil, fmt.Errorf("crypto/rand failed to generate secure random data")
 	}
-	_, err = mrand.Read(y)
+	nonce := make([]byte, gcm.NonceSize())
+	_, err = io.ReadFull(crand.Reader, nonce)
 	if err != nil {
 		return nil, err
-	} else if !validateDataIntegrity(y, length) {
-		return nil, fmt.Errorf("math/rand failed to generate secure random data")
 	}
-	for i := 0; i < length; i++ {
-		res[i] = x[i] ^ y[i]
-	}
-	if !validateDataIntegrity(res, length) {
-		return nil, fmt.Errorf("failed to generate secure random data")
-	}
-	return res, nil
+	encrypted := gcm.Seal(nonce, nonce, data, nil)
+	return encrypted, nil
 }
 
-// Wrap bundles the message into an Envelope to transmit over the network.
-func (msg *sentMessage) Wrap(options *MessageParams) (envelope *Envelope, err error) {
-	if options.TTL == 0 {
-		options.TTL = DefaultTTL
+func generateRandomBytes(length int) ([]byte, error) {
+	array := make([]byte, length)
+	_, err := crand.Read(array)
+	if err != nil {
+		return nil, err
 	}
-	if options.Src != nil {
-		if err = msg.sign(options.Src); err != nil {
+	return array, nil
+}
+
+// GetEnvelopeFromMessage encrypts the message and prepare the Envelope
+func (params *MessageParams) GetEnvelopeFromMessage() (envelope *Envelope, err error) {
+	if params.TTL == 0 {
+		params.TTL = DefaultTTL
+	}
+
+	if params.PoW == 0 {
+		params.PoW = DefaultMinimumPoW
+	}
+
+	var encrypted []byte
+	if params.Dst != nil {
+		encrypted, err = encryptWithPublicKey(params.Payload, params.Dst)
+		if err != nil {
 			return nil, err
 		}
-	}
-	if options.Dst != nil {
-		err = msg.encryptAsymmetric(options.Dst)
-	} else if options.KeySym != nil {
-		err = msg.encryptSymmetric(options.KeySym)
+	} else if params.KeySym != nil {
+		encrypted, err = encryptWithSymmetricKey(params.Payload, params.KeySym)
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		err = fmt.Errorf("unable to encrypt the message: neither symmetric nor assymmetric key provided")
+		err = fmt.Errorf("no symmetric or asymmetric key given")
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	envelope = NewEnvelope(options.TTL, options.Topic, msg)
-	if err = envelope.Seal(options); err != nil {
-		return nil, err
-	}
+	envelope = NewEnvelope(params.TTL, params.Topic, encrypted)
+
+	// compute pow
+	envelope.computePow()
+
 	return envelope, nil
 }
 
-// decryptSymmetric decrypts a message with a topic key, using AES-GCM-256.
-// nonce size should be 12 bytes (see cipher.gcmStandardNonceSize).
-func (msg *ReceivedMessage) decryptSymmetric(key []byte) error {
-	// symmetric messages are expected to contain the 12-byte nonce at the end of the payload
-	if len(msg.Raw) < aesNonceLength {
-		return fmt.Errorf("missing salt or invalid payload in symmetric message")
-	}
-	salt := msg.Raw[len(msg.Raw)-aesNonceLength:]
-
+// decryptWithSymmetricKey decrypts a message with symmetric key
+func decryptWithSymmetricKey(encrypted []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	aesgcm, err := cipher.NewGCM(block)
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	decrypted, err := aesgcm.Open(nil, salt, msg.Raw[:len(msg.Raw)-aesNonceLength], nil)
+	nonceSize := gcm.NonceSize()
+	nonce, ciphertext := encrypted[:nonceSize], encrypted[nonceSize:]
+	decrypted, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	msg.Raw = decrypted
-	msg.Salt = salt
-	return nil
+	return decrypted, nil
 }
 
-// decryptAsymmetric decrypts an encrypted payload with a private key.
-func (msg *ReceivedMessage) decryptAsymmetric(key *ecdsa.PrivateKey) error {
-	decrypted, err := ecies.ImportECDSA(key).Decrypt(msg.Raw, nil, nil)
-	if err == nil {
-		msg.Raw = decrypted
-	}
-	return err
+// decryptWithPrivateKey decrypts an encrypted payload with private key
+func decryptWithPrivateKey(encrypted []byte, key *ecies.PrivateKey) ([]byte, error) {
+	return ecies.Decrypt(key, encrypted)
 }
 
 // ValidateAndParse checks the message validity and extracts the fields in case of success.
-func (msg *ReceivedMessage) ValidateAndParse() bool {
-	end := len(msg.Raw)
-	if end < 1 {
-		return false
-	}
-
-	if isMessageSigned(msg.Raw[0]) {
-		end -= signatureLength
-		if end <= 1 {
-			return false
-		}
-		msg.Signature = msg.Raw[end : end+signatureLength]
-		msg.Src = msg.SigToPubKey()
-		if msg.Src == nil {
-			return false
-		}
-	}
-
-	beg := 1
-	payloadSize := 0
-	sizeOfPayloadSizeField := int(msg.Raw[0] & SizeMask) // number of bytes indicating the size of payload
-	if sizeOfPayloadSizeField != 0 {
-		payloadSize = int(bytesToUintLittleEndian(msg.Raw[beg : beg+sizeOfPayloadSizeField]))
-		if payloadSize+1 > end {
-			return false
-		}
-		beg += sizeOfPayloadSizeField
-		msg.Payload = msg.Raw[beg : beg+payloadSize]
-	}
-
-	beg += payloadSize
-	msg.Padding = msg.Raw[beg:end]
-	return true
-}
+//func (msg *ReceivedMessage) ValidateAndParse() bool {
+//	end := len(msg.Raw)
+//	if end < 1 {
+//		return false
+//	}
+//
+//	if isMessageSigned(msg.Raw[0]) {
+//		end -= signatureLength
+//		if end <= 1 {
+//			return false
+//		}
+//		msg.Signature = msg.Raw[end : end+signatureLength]
+//		msg.Src = msg.SigToPubKey()
+//		if msg.Src == nil {
+//			return false
+//		}
+//	}
+//
+//	beg := 1
+//	payloadSize := 0
+//	sizeOfPayloadSizeField := int(msg.Raw[0] & SizeMask) // number of bytes indicating the size of payload
+//	if sizeOfPayloadSizeField != 0 {
+//		payloadSize = int(bytesToUintLittleEndian(msg.Raw[beg : beg+sizeOfPayloadSizeField]))
+//		if payloadSize+1 > end {
+//			return false
+//		}
+//		beg += sizeOfPayloadSizeField
+//		msg.Payload = msg.Raw[beg : beg+payloadSize]
+//	}
+//
+//	beg += payloadSize
+//	msg.Padding = msg.Raw[beg:end]
+//	return true
+//}
 
 // SigToPubKey returns the public key associated to the message's
 // signature.
-func (msg *ReceivedMessage) SigToPubKey() *ecdsa.PublicKey {
-	defer func() { recover() }() // in case of invalid signature
-	
-	pub, err := crypto.SigToPub(msg.hash(), msg.Signature)
-	if err != nil {
-		fmt.Println("failed to recover public key from signature", "err", err)
-		return nil
-	}
-	return pub
-}
-
-// hash calculates the SHA3 checksum of the message flags, payload size field, payload and padding.
-func (msg *ReceivedMessage) hash() []byte {
-	if isMessageSigned(msg.Raw[0]) {
-		sz := len(msg.Raw) - signatureLength
-		return Keccak256(msg.Raw[:sz])
-	}
-	return Keccak256(msg.Raw)
-}
+//func (msg *ReceivedMessage) SigToPubKey() *ecies.PublicKey {
+//	defer func() { recover() }() // in case of invalid signature
+//
+//	pub, err := crypto.SigToPub(msg.hash(), msg.Signature)
+//	if err != nil {
+//		fmt.Println("failed to recover public key from signature", "err", err)
+//		return nil
+//	}
+//	return pub
+//}

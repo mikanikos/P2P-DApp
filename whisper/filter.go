@@ -1,39 +1,18 @@
-// Copyright 2016 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package whisper
 
 import (
-	"crypto/ecdsa"
 	"fmt"
+	ecies "github.com/ecies/go"
 	"sync"
-
-	"github.com/mikanikos/Peerster/crypto"
 )
 
 // Filter represents a Whisper message filter
 type Filter struct {
-	Src        *ecdsa.PublicKey  // Sender of the message
-	KeyAsym    *ecdsa.PrivateKey // Private Key of recipient
-	KeySym     []byte            // Key associated with the Topic
-	Topics     [][]byte          // Topics to filter messages with
-	PoW        float64           // Proof of work as described in the Whisper spec
-	AllowP2P   bool              // Indicates whether this filter is interested in direct peer-to-peer messages
-	SymKeyHash [32]byte       // The Keccak256Hash of the symmetric key, needed for optimization
-	id         string            // unique identifier
+	Src     *ecies.PublicKey  // Sender of the message
+	KeyAsym *ecies.PrivateKey // Private Key of recipient
+	KeySym  []byte            // Key associated with the Topic
+	Topics  [][]byte          // Topics to filter messages with
+	id      string            // unique identifier
 
 	Messages map[[32]byte]*ReceivedMessage
 	mutex    sync.RWMutex
@@ -41,7 +20,7 @@ type Filter struct {
 
 // Filters represents a collection of filters
 type Filters struct {
-	watchers map[string]*Filter
+	subscribers map[string]*Filter
 
 	topicMatcher     map[Topic]map[*Filter]struct{} // map a topic to the filters that are interested in being notified when a message matches that topic
 	allTopicsMatcher map[*Filter]struct{}           // list all the filters that will be notified of a new message, no matter what its topic is
@@ -53,7 +32,7 @@ type Filters struct {
 // NewFilters returns a newly created filter collection
 func NewFilters(w *Whisper) *Filters {
 	return &Filters{
-		watchers:         make(map[string]*Filter),
+		subscribers:         make(map[string]*Filter),
 		topicMatcher:     make(map[Topic]map[*Filter]struct{}),
 		allTopicsMatcher: make(map[*Filter]struct{}),
 		whisper:          w,
@@ -61,13 +40,13 @@ func NewFilters(w *Whisper) *Filters {
 }
 
 // AddFilter will add a new filter to the filter collection
-func (fs *Filters) AddFilter(watcher *Filter) (string, error) {
-	if watcher.KeySym != nil && watcher.KeyAsym != nil {
+func (fs *Filters) AddFilter(subscriber *Filter) (string, error) {
+	if subscriber.KeySym != nil && subscriber.KeyAsym != nil {
 		return "", fmt.Errorf("filters must choose between symmetric and asymmetric keys")
 	}
 
-	if watcher.Messages == nil {
-		watcher.Messages = make(map[[32]byte]*ReceivedMessage)
+	if subscriber.Messages == nil {
+		subscriber.Messages = make(map[[32]byte]*ReceivedMessage)
 	}
 
 	id, err := GenerateRandomID()
@@ -78,17 +57,13 @@ func (fs *Filters) AddFilter(watcher *Filter) (string, error) {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
 
-	if fs.watchers[id] != nil {
+	if fs.subscribers[id] != nil {
 		return "", fmt.Errorf("failed to generate unique ID")
 	}
 
-	if watcher.expectsSymmetricEncryption() {
-		watcher.SymKeyHash = crypto.Keccak256Hash(watcher.KeySym)
-	}
-
-	watcher.id = id
-	fs.watchers[id] = watcher
-	fs.addTopicMatcher(watcher)
+	subscriber.id = id
+	fs.subscribers[id] = subscriber
+	fs.addTopicMatcher(subscriber)
 	return id, err
 }
 
@@ -97,9 +72,9 @@ func (fs *Filters) AddFilter(watcher *Filter) (string, error) {
 func (fs *Filters) RemoveFilter(id string) bool {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
-	if fs.watchers[id] != nil {
-		fs.removeFromTopicMatchers(fs.watchers[id])
-		delete(fs.watchers, id)
+	if fs.subscribers[id] != nil {
+		fs.removeFromTopicMatchers(fs.subscribers[id])
+		delete(fs.subscribers, id)
 		return true
 	}
 	return false
@@ -108,37 +83,37 @@ func (fs *Filters) RemoveFilter(id string) bool {
 // addTopicMatcher adds a filter to the topic matchers.
 // If the filter's Topics array is empty, it will be tried on every topic.
 // Otherwise, it will be tried on the topics specified.
-func (fs *Filters) addTopicMatcher(watcher *Filter) {
-	if len(watcher.Topics) == 0 {
-		fs.allTopicsMatcher[watcher] = struct{}{}
+func (fs *Filters) addTopicMatcher(subscriber *Filter) {
+	if len(subscriber.Topics) == 0 {
+		fs.allTopicsMatcher[subscriber] = struct{}{}
 	} else {
-		for _, t := range watcher.Topics {
-			topic := BytesToTopic(t)
+		for _, t := range subscriber.Topics {
+			topic := ConvertBytesToTopic(t)
 			if fs.topicMatcher[topic] == nil {
 				fs.topicMatcher[topic] = make(map[*Filter]struct{})
 			}
-			fs.topicMatcher[topic][watcher] = struct{}{}
+			fs.topicMatcher[topic][subscriber] = struct{}{}
 		}
 	}
 }
 
 // removeFromTopicMatchers removes a filter from the topic matchers
-func (fs *Filters) removeFromTopicMatchers(watcher *Filter) {
-	delete(fs.allTopicsMatcher, watcher)
-	for _, topic := range watcher.Topics {
-		delete(fs.topicMatcher[BytesToTopic(topic)], watcher)
+func (fs *Filters) removeFromTopicMatchers(subscriber *Filter) {
+	delete(fs.allTopicsMatcher, subscriber)
+	for _, topic := range subscriber.Topics {
+		delete(fs.topicMatcher[ConvertBytesToTopic(topic)], subscriber)
 	}
 }
 
-// getWatchersByTopic returns a slice containing the filters that
+// getsubscribersByTopic returns a slice containing the filters that
 // match a specific topic
-func (fs *Filters) getWatchersByTopic(topic Topic) []*Filter {
+func (fs *Filters) getsubscribersByTopic(topic Topic) []*Filter {
 	res := make([]*Filter, 0, len(fs.allTopicsMatcher))
-	for watcher := range fs.allTopicsMatcher {
-		res = append(res, watcher)
+	for subscriber := range fs.allTopicsMatcher {
+		res = append(res, subscriber)
 	}
-	for watcher := range fs.topicMatcher[topic] {
-		res = append(res, watcher)
+	for subscriber := range fs.topicMatcher[topic] {
+		res = append(res, subscriber)
 	}
 	return res
 }
@@ -147,53 +122,36 @@ func (fs *Filters) getWatchersByTopic(topic Topic) []*Filter {
 func (fs *Filters) GetFilter(id string) *Filter {
 	fs.mutex.RLock()
 	defer fs.mutex.RUnlock()
-	return fs.watchers[id]
+	return fs.subscribers[id]
 }
 
-// NotifyWatchers notifies any filter that has declared interest
+// NotifySubscribers notifies any filter that has declared interest
 // for the envelope's topic.
-func (fs *Filters) NotifyWatchers(env *Envelope, p2pMessage bool) {
+func (fs *Filters) NotifySubscribers(env *Envelope) {
 	var msg *ReceivedMessage
 
 	fs.mutex.RLock()
 	defer fs.mutex.RUnlock()
 
-	candidates := fs.getWatchersByTopic(env.Topic)
-	for _, watcher := range candidates {
-		if p2pMessage && !watcher.AllowP2P {
-			fmt.Println(fmt.Sprintf("msg [%x], filter [%s]: p2p messages are not allowed", env.Hash(), watcher.id))
-			continue
-		}
-
-		var match bool
-		if msg != nil {
-			match = watcher.MatchMessage(msg)
+	candidates := fs.getsubscribersByTopic(env.Topic)
+	for _, subscriber := range candidates {
+		msg = env.GetMessageFromEnvelope(subscriber)
+		if msg == nil {
+			fmt.Println("processing message: failed to open", "message", env.Hash(), "filter", subscriber.id)
 		} else {
-			match = watcher.MatchEnvelope(env)
-			if match {
-				msg = env.Open(watcher)
-				if msg == nil {
-					fmt.Println("processing message: failed to open", "message", env.Hash(), "filter", watcher.id)
-				}
-			} else {
-				fmt.Println("processing message: does not match", "message", env.Hash(), "filter", watcher.id)
-			}
-		}
-
-		if match && msg != nil {
 			fmt.Println("processing message: decrypted", "hash", env.Hash())
-			if watcher.Src == nil || IsPubKeyEqual(msg.Src, watcher.Src) {
-				watcher.Trigger(msg)
+			if subscriber.Src == nil || msg.Src.Equals(subscriber.Src) {
+				subscriber.Trigger(msg)
 			}
 		}
 	}
 }
 
-func (f *Filter) expectsAsymmetricEncryption() bool {
+func (f *Filter) isAsymmetricEncription() bool {
 	return f.KeyAsym != nil
 }
 
-func (f *Filter) expectsSymmetricEncryption() bool {
+func (f *Filter) isSymmetricEncryption() bool {
 	return f.KeySym != nil
 }
 
@@ -224,37 +182,26 @@ func (f *Filter) Retrieve() (all []*ReceivedMessage) {
 }
 
 // MatchMessage checks if the filter matches an already decrypted
-// message (i.e. a Message that has already been handled by
+// message (i.e. a ReceivedMessage that has already been handled by
 // MatchEnvelope when checked by a previous filter).
 // Topics are not checked here, since this is done by topic matchers.
-func (f *Filter) MatchMessage(msg *ReceivedMessage) bool {
-	if f.PoW > 0 && msg.PoW < f.PoW {
-		return false
-	}
-
-	if f.expectsAsymmetricEncryption() && msg.isAsymmetricEncryption() {
-		return IsPubKeyEqual(&f.KeyAsym.PublicKey, msg.Dst)
-	} else if f.expectsSymmetricEncryption() && msg.isSymmetricEncryption() {
-		return f.SymKeyHash == msg.SymKeyHash
-	}
-	return false
-}
+//func (f *Filter) MatchMessage(msg *ReceivedMessage) bool {
+//	if f.PoW > 0 && msg.PoW < f.PoW {
+//		return false
+//	}
+//
+//	if f.isAsymmetricEncription() && msg.isAsymmetricEncryption() {
+//		return IsPubKeyEqual(&f.KeyAsym.PublicKey, msg.Dst)
+//	} else if f.isSymmetricEncryption() && msg.isSymmetricEncryption() {
+//		return f.SymKeyHash == msg.SymKeyHash
+//	}
+//	return false
+//}
 
 // MatchEnvelope checks if it's worth decrypting the message. If
 // it returns `true`, client code is expected to attempt decrypting
 // the message and subsequently call MatchMessage.
 // Topics are not checked here, since this is done by topic matchers.
-func (f *Filter) MatchEnvelope(envelope *Envelope) bool {
-	return f.PoW <= 0 || envelope.pow >= f.PoW
-}
-
-// IsPubKeyEqual checks that two public keys are equal
-func IsPubKeyEqual(a, b *ecdsa.PublicKey) bool {
-	if !ValidatePublicKey(a) {
-		return false
-	} else if !ValidatePublicKey(b) {
-		return false
-	}
-	// the curve is always the same, just compare the points
-	return a.X.Cmp(b.X) == 0 && a.Y.Cmp(b.Y) == 0
-}
+//func (f *Filter) MatchEnvelope(envelope *Envelope) bool {
+//	return f.PoW <= 0 || envelope.pow >= f.PoW
+//}

@@ -1,27 +1,21 @@
 package whisper
 
 import (
-	"github.com/mikanikos/Peerster/crypto"
 	"time"
 )
 
-// Whisper protocol parameters
+// main whisper protocol parameters, from official source
 const (
-	// whisper protocol message codes, according to EIP-627
-	statusCode           = 0   // used by whisper protocol
-	messagesCode         = 1   // normal whisper message
-	powRequirementCode   = 2   // PoW requirement
-	bloomFilterExCode    = 3   // bloom filter exchange
+	statusCode           = 0
+	messagesCode         = 1
+	powRequirementCode   = 2
+	bloomFilterExCode    = 3
 
-	SizeMask      = byte(3) // mask used to extract the size of payload size field from the flags
-	signatureFlag = byte(4)
-
-	TopicLength     = 4                      // in bytes
-	signatureLength = crypto.SignatureLength // in bytes
-	aesKeyLength    = 32                     // in bytes
-	aesNonceLength  = 12                     // in bytes; for more info please see cipher.gcmStandardNonceSize & aesgcm.NonceSize()
-	keyIDSize       = 32                     // in bytes
-	BloomFilterSize = 64                     // in bytes
+	// lengths in bytes
+	TopicLength     = 4
+	aesKeyLength    = 32
+	keyIDSize       = 32
+	BloomFilterSize = 64
 	flagsLength     = 1
 
 	EnvelopeHeaderLength = 20
@@ -30,11 +24,11 @@ const (
 	DefaultMaxMessageSize = uint32(1024 * 1024)
 	DefaultMinimumPoW     = 0.2
 
-	padSizeLimit      = 256 // just an arbitrary number, could be changed without breaking the protocol
+	padSizeLimit      = 256
 	messageQueueLimit = 1024
 
 	expirationCycle   = time.Second
 	transmissionCycle = 5 * time.Second
 
-	DefaultTTL           = 50 // seconds
+	DefaultTTL = 50 // in seconds
 )

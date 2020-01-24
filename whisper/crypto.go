@@ -1,26 +1,18 @@
 package whisper
 
 import (
-	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
-	"github.com/mikanikos/Peerster/crypto"
-	"golang.org/x/crypto/sha3"
+	ecies "github.com/ecies/go"
 )
 
-// NewKeyPair generates a new cryptographic identity for the client, and injects
-// it into the known identities for message decryption. Returns ID of the new key pair.
+// NewKeyPair generates secp256k1 key pair and store them
 func (whisper *Whisper) NewKeyPair() (string, error) {
-	key, err := crypto.GenerateKey()
-	if err != nil || !validatePrivateKey(key){
+	key, err := ecies.GenerateKey()
+	id, err := GenerateRandomID()
+	if err != nil {
 		return "", err
 	}
-	if !validatePrivateKey(key) {
-		return "", fmt.Errorf("failed to generate valid key")
-	}
-	id, err := GenerateRandomID()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate ID: %s", err)
-	}
 
 	if _, loaded := whisper.cryptoKeys.LoadOrStore(id, key); loaded {
 		return "", fmt.Errorf("failed to generate unique ID")
@@ -28,16 +20,16 @@ func (whisper *Whisper) NewKeyPair() (string, error) {
 	return id, nil
 }
 
-// DeleteKey deletes the specified key if it exists.
-func (whisper *Whisper) DeleteKey(key string) {
-	whisper.cryptoKeys.Delete(key)
+// DeleteKey deletes the specified key with an id
+func (whisper *Whisper) DeleteKey(id string) {
+	whisper.cryptoKeys.Delete(id)
 }
 
-// AddKeyPair imports a asymmetric private key and returns it identifier.
-func (whisper *Whisper) AddKeyPair(key *ecdsa.PrivateKey) (string, error) {
+// AddKeyPair imports an asymmetric private key and returns its id
+func (whisper *Whisper) AddKeyPair(key *ecies.PrivateKey) (string, error) {
 	id, err := GenerateRandomID()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate ID: %s", err)
+		return "", err
 	}
 
 	if _, loaded := whisper.cryptoKeys.LoadOrStore(id, key); loaded {
@@ -47,18 +39,17 @@ func (whisper *Whisper) AddKeyPair(key *ecdsa.PrivateKey) (string, error) {
 	return id, nil
 }
 
-// HasKey checks if the whisper node is configured with the private key
-// of the specified public pair.
+// HasKey checks if a key is present in the storage
 func (whisper *Whisper) HasKey(id string) bool {
 	_, loaded := whisper.cryptoKeys.Load(id)
 	return loaded
 }
 
-// GetPrivateKey retrieves the private key of the specified identity.
-func (whisper *Whisper) GetPrivateKey(id string) (*ecdsa.PrivateKey, error) {
+// GetPrivateKey returns the private key given an id
+func (whisper *Whisper) GetPrivateKey(id string) (*ecies.PrivateKey, error) {
 	value, loaded := whisper.cryptoKeys.Load(id)
 	if loaded {
-		return value.(*ecdsa.PrivateKey), nil
+		return value.(*ecies.PrivateKey), nil
 	}
 	return nil, fmt.Errorf("no private key for id given")
 }
@@ -66,14 +57,14 @@ func (whisper *Whisper) GetPrivateKey(id string) (*ecdsa.PrivateKey, error) {
 // GenerateSymKey generates a random symmetric key and stores it under id,
 // which is then returned. Will be used in the future for session key exchange.
 func (whisper *Whisper) GenerateSymKey() (string, error) {
-	key, err := generateSecureRandomData(aesKeyLength)
-	if err != nil || !validateDataIntegrity(key, aesKeyLength) {
-		return "", fmt.Errorf("error in GenerateSymKey: crypto/rand failed to generate random data")
+	key, err := generateRandomBytes(aesKeyLength)
+	if err != nil {
+		return "", err
 	}
 
 	id, err := GenerateRandomID()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate ID: %s", err)
+		return "", err
 	}
 
 	if _, loaded := whisper.cryptoKeys.LoadOrStore(id, key); loaded {
@@ -82,15 +73,16 @@ func (whisper *Whisper) GenerateSymKey() (string, error) {
 	return id, nil
 }
 
-// AddSymKeyDirect stores the key, and returns its id.
-func (whisper *Whisper) AddSymKeyDirect(key []byte) (string, error) {
+// AddSymKeyDirect stores a symmetric key returns its id
+func (whisper *Whisper) AddSymKey(k string) (string, error) {
+	key, _ := hex.DecodeString(k)
 	if len(key) != aesKeyLength {
-		return "", fmt.Errorf("wrong key size: %d", len(key))
+		return "", fmt.Errorf("wrong key size")
 	}
 
 	id, err := GenerateRandomID()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate ID: %s", err)
+		return "", err
 	}
 
 	if _, loaded := whisper.cryptoKeys.LoadOrStore(id, key); loaded {
@@ -99,54 +91,8 @@ func (whisper *Whisper) AddSymKeyDirect(key []byte) (string, error) {
 	return id, nil
 }
 
-//// AddSymKeyFromPassword generates the key from password, stores it, and returns its id.
-//func (whisper *Whisper) AddSymKeyFromPassword(password string) (string, error) {
-//	id, err := GenerateRandomID()
-//	if err != nil {
-//		return "", fmt.Errorf("failed to generate ID: %s", err)
-//	}
-//	if whisper.HasSymKey(id) {
-//		return "", fmt.Errorf("failed to generate unique ID")
-//	}
-//
-//	// kdf should run no less than 0.1 seconds on an average computer,
-//	// because it's an once in a session experience
-//	derived := pbkdf2.Key([]byte(password), nil, 65356, aesKeyLength, sha256.New)
-//	if err != nil {
-//		return "", err
-//	}
-//
-//	whisper.keyMu.Lock()
-//	defer whisper.keyMu.Unlock()
-//
-//	// double check is necessary, because deriveKeyMaterial() is very slow
-//	if whisper.symKeys[id] != nil {
-//		return "", fmt.Errorf("critical error: failed to generate unique ID")
-//	}
-//	whisper.symKeys[id] = derived
-//	return id, nil
-//}
-
-//// HasSymKey returns true if there is a key associated with the given id.
-//// Otherwise returns false.
-//func (whisper *Whisper) HasKey(id string) bool {
-//	_, loaded := whisper.cryptoKeys.Load(id)
-//	return loaded
-//}
-
-//// DeleteSymKey deletes the key associated with the name string if it exists.
-//func (whisper *Whisper) DeleteSymKey(id string) bool {
-//	whisper.keyMu.Lock()
-//	defer whisper.keyMu.Unlock()
-//	if whisper.symKeys[id] != nil {
-//		delete(whisper.symKeys, id)
-//		return true
-//	}
-//	return false
-//}
-
-// GetSymKey returns the symmetric key associated with the given id.
-func (whisper *Whisper) GetSymKey(id string) ([]byte, error) {
+// GetSymKeyFromID returns the symmetric key given its id
+func (whisper *Whisper) GetSymKeyFromID(id string) ([]byte, error) {
 	value, loaded := whisper.cryptoKeys.Load(id)
 	if loaded {
 		return value.([]byte), nil
@@ -154,24 +100,26 @@ func (whisper *Whisper) GetSymKey(id string) ([]byte, error) {
 	return nil, fmt.Errorf("no sym key for id given")
 }
 
-// ValidatePublicKey checks the format of the given public key.
-func ValidatePublicKey(k *ecdsa.PublicKey) bool {
-	return k != nil && k.X != nil && k.Y != nil && k.X.Sign() != 0 && k.Y.Sign() != 0
+// AddPrivateKey adds the given private key
+func (whisper *Whisper) AddPrivateKey(privateKey []byte) (string, error) {
+	key := ecies.NewPrivateKeyFromBytes(privateKey)
+	return whisper.AddKeyPair(key)
 }
 
-// validatePrivateKey checks the format of the given private key.
-func validatePrivateKey(k *ecdsa.PrivateKey) bool {
-	if k == nil || k.D == nil || k.D.Sign() == 0 {
-		return false
+// GetPublicKeyFromID returns the public key given an id
+func (whisper *Whisper) GetPublicKeyFromID(id string) ([]byte, error) {
+	key, err := whisper.GetPrivateKey(id)
+	if err != nil {
+		return []byte{}, err
 	}
-	return ValidatePublicKey(&k.PublicKey)
+	return key.PublicKey.Bytes(false), nil
 }
 
-// Keccak256 calculates and returns the Keccak256 hash of the input data.
-func Keccak256(data ...[]byte) []byte {
-	d := sha3.NewLegacyKeccak256()
-	for _, b := range data {
-		d.Write(b)
+// GetPrivateKey returns the private key given an id
+func (whisper *Whisper) GetPrivateKeyFromID(id string) ([]byte, error) {
+	key, err := whisper.GetPrivateKey(id)
+	if err != nil {
+		return []byte{}, err
 	}
-	return d.Sum(nil)
+	return key.Bytes(), nil
 }

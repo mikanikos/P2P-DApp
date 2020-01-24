@@ -102,7 +102,6 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 			if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
 				packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
 				go func(p *ExtendedGossipPacket, m string) {
-					fmt.Println(m)
 					PacketChannels[m] <- p
 				}(packet, modeType)
 			} else {

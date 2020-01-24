@@ -184,9 +184,9 @@ func (gossiper *Gossiper) Run() {
 	//				Topic:      topicType,
 	//				Payload:    text,
 	//				PowTime:    2,
-	//				PowTarget:  2.01,
+	//				Pow:  2.01,
 	//			}
-	//			hash, err := api.Post(newMessage)
+	//			hash, err := api.NewWhisperMessage(newMessage)
 	//			if err != nil {
 	//				fmt.Println(err)
 	//			} else {
@@ -214,9 +214,9 @@ func (gossiper *Gossiper) Run() {
 	//				Topic:     whisper.BytesToTopic(topic),
 	//				Payload:   text,
 	//				PowTime:   2,
-	//				PowTarget: 2.01,
+	//				Pow: 2.01,
 	//			}
-	//			hash, err := api.Post(newMessage)
+	//			hash, err := api.NewWhisperMessage(newMessage)
 	//			if err != nil {
 	//				fmt.Println(err)
 	//			} else {

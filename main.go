@@ -37,7 +37,7 @@ func main() {
 	// create new gossiper instance
 	g := gossiper.NewGossiper(*gossipName, *gossipAddr, helpers.BaseAddress+":"+*uiPort, *peers, *peersNumber)
 
-	w := whisper.New(g)
+	w := whisper.NewWhisper(g)
 
 	for _, peer := range g.PeersData.Peers {
 		whisper.PeerChannels[peer.String()] = make(chan *gossiper.WhisperPacket, 100)

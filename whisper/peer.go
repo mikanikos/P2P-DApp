@@ -1,19 +1,3 @@
-// Copyright 2016 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package whisper
 
 import (
@@ -28,57 +12,55 @@ import (
 	"time"
 )
 
-// Peer represents a whisper protocol peer connection.
+// Peer represents a whisper protocol address connection.
 type Peer struct {
-	host *Whisper
-	peer *net.UDPAddr
+	whisper *Whisper
+	address *net.UDPAddr
 
-	trusted        bool
-	powRequirement float64
-	bloomMu        sync.Mutex
-	bloomFilter    []byte
-	noFilter       bool
+	parameters sync.Map
 
-	known mapset.Set // Messages already known by the peer to avoid wasting bandwidth
+	known mapset.Set // Messages already known by the address to avoid wasting bandwidth
 
 	quit chan struct{}
 }
 
-// newPeer creates a new whisper peer object, but does not run the handshake itself.
-func newPeer(host *Whisper, remote *net.UDPAddr) *Peer {
-	return &Peer{
-		host:           host,
-		peer:           remote,
-		trusted:        false,
-		powRequirement: 0.0,
+// newPeer creates a new whisper address object, but does not run the handshake itself.
+func newPeer(whisper *Whisper, addr *net.UDPAddr) *Peer {
+	peer := &Peer{
+		whisper:        whisper,
+		address:        addr,
+		parameters: 	sync.Map{},
 		known:          mapset.NewSet(),
 		quit:           make(chan struct{}),
-		bloomFilter:    ResetBloomFilter(),
-		noFilter:       true,
 	}
+
+	peer.parameters.Store("pow", 0.0)
+	peer.parameters.Store("bloom", GetEmptyBloomFilter())
+
+	return peer
 }
 
-// start initiates the peer updater, periodically broadcasting the whisper packets
+// start initiates the address updater, periodically broadcasting the whisper packets
 // into the network.
 func (peer *Peer) start() {
 	go peer.update()
-	fmt.Println("start", "peer", peer.peer.String())
+	fmt.Println("start", "address", peer.address.String())
 }
 
-// stop terminates the peer updater, stopping message forwarding to it.
+// stop terminates the address updater, stopping message forwarding to it.
 func (peer *Peer) stop() {
 	close(peer.quit)
-	fmt.Println("stop", "peer", peer.peer.String())
+	fmt.Println("stop", "address", peer.address.String())
 }
 
-// handshake sends the protocol initiation status message to the remote peer and
+// handshake sends the protocol initiation status message to the remote address and
 // verifies the remote status too.
 func (peer *Peer) handshake() error {
 	// Send the handshake status message asynchronously
 	//errc := make(chan error, 1)
 
-	pow := peer.host.GetMinPow()
-	bloom := peer.host.GetBloomFilter()
+	pow := peer.whisper.GetMinPow()
+	bloom := peer.whisper.GetBloomFilter()
 
 	statusStruct := &Status{Bloom: bloom, Pow: pow}
 	packetToSend, err := protobuf.Encode(statusStruct)
@@ -86,11 +68,11 @@ func (peer *Peer) handshake() error {
 		helpers.ErrorCheck(err, false)
 	}
 
-	wPacket := &gossiper.WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.host.gossiper.Name, ID: 0,}
+	wPacket := &gossiper.WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.whisper.gossiper.Name, ID: 0,}
 	gossipPacket := &gossiper.GossipPacket{WhisperPacket: wPacket}
 
-	fmt.Println("Sent to " + peer.peer.String())
-	peer.host.gossiper.ConnectionHandler.SendPacket(gossipPacket, peer.peer)
+	fmt.Println("Sent to " + peer.address.String())
+	peer.whisper.gossiper.ConnectionHandler.SendPacket(gossipPacket, peer.address)
 
 	// start timer for stopping download
 	repeatTimer := time.NewTicker(time.Duration(5) * time.Second)
@@ -98,52 +80,53 @@ func (peer *Peer) handshake() error {
 
 	for {
 		select {
-		case packet := <-PeerChannels[peer.peer.String()]:
+		case packet := <-PeerChannels[peer.address.String()]:
 
 			fmt.Println("arrivatooo")
 
 			status := &Status{}
 			err = packet.DecodePacket(status)
 			if err != nil {
-				return fmt.Errorf("peer [%x] sent bad status message: %v", peer.peer.String(), err)
+				return fmt.Errorf("address [%x] sent bad status message: %v", peer.address.String(), err)
 			}
 
 			// subsequent parameters are optional
 			pow := status.Pow
 
 			if math.IsInf(pow, 0) || math.IsNaN(pow) || pow < 0.0 {
-				return fmt.Errorf("peer [%x] sent bad status message: invalid pow", peer.peer.String())
+				return fmt.Errorf("address [%x] sent bad status message: invalid pow", peer.address.String())
 			}
-			peer.powRequirement = pow
+
+			peer.parameters.Store("pow", pow)
 
 			bloom = status.Bloom
 
 			sz := len(bloom)
 			if sz != BloomFilterSize && sz != 0 {
-				return fmt.Errorf("peer [%x] sent bad status message: wrong bloom filter size %d", peer.peer.String(), sz)
+				return fmt.Errorf("address [%x] sent bad status message: wrong bloom filter size %d", peer.address.String(), sz)
 			}
 			peer.setBloomFilter(bloom)
 			
 			return nil
 
 		case <-repeatTimer.C:
-			fmt.Println("Sent to " + peer.peer.String())
-			peer.host.gossiper.ConnectionHandler.SendPacket(gossipPacket, peer.peer)
+			fmt.Println("Sent to " + peer.address.String())
+			peer.whisper.gossiper.ConnectionHandler.SendPacket(gossipPacket, peer.address)
 		}
 	}
 
 	// Fetch the remote status packet and verify protocol match
 
-	// extpacket := <-PacketChannels[peer.peer.String()]
+	// extpacket := <-PacketChannels[address.address.String()]
 	// fmt.Println("maaaaaaaaaaa")
 	
 	// if err := <-errc; err != nil {
-	// 	return fmt.Errorf("peer [%x] failed to send status packet: %v", peer.peer.String(), err)
+	// 	return fmt.Errorf("address [%x] failed to send status packet: %v", address.address.String(), err)
 	// }
 	return nil
 }
 
-// update executes periodic operations on the peer, including message transmission
+// update executes periodic operations on the address, including message transmission
 // and expiration.
 func (peer *Peer) update() {
 	// Start the tickers for the updates
@@ -160,7 +143,7 @@ func (peer *Peer) update() {
 
 		case <-transmit.C:
 			if err := peer.broadcast(); err != nil {
-				fmt.Println("broadcast failed", "reason", err, "peer", peer.peer.String())
+				fmt.Println("broadcast failed", "reason", err, "address", peer.address.String())
 				return
 			}
 
@@ -170,12 +153,12 @@ func (peer *Peer) update() {
 	}
 }
 
-// expire iterates over all the known envelopes in the host and removes all
+// expire iterates over all the known envelopes in the whisper and removes all
 // expired (unknown) ones from the known list.
 func (peer *Peer) expire() {
 	unmark := make(map[[32]byte]struct{})
 	peer.known.Each(func(v interface{}) bool {
-		if !peer.host.isEnvelopeCached(v.([32]byte)) {
+		if !peer.whisper.isEnvelopeCached(v.([32]byte)) {
 			unmark[v.([32]byte)] = struct{}{}
 		}
 		return true
@@ -186,13 +169,25 @@ func (peer *Peer) expire() {
 	}
 }
 
+// mark marks an envelope known to the address so that it won't be sent back.
+func (peer *Peer) mark(envelope *Envelope) {
+	peer.known.Add(envelope.Hash())
+}
+
+// marked checks if an envelope is already known to the remote address.
+func (peer *Peer) marked(envelope *Envelope) bool {
+	return peer.known.Contains(envelope.Hash())
+}
+
 // broadcast iterates over the collection of envelopes and transmits yet unknown
 // ones over the network.
 func (peer *Peer) broadcast() error {
-	envelopes := peer.host.Envelopes()
+	envelopes := peer.whisper.Envelopes()
 	bundle := make([]*Envelope, 0, len(envelopes))
 	for _, envelope := range envelopes {
-		if envelope.PoW() >= peer.powRequirement && peer.bloomMatch(envelope) {
+		pow, _ := peer.parameters.Load("pow")
+		bloom, _ := peer.parameters.Load("bloom")
+		if !peer.marked(envelope) && envelope.computePow() >= pow.(float64) && (CheckFilterMatch(bloom.([]byte), ConvertTopicToBloom(envelope.Topic))) {
 			bundle = append(bundle, envelope)
 		}
 	}
@@ -201,11 +196,12 @@ func (peer *Peer) broadcast() error {
 		// transmit the batch of envelopes
 
 		for _, env := range bundle {
+			peer.mark(env)
 			packetToSend, err := protobuf.Encode(env)
 			if err != nil {
 				return err
 			}
-			if err := peer.host.gossiper.SendWhisperPacket(messagesCode, packetToSend, peer.peer); err != nil {
+			if err := peer.whisper.gossiper.SendWhisperPacket(messagesCode, packetToSend, peer.address); err != nil {
 				return err
 			}
 		}
@@ -215,9 +211,9 @@ func (peer *Peer) broadcast() error {
 	return nil
 }
 
-// ID returns a peer's id
-//func (peer *Peer) ID() []byte {
-//	id := peer.peer.ID()
+// ID returns a address's id
+//func (address *Peer) ID() []byte {
+//	id := address.address.ID()
 //	return id[:]
 //}
 
@@ -228,25 +224,17 @@ func (peer *Peer) sendWhisperPacket(code uint32, data interface{}) error {
 		return err
 	}
 
-	wPacket := &gossiper.WhisperPacket{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: peer.host.gossiper.Name, ID: 0,}
+	wPacket := &gossiper.WhisperPacket{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: peer.whisper.gossiper.Name, ID: 0,}
 	packet := &gossiper.GossipPacket{WhisperPacket: wPacket}
-	peer.host.gossiper.ConnectionHandler.SendPacket(packet, peer.peer)
+	peer.whisper.gossiper.ConnectionHandler.SendPacket(packet, peer.address)
 
 	return nil
 }
 
-func (peer *Peer) bloomMatch(env *Envelope) bool {
-	peer.bloomMu.Lock()
-	defer peer.bloomMu.Unlock()
-	return peer.noFilter || BloomFilterMatch(peer.bloomFilter, env.Bloom())
-}
-
 func (peer *Peer) setBloomFilter(bloom []byte) {
-	peer.bloomMu.Lock()
-	defer peer.bloomMu.Unlock()
-	peer.bloomFilter = bloom
-	peer.noFilter = HasAnyFilter(bloom)
-	if peer.noFilter && peer.bloomFilter == nil {
-		peer.bloomFilter = ResetBloomFilter()
+	if !HasAnyFilter(bloom) || bloom == nil {
+		peer.parameters.Store("bloom", GetEmptyBloomFilter())
+	} else {
+		peer.parameters.Store("bloom", bloom)
 	}
 }

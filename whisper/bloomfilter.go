@@ -1,13 +1,13 @@
 package whisper
 
-func BloomFilterMatch(filter, sample []byte) bool {
+func CheckFilterMatch(filter, given []byte) bool {
 	if filter == nil {
 		return true
 	}
 
 	for i := 0; i < BloomFilterSize; i++ {
 		f := filter[i]
-		s := sample[i]
+		s := given[i]
 		if (f | s) != f {
 			return false
 		}
@@ -16,7 +16,7 @@ func BloomFilterMatch(filter, sample []byte) bool {
 	return true
 }
 
-func addBloom(a, b []byte) []byte {
+func AggregateBloom(a, b []byte) []byte {
 	c := make([]byte, BloomFilterSize)
 	for i := 0; i < BloomFilterSize; i++ {
 		c[i] = a[i] | b[i]
@@ -36,7 +36,7 @@ func HasAnyFilter(bloom []byte) bool {
 	return false
 }
 
-func ResetBloomFilter() []byte {
+func GetEmptyBloomFilter() []byte {
 	bloom := make([]byte, BloomFilterSize)
 	for i := 0; i < BloomFilterSize; i++ {
 		bloom[i] = 0xFF

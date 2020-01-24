@@ -35,16 +35,15 @@ type Whisper struct {
 	// envelopes which are not expired yet
 	envelopes *SafeEnvelopes
 
-	peerMu sync.RWMutex       // Mutex to sync the active peer set
+	peerMu sync.RWMutex       // Mutex to sync the active address set
 	peers  map[*Peer]struct{} // Set of currently active peers
 
-	messageQueue chan *Envelope // Message queue for normal whisper messages
-	//p2pMsgQueue  chan *Envelope // Message queue for peer-to-peer messages (not to be forwarded any further)
+	messageQueue chan *Envelope // ReceivedMessage queue for normal whisper messages
 	quit         chan struct{}  // Channel used for graceful exit
 }
 
-// New creates a Whisper client ready to communicate through the Ethereum P2P network.
-func New(g *gossiper.Gossiper) *Whisper {
+// NewWhisper creates a Whisper client ready to communicate through the Ethereum P2P network.
+func NewWhisper(g *gossiper.Gossiper) *Whisper {
 
 	whisper := &Whisper{
 		gossiper: g,
@@ -61,6 +60,7 @@ func New(g *gossiper.Gossiper) *Whisper {
 	whisper.filters = NewFilters(whisper)
 
 	whisper.parameters.Store("pow", DefaultMinimumPoW)
+	whisper.parameters.Store("bloom", GetEmptyBloomFilter())
 
 	return whisper
 }
@@ -70,7 +70,7 @@ func New(g *gossiper.Gossiper) *Whisper {
 func (whisper *Whisper) processWhisperPacket() {
 	for extPacket := range gossiper.PacketChannels["whisperPacket"] {
 
-		// handle gossip message
+		// handle gossip message, forward to the network
 		if extPacket.Packet.WhisperPacket.Code == messagesCode {
 			go whisper.gossiper.HandleGossipMessage(extPacket, extPacket.Packet.WhisperPacket.Origin, extPacket.Packet.WhisperPacket.ID)
 		}
@@ -79,7 +79,7 @@ func (whisper *Whisper) processWhisperPacket() {
 		fmt.Println(extPacket.SenderAddr)
 
 		if _, err := whisper.getPeer(extPacket.SenderAddr.String()); err != nil {
-			// Create the new peer and start tracking it
+			// Create the new address and start tracking it
 			whisperPeer := newPeer(whisper, extPacket.SenderAddr)
 
 			whisper.peerMu.Lock()
@@ -94,6 +94,14 @@ func (whisper *Whisper) processWhisperPacket() {
 			PeerChannels[e.SenderAddr.String()] <- e.Packet.WhisperPacket
 		}(extPacket)
 	}
+}
+
+// GetEnvelope retrieves an envelope from the message queue by its hash.
+// It returns nil if the envelope can not be found.
+func (whisper *Whisper) GetEnvelope(hash [32]byte) *Envelope {
+	whisper.envelopes.Mutex.RLock()
+	defer whisper.envelopes.Mutex.RUnlock()
+	return whisper.envelopes.Envelopes[hash]
 }
 
 // GetMinPow returns the PoW value required by this node.
@@ -128,22 +136,22 @@ func (whisper *Whisper) getPeers() []*Peer {
 	return arr
 }
 
-// getPeer retrieves peer by ID
+// getPeer retrieves address by ID
 func (whisper *Whisper) getPeer(peerID string) (*Peer, error) {
 	whisper.peerMu.Lock()
 	defer whisper.peerMu.Unlock()
 	for p := range whisper.peers {
-		id := p.peer.String()
+		id := p.address.String()
 		if peerID == id {
 			return p, nil
 		}
 	}
-	return nil, fmt.Errorf("could not find peer with ID: %x", peerID)
+	return nil, fmt.Errorf("could not find address with ID: %x", peerID)
 }
 
 // GetBloomFilter returns the aggregated bloom filter for all the topics of interest.
 // The nodes are required to send only messages that match the advertised bloom filter.
-// If a message does not match the bloom, it will tantamount to spam, and the peer will
+// If a message does not match the bloom, it will tantamount to spam, and the address will
 // be disconnected.
 func (whisper *Whisper) GetBloomFilter() []byte {
 	value, loaded := whisper.parameters.Load("bloom")
@@ -229,7 +237,7 @@ func (whisper *Whisper) SetBloomFilter(bloom []byte) error {
 	arr := whisper.getPeers()
 	for _, p := range arr {
 		if err := p.sendWhisperPacket(bloomFilterExCode, &bloom); err != nil {
-			fmt.Println("Failed to send bloom update to peer ", p.peer.String())
+			fmt.Println("Failed to send bloom update to address ", p.address.String())
 		}
 	}
 
@@ -247,7 +255,7 @@ func (whisper *Whisper) SetMinPoW(val float64) error {
 	arr := whisper.getPeers()
 	for _, p := range arr {
 		if err := p.sendWhisperPacket(powRequirementCode, &val); err != nil {
-			fmt.Println("Failed to send pow update to peer ", p.peer.String())
+			fmt.Println("Failed to send pow update to address ", p.address.String())
 		}
 	}
 
@@ -297,12 +305,12 @@ func (whisper *Whisper) SetMinPoW(val float64) error {
 //			err = p.notifyAboutBloomFilterChange(bloom)
 //		}
 //		if err != nil {
-//			fmt.Println("failed to notify peer about new bloom filter", "peer", p.peer.String(), "error", err)
+//			fmt.Println("failed to notify address about new bloom filter", "address", p.address.String(), "error", err)
 //		}
 //	}
 //}
 
-//// AllowP2PMessagesFromPeer marks specific peer trusted,
+//// AllowP2PMessagesFromPeer marks specific address trusted,
 //// which will allow it to send historic (expired) messages.
 //func (whisper *Whisper) AllowP2PMessagesFromPeer(peerID string) error {
 //	p, err := whisper.getPeer(peerID)
@@ -313,9 +321,9 @@ func (whisper *Whisper) SetMinPoW(val float64) error {
 //	return nil
 //}
 
-// RequestHistoricMessages sends a message with p2pRequestCode to a specific peer,
+// RequestHistoricMessages sends a message with p2pRequestCode to a specific address,
 // which is known to implement MailServer interface, and is supposed to process this
-// request and respond with a number of peer-to-peer messages (possibly expired),
+// request and respond with a number of address-to-address messages (possibly expired),
 // which are not supposed to be forwarded any further.
 // The whisper protocol is agnostic of the format and contents of envelope.
 //func (whisper *Whisper) RequestHistoricMessages(peerID string, envelope *Envelope) error {
@@ -327,7 +335,7 @@ func (whisper *Whisper) SetMinPoW(val float64) error {
 //	return whisper.gossiper.SendWhisperEnvelope(p2pRequestCode, envelope)
 //}
 //
-//// SendP2PMessage sends a peer-to-peer message to a specific peer.
+//// SendP2PMessage sends a address-to-address message to a specific address.
 //func (whisper *Whisper) SendP2PMessage(peerID string, envelope *Envelope) error {
 //	p, err := whisper.getPeer(peerID)
 //	if err != nil {
@@ -336,8 +344,8 @@ func (whisper *Whisper) SetMinPoW(val float64) error {
 //	return whisper.SendP2PDirect(p, envelope)
 //}
 
-//// SendP2PDirect sends a peer-to-peer message to a specific peer.
-//func (whisper *Whisper) SendP2PDirect(peer *Peer, envelope *Envelope) error {
+//// SendP2PDirect sends a address-to-address message to a specific address.
+//func (whisper *Whisper) SendP2PDirect(address *Peer, envelope *Envelope) error {
 //	return whisper.gossiper.SendWhisperEnvelope(p2pMessageCode, envelope)
 //}
 
@@ -356,14 +364,14 @@ func (whisper *Whisper) Subscribe(f *Filter) (string, error) {
 func (whisper *Whisper) updateBloomFilter(f *Filter) {
 	aggregate := make([]byte, BloomFilterSize)
 	for _, t := range f.Topics {
-		top := BytesToTopic(t)
-		b := TopicToBloom(top)
-		aggregate = addBloom(aggregate, b)
+		top := ConvertBytesToTopic(t)
+		b := ConvertTopicToBloom(top)
+		aggregate = AggregateBloom(aggregate, b)
 	}
 
-	if !BloomFilterMatch(whisper.GetBloomFilter(), aggregate) {
+	if !CheckFilterMatch(whisper.GetBloomFilter(), aggregate) {
 		// existing bloom filter must be updated
-		aggregate = addBloom(whisper.GetBloomFilter(), aggregate)
+		aggregate = AggregateBloom(whisper.GetBloomFilter(), aggregate)
 		whisper.SetBloomFilter(aggregate)
 	}
 }
@@ -422,7 +430,7 @@ func (whisper *Whisper) HandlePeer(peer *net.UDPAddr) error {
 
 	whisperPeer, err := whisper.getPeer(peer.String())
 	if err != nil {
-		fmt.Println("No such peer")
+		fmt.Println("No such address")
 		return err
 	}
 
@@ -432,7 +440,7 @@ func (whisper *Whisper) HandlePeer(peer *net.UDPAddr) error {
 		whisper.peerMu.Unlock()
 	}()
 
-	// Run the peer handshake and state updates
+	// Run the address handshake and state updates
 	if err := whisperPeer.handshake(); err != nil {
 		fmt.Println("Handshake failed")
 		return err
@@ -453,27 +461,27 @@ func (whisper *Whisper) HandlePeer(peer *net.UDPAddr) error {
 
 // runMessageLoop reads and processes inbound messages directly to merge into client-global state.
 func (whisper *Whisper) runMessageLoop(p *Peer) error {
-	for packet := range PeerChannels[p.peer.String()] {
+	for packet := range PeerChannels[p.address.String()] {
 
 		//// fetch the next packet
 		//packet, err := rw.ReadMsg()
 		//if err != nil {
-		//	fmt.Println("message loop", "peer", p.peer.ID(), "err", err)
+		//	fmt.Println("message loop", "address", p.address.ID(), "err", err)
 		//	return err
 		//}
 		if packet.Size > DefaultMaxMessageSize {
-			//fmt.Println("oversized message received", "peer", p.peer.String())
+			//fmt.Println("oversized message received", "address", p.address.String())
 			return fmt.Errorf("oversized message received")
 		}
 
 		switch packet.Code {
 		case statusCode:
-			pow := p.host.GetMinPow()
-			bloom := p.host.GetBloomFilter()
+			pow := p.whisper.GetMinPow()
+			bloom := p.whisper.GetBloomFilter()
 
 			status := &Status{Bloom: bloom, Pow: pow}
 			if err := p.sendWhisperPacket(statusCode, status); err != nil {
-				fmt.Println("Failed sending status to peer")
+				fmt.Println("Failed sending status to address")
 			}
 			//packetToSend, err := protobuf.Encode(statusStruct)
 			//helpers.ErrorCheck(err, false)
@@ -481,8 +489,8 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 			//wPacket := &gossiper.WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: whisper.gossiper.Name, ID: 0,}
 			//gossipPacket := &gossiper.GossipPacket{WhisperPacket: wPacket}
 			//
-			//fmt.Println("Sent to " + p.peer.String())
-			//whisper.gossiper.ConnectionHandler.SendPacket(gossipPacket, p.peer)
+			//fmt.Println("Sent to " + p.address.String())
+			//whisper.gossiper.ConnectionHandler.SendPacket(gossipPacket, p.address)
 
 		case messagesCode:
 			// decode the contained envelope
@@ -491,19 +499,19 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 
 			envelope := &Envelope{}
 			if err := packet.DecodePacket(envelope); err != nil {
-				fmt.Println("failed to decode envelopes, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				fmt.Println("failed to decode envelopes, address will be disconnected", "address", p.address.String(), "err", err)
 				return fmt.Errorf("invalid envelopes")
 			}
 
 			trouble := false
-			_, err := whisper.add(envelope)
+			cached, err := whisper.add(envelope)
 			if err != nil {
 				trouble = true
-				fmt.Println("bad envelope received, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				fmt.Println("bad envelope received, address will be disconnected", "address", p.address.String(), "err", err)
 			}
-			//if cached {
-			//	p.mark(envelope)
-			//}
+			if cached {
+				p.mark(envelope)
+			}
 
 			if trouble {
 				return fmt.Errorf("invalid envelope")
@@ -514,7 +522,7 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 			//	cached, err := whisper.add(env, whisper.LightClientMode())
 			//	if err != nil {
 			//		trouble = true
-			//		fmt.Println("bad envelope received, peer will be disconnected", "peer", p.peer.ID(), "err", err)
+			//		fmt.Println("bad envelope received, address will be disconnected", "address", p.address.ID(), "err", err)
 			//	}
 			//	if cached {
 			//		p.mark(env)
@@ -528,15 +536,16 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 			var i uint64
 			err := packet.DecodePacket(&i)
 			if err != nil {
-				fmt.Println("failed to decode powRequirementCode message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				fmt.Println("failed to decode powRequirementCode message, address will be disconnected", "address", p.address.String(), "err", err)
 				return fmt.Errorf("invalid powRequirementCode message")
 			}
 			f := math.Float64frombits(i)
 			if math.IsInf(f, 0) || math.IsNaN(f) || f < 0.0 {
-				fmt.Println("invalid value in powRequirementCode message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				fmt.Println("invalid value in powRequirementCode message, address will be disconnected", "address", p.address.String(), "err", err)
 				return fmt.Errorf("invalid value in powRequirementCode message")
 			}
-			p.powRequirement = f
+			p.parameters.Store("pow", f)
+
 		case bloomFilterExCode:
 			var bloom []byte
 			err := packet.DecodePacket(&bloom)
@@ -545,12 +554,12 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 			}
 
 			if err != nil {
-				fmt.Println("failed to decode bloom filter exchange message, peer will be disconnected", "peer", p.peer.String(), "err", err)
+				fmt.Println("failed to decode bloom filter exchange message, address will be disconnected", "address", p.address.String(), "err", err)
 				return fmt.Errorf("invalid bloom filter exchange message")
 			}
 			p.setBloomFilter(bloom)
 		default:
-			// New message types might be implemented in the future versions of Whisper.
+			// NewWhisper message types might be implemented in the future versions of Whisper.
 			// For forward compatibility, just ignore.
 		}
 
@@ -565,31 +574,31 @@ func (whisper *Whisper) runMessageLoop(p *Peer) error {
 // add inserts a new envelope into the message pool to be distributed within the
 // whisper network. It also inserts the envelope into the expiration pool at the
 // appropriate time-stamp. In case of error, connection should be dropped.
-// param isP2P indicates whether the message is peer-to-peer (should not be forwarded).
+// param isP2P indicates whether the message is address-to-address (should not be forwarded).
 func (whisper *Whisper) add(envelope *Envelope) (bool, error) {
 	now := uint32(time.Now().Unix())
-	sent := envelope.Expiry - envelope.TTL
 
-	if sent > now {
-		// recalculate PoW, adjusted for the time difference, plus one second for latency
-		envelope.calculatePoW(sent - now + 1)
-	}
+	//if sent > now {
+	//	// recalculate PoW, adjusted for the time difference, plus one second for latency
+	//	envelope.calculatePoW(sent - now + 1)
+	//}
 
 	if envelope.Expiry < now {
 		fmt.Println("expired envelope dropped", "hash", envelope.Hash())
 		return false, nil // drop envelope without error
 	}
 
+
 	if uint32(envelope.size()) > DefaultMaxMessageSize {
 		return false, fmt.Errorf("huge messages are not allowed [%x]", envelope.Hash())
 	}
 
-	if envelope.PoW() < whisper.GetMinPow() {
-		return false, fmt.Errorf("envelope with low PoW received: PoW=%f, hash=[%v]", envelope.PoW(), envelope.Hash())
+	if envelope.computePow() < whisper.GetMinPow() {
+		return false, fmt.Errorf("envelope with low PoW received")
 	}
 
-	if !BloomFilterMatch(whisper.GetBloomFilter(), envelope.Bloom()) {
-		return false, fmt.Errorf("envelope does not match bloom filter, hash=[%v], bloom: \n%x \n%x \n%x", envelope.Hash(), whisper.GetBloomFilter(), envelope.Bloom(), envelope.Topic)
+	if !CheckFilterMatch(whisper.GetBloomFilter(), ConvertTopicToBloom(envelope.Topic)) {
+		return false, fmt.Errorf("envelope does not match bloom filter")
 	}
 
 	hash := envelope.Hash()
@@ -631,7 +640,7 @@ func (whisper *Whisper) postEvent(envelope *Envelope) {
 //	}
 //}
 
-// processQueue delivers the messages to the watchers during the lifetime of the whisper node.
+// processQueue delivers the messages to the subscribers during the lifetime of the whisper node.
 func (whisper *Whisper) processQueue() {
 	var e *Envelope
 	for {
@@ -640,10 +649,10 @@ func (whisper *Whisper) processQueue() {
 			return
 
 		case e = <-whisper.messageQueue:
-			whisper.filters.NotifyWatchers(e, false)
+			whisper.filters.NotifySubscribers(e)
 
 		//case e = <-whisper.p2pMsgQueue:
-		//	whisper.filters.NotifyWatchers(e, true)
+		//	whisper.filters.NotifySubscribers(e, true)
 		}
 	}
 }
@@ -701,57 +710,15 @@ func (whisper *Whisper) isEnvelopeCached(hash [32]byte) bool {
 	return exist
 }
 
-// validateDataIntegrity returns false if the data have the wrong or contains all zeros,
-// which is the simplest and the most  bug.
-func validateDataIntegrity(k []byte, expectedSize int) bool {
-	if len(k) != expectedSize {
-		return false
-	}
-	if expectedSize > 3 && containsOnlyZeros(k) {
-		return false
-	}
-	return true
-}
-
-// containsOnlyZeros checks if the data contain only zeros.
-func containsOnlyZeros(data []byte) bool {
-	for _, b := range data {
-		if b != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// bytesToUintLittleEndian converts the slice to 64-bit unsigned integer.
-func bytesToUintLittleEndian(b []byte) (res uint64) {
-	mul := uint64(1)
-	for i := 0; i < len(b); i++ {
-		res += uint64(b[i]) * mul
-		mul *= 256
-	}
-	return res
-}
-
-//// BytesToUintBigEndian converts the slice to 64-bit unsigned integer.
-//func BytesToUintBigEndian(b []byte) (res uint64) {
-//	for i := 0; i < len(b); i++ {
-//		res *= 256
-//		res += uint64(b[i])
-//	}
-//	return res
-//}
-
-// GenerateRandomID generates a random string, which is then returned to be used as a key id
+// GenerateRandomID generates a random string
 func GenerateRandomID() (id string, err error) {
-	buf, err := generateSecureRandomData(keyIDSize)
+	buf, err := generateRandomBytes(keyIDSize)
 	if err != nil {
 		return "", err
 	}
-	if !validateDataIntegrity(buf, keyIDSize) {
+	if len(buf) != keyIDSize {
 		return "", fmt.Errorf("error in generateRandomID: crypto/rand failed to generate random data")
 	}
 	id = hex.EncodeToString(buf)
 	return id, err
 }
-
