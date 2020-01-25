@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/mikanikos/Peerster/whisper"
 
 	"github.com/mikanikos/Peerster/gossiper"
@@ -52,9 +53,84 @@ func main() {
 
 	// run gossiper
 	g.Run()
+	fmt.Println("Gossiper running")
 
 	w.Run()
+	fmt.Println("Whisper running")
 	//w.S
+
+
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+	   fmt.Print(">  ")
+	   scanner.Scan()
+	   text := scanner.Text()
+	   //fmt.Println(text)
+	   if len(text) != 0 {
+	       if text == "new key" {
+				fmt.Println("Okkkkk")
+				key, err := w.NewSymKey()
+				if err == nil {
+					fmt.Println("New key: " + key)
+				} else {
+					fmt.Println(err)
+				}
+				//scanner.Scan()
+				time.Sleep(time.Duration(3) * time.Second)
+				newKeyID := key
+				//topic := []byte("maaaaaaaaaaaaa")
+				topicType := whisper.BytesToTopic([]byte("maaaaaaaaaaaaa"))
+				fmt.Println(topicType)
+				text, _ := hex.DecodeString("ciao andrea")
+				newMessage := whisper.NewMessage{
+					SymKeyID:   newKeyID,
+					TTL:        10,
+					Topic:      topicType,
+					Payload:    text,
+					PowTime:    2,
+					Pow:  2.01,
+				}
+				hash, err := w.NewWhisperMessage(newMessage)
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					fmt.Println(hash)
+				}
+			}
+			if text == "add key" {
+				scanner.Scan()
+				newKey := scanner.Text()
+				id, err := w.AddSymKey(newKey)
+				if err == nil {
+					fmt.Println("Key ID: " + id)
+				} else {
+					fmt.Println(err)
+				}
+			}
+			if text == "new mess" {
+				scanner.Scan()
+				newKeyID := scanner.Text()
+				topic, _ := hex.DecodeString("ciao")
+				text, _ := hex.DecodeString("ciao andrea")
+				newMessage := whisper.NewMessage{
+					SymKeyID:  newKeyID,
+					TTL:       30,
+					Topic:     whisper.BytesToTopic(topic),
+					Payload:   text,
+					PowTime:   2,
+					Pow: 2.01,
+				}
+				hash, err := w.NewWhisperMessage(newMessage)
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					fmt.Println(hash)
+				}
+			}
+	   } else {
+	       break
+	   }
+	}
 
 	// wait forever
 	select {}

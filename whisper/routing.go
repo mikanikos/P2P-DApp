@@ -1,6 +1,7 @@
 package whisper
 
 import (
+	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/mikanikos/Peerster/gossiper"
 	"math"
@@ -19,12 +20,6 @@ type Status struct {
 type RoutingHandler struct {
 	// peer -> aggregated bloom from that peer
 	peerStatus map[string]*Status
-	//bloomMutex sync.Mutex
-
-	// peer -> min pow from that peer
-	//peerMinPow map[string]float64
-	//powMutex   sync.Mutex
-
 	// track current last id (just an optimization in order to not iterate on the message storage every time)
 	originLastID *gossiper.VectorClock
 	mutex        sync.RWMutex
@@ -34,37 +29,9 @@ type RoutingHandler struct {
 func NewRoutingHandler() *RoutingHandler {
 	return &RoutingHandler{
 		peerStatus: make(map[string]*Status),
-		//peerMinPow:   make(map[string]float64),
 		originLastID: &gossiper.VectorClock{Entries: make(map[string]uint32)},
 	}
 }
-
-//// StartRouteRumormongering with the specified timer
-//func (whisper *Whisper) startRouteRumormongering() {
-//
-//	if routeRumorTimeout > 0 {
-//
-//		// create new rumor message
-//		extPacket := gossiper.createRumorMessage("")
-//
-//		// broadcast it initially in order to start well
-//		go gossiper.ConnectionHandler.BroadcastToPeers(extPacket, gossiper.GetPeers())
-//
-//		// start timer
-//		timer := time.NewTicker(time.Duration(routeRumorTimeout) * time.Second)
-//		for {
-//			select {
-//			// rumor monger rumor at each timeout
-//			case <-timer.C:
-//				// create new rumor message
-//				extPacket := gossiper.createRumorMessage("")
-//
-//				// start rumormongering the message
-//				go gossiper.startRumorMongering(extPacket, gossiper.Name, extPacket.Packet.Rumor.ID)
-//			}
-//		}
-//	}
-//}
 
 // updateEnvelopes routing table based on packet data
 func (routingHandler *RoutingHandler) updateRoutingTable(whisperStatus *gossiper.WhisperStatus, address *net.UDPAddr) {
@@ -102,22 +69,6 @@ func (routingHandler *RoutingHandler) updateRoutingTable(whisperStatus *gossiper
 		}
 	}
 }
-
-//func (routingHandler *RoutingHandler) updatePowTable(origin string, idPacket uint32, address *net.UDPAddr, powReceived float64) {
-//
-//	routingHandler.mutex.Lock()
-//	defer routingHandler.mutex.Unlock()
-//
-//	// if new packet with higher id, updateEnvelopes table
-//	if routingHandler.updateLastOriginID(origin, idPacket) {
-//
-//		powPeer, loaded := routingHandler.peerMinPow[address.String()]
-//		if !loaded {
-//			powPeer = powReceived
-//		}
-//		routingHandler.peerMinPow[address.String()] = math.Min(powPeer, powReceived)
-//	}
-//}
 
 // check if packet is new (has higher id) from that source, in that case it updates the table
 func (routingHandler *RoutingHandler) updateLastOriginID(origin string, id uint32) bool {
@@ -159,17 +110,21 @@ func (whisper *Whisper) forwardEnvelope(envelope *Envelope) {
 // StartRouteRumormongering with the specified timer
 func (whisper *Whisper) sendStatusPeriodically() {
 
+	fmt.Println("Ok here")
 	if statusTimer > 0 {
 
 		wPacket := &gossiper.WhisperStatus{Code: statusCode, Pow: whisper.GetMinPow(), Bloom: whisper.GetBloomFilter()}
 		whisper.gossiper.SendWhisperStatus(wPacket)
 
+		fmt.Println("Sent status")
+
 		// start timer
-		timer := time.NewTicker(time.Duration(statusTimer) * time.Second)
+		timer := time.NewTicker(statusTimer)
 		for {
 			select {
 			// rumor monger rumor at each timeout
 			case <-timer.C:
+				fmt.Println("Sent status")
 				wPacket := &gossiper.WhisperStatus{Code: statusCode, Pow: whisper.GetMinPow(), Bloom: whisper.GetBloomFilter()}
 				whisper.gossiper.SendWhisperStatus(wPacket)
 			}

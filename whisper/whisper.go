@@ -69,18 +69,16 @@ func (whisper *Whisper) Send(envelope *Envelope) error {
 }
 
 // Run the whisper protocol
-func (whisper *Whisper) Run() error {
+func (whisper *Whisper) Run() {
 	go whisper.processWhisperPacket()
 	go whisper.processWhisperStatus()
 	go whisper.updateEnvelopes()
 	go whisper.sendStatusPeriodically()
-
+	
 	numCPU := runtime.NumCPU()
 	for i := 0; i < numCPU; i++ {
 		go whisper.processQueue()
 	}
-
-	return nil
 }
 
 // Stop protocol with the channe;
@@ -93,9 +91,10 @@ func (whisper *Whisper) Stop() error {
 // process tlc message
 func (whisper *Whisper) processWhisperStatus() {
 	for extPacket := range gossiper.PacketChannels["whisperStatus"] {
+		fmt.Println("Gooooooooooooooooooooooooooot whisperStatussssssss from " + extPacket.SenderAddr.String())
 		if _, loaded := whisper.blacklist[extPacket.SenderAddr.String()]; !loaded {
-			go whisper.gossiper.HandleGossipMessage(extPacket, extPacket.Packet.WhisperStatus.Origin, extPacket.Packet.WhisperStatus.ID)
 			whisper.routingHandler.updateRoutingTable(extPacket.Packet.WhisperStatus, extPacket.SenderAddr)
+			whisper.gossiper.HandleGossipMessage(extPacket, extPacket.Packet.WhisperStatus.Origin, extPacket.Packet.WhisperStatus.ID)
 		}
 	}
 }
@@ -103,7 +102,7 @@ func (whisper *Whisper) processWhisperStatus() {
 // process tlc message
 func (whisper *Whisper) processWhisperPacket() {
 	for extPacket := range gossiper.PacketChannels["whisperPacket"] {
-
+		fmt.Println("Gooooooooooooooooooooooooooot whisperPacketttttttt  from " + extPacket.SenderAddr.String())
 		if _, loaded := whisper.blacklist[extPacket.SenderAddr.String()]; !loaded {
 
 			packet := extPacket.Packet.WhisperPacket
@@ -323,9 +322,11 @@ func (whisper *Whisper) updateEnvelopes() {
 	for {
 		select {
 		case <-expire.C:
+			fmt.Println("flushing")
 			whisper.removeExpiredEnvelopes()
 
 		case <-transmit.C:
+			fmt.Println("broadcasting")
 			whisper.broadcastMessages()
 
 		case <-whisper.quit:
@@ -334,6 +335,7 @@ func (whisper *Whisper) updateEnvelopes() {
 	}
 }
 
+// broadcastMessages broadcast messages not expired yet
 func (whisper *Whisper) broadcastMessages() {
 	envelopes := whisper.Envelopes()
 	for _, env := range envelopes {
