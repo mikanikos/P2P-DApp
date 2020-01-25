@@ -3,7 +3,7 @@ package whisper
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	 crand "crypto/rand"
+	crand "crypto/rand"
 	"fmt"
 	"github.com/dedis/protobuf"
 	ecies "github.com/ecies/go"
@@ -12,14 +12,14 @@ import (
 
 // MessageParams specifies all the parameters needed to prepare an envelope
 type MessageParams struct {
-	Src      *ecies.PrivateKey
-	Dst      *ecies.PublicKey
-	KeySym   []byte
-	Topic    Topic
-	PoW      float64
-	TTL      uint32
-	Payload  []byte
-	Padding  []byte
+	Src     *ecies.PrivateKey
+	Dst     *ecies.PublicKey
+	KeySym  []byte
+	Topic   Topic
+	PoW     float64
+	TTL     uint32
+	Payload []byte
+	Padding []byte
 }
 
 // SentMessage represents an end-user data packet to transmit through the
@@ -38,12 +38,12 @@ type ReceivedMessage struct {
 	//Signature []byte
 	//Salt      []byte
 
-	Sent  uint32
-	TTL   uint32
-	Src   *ecies.PublicKey
-	Dst   *ecies.PublicKey
-	Payload   []byte
-	Topic Topic
+	Sent    uint32
+	TTL     uint32
+	Src     *ecies.PublicKey
+	Dst     *ecies.PublicKey
+	Payload []byte
+	Topic   Topic
 
 	SymKeyHash   [32]byte
 	EnvelopeHash [32]byte
@@ -152,15 +152,6 @@ func encryptWithSymmetricKey(data []byte, key []byte) ([]byte, error) {
 	return encrypted, nil
 }
 
-func generateRandomBytes(length int) ([]byte, error) {
-	array := make([]byte, length)
-	_, err := crand.Read(array)
-	if err != nil {
-		return nil, err
-	}
-	return array, nil
-}
-
 // GetEnvelopeFromMessage encrypts the message and prepare the Envelope
 func (params *MessageParams) GetEnvelopeFromMessage() (envelope *Envelope, err error) {
 	if params.TTL == 0 {
@@ -192,7 +183,7 @@ func (params *MessageParams) GetEnvelopeFromMessage() (envelope *Envelope, err e
 	envelope = NewEnvelope(params.TTL, params.Topic, encrypted)
 
 	// compute pow
-	envelope.computePow()
+	envelope.computePow(0)
 
 	return envelope, nil
 }

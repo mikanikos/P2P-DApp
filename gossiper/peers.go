@@ -50,6 +50,18 @@ func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
 	}
 }
 
+// GetPeer given the string address
+func (gossiper *Gossiper) GetPeerFromString(addr string) *net.UDPAddr {
+	gossiper.PeersData.Mutex.RLock()
+	defer gossiper.PeersData.Mutex.RUnlock()
+	for _, p := range gossiper.PeersData.Peers {
+		if p.String() == addr {
+			return p
+		}
+	}
+	return nil
+}
+
 // GetPeers in concurrent environment
 func (gossiper *Gossiper) GetPeers() []*net.UDPAddr {
 	gossiper.PeersData.Mutex.RLock()

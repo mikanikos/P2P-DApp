@@ -151,19 +151,18 @@ func (gossiper *Gossiper) Run() {
 		fmt.Println("Gossiper running")
 	}
 
-
 	//api := whisper.NewPublicWhisperAPI(gossiper.whisper)
 	//
-    //scanner := bufio.NewScanner(os.Stdin)
-    //for {
-    //    fmt.Print("Enter Text: ")
-    //    // Scans a line from Stdin(Console)
-    //    scanner.Scan()
-    //    // Holds the string that scanned
+	//scanner := bufio.NewScanner(os.Stdin)
+	//for {
+	//    fmt.Print("Enter Text: ")
+	//    // Scans a line from Stdin(Console)
+	//    scanner.Scan()
+	//    // Holds the string that scanned
 	//	text := scanner.Text()
 	//	fmt.Println(text)
-    //    if len(text) != 0 {
-    //        if text == "new key" {
+	//    if len(text) != 0 {
+	//        if text == "new key" {
 	//			fmt.Println("Okkkkk")
 	//			key, err := api.NewSymKey()
 	//			if err == nil {
@@ -223,10 +222,10 @@ func (gossiper *Gossiper) Run() {
 	//				fmt.Println(hash)
 	//			}
 	//		}
-    //    } else {
-    //        break
-    //    }
-    //}
+	//    } else {
+	//        break
+	//    }
+	//}
 
 }
 

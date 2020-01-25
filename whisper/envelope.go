@@ -14,6 +14,9 @@ type Envelope struct {
 	Topic  Topic
 	Data   []byte
 	Nonce  uint64
+
+	pow   float64
+	bloom []byte
 }
 
 // NewEnvelope creates new envelope
@@ -31,6 +34,22 @@ func NewEnvelope(ttl uint32, topic Topic, data []byte) *Envelope {
 func (e *Envelope) size() int {
 	encodedEnvelope, _ := protobuf.Encode(e)
 	return len(encodedEnvelope)
+}
+
+// compute pow if not already done
+func (e *Envelope) GetPow() float64 {
+	if e.pow == 0 {
+		e.computePow(0)
+	}
+	return e.pow
+}
+
+// compute bloom if not already done
+func (e *Envelope) GetBloom() []byte {
+	if e.bloom == nil {
+		e.bloom = ConvertTopicToBloom(e.Topic)
+	}
+	return e.bloom
 }
 
 // Hash returns the SHA3 hash of the envelope, calculating it if not yet done.
@@ -63,7 +82,7 @@ func (e *Envelope) GetMessageFromEnvelope(subscriber *Filter) *ReceivedMessage {
 		return nil
 	}
 
-	if subscriber.isAsymmetricEncription() {
+	if subscriber.isAsymmetricEncryption() {
 		msg, err := e.OpenWithPrivateKey(subscriber.KeyAsym)
 		if err != nil {
 			return nil
@@ -83,9 +102,9 @@ func (e *Envelope) GetMessageFromEnvelope(subscriber *Filter) *ReceivedMessage {
 	}
 
 	return &ReceivedMessage{
-		Topic: e.Topic,
-		TTL: e.TTL,
-		Sent: e.Expiry - e.TTL,
+		Topic:        e.Topic,
+		TTL:          e.TTL,
+		Sent:         e.Expiry - e.TTL,
 		EnvelopeHash: e.Hash(),
 	}
 }

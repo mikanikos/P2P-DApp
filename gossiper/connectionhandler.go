@@ -124,7 +124,7 @@ func (connectionHandler *ConnectionHandler) SendPacket(packet *GossipPacket, add
 }
 
 // broadcast message to all the known peers
-func (connectionHandler *ConnectionHandler) broadcastToPeers(packet *ExtendedGossipPacket, peers []*net.UDPAddr) {
+func (connectionHandler *ConnectionHandler) BroadcastToPeers(packet *ExtendedGossipPacket, peers []*net.UDPAddr) {
 	//peers := gossiper.GetPeersAtomic()
 	for _, peer := range peers {
 		if peer.String() != packet.SenderAddr.String() {

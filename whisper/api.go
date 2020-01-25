@@ -3,9 +3,6 @@ package whisper
 import (
 	"fmt"
 	ecies "github.com/ecies/go"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rpc"
-	"time"
 )
 
 // List of errors
@@ -92,8 +89,6 @@ import (
 //	return whisper.NewKeyPair()
 //}
 
-
-
 // NewSymKey generate a random symmetric key.
 // It returns an ID that can be used to refer to the key.
 // Can be used encrypting and decrypting messages where the key is known to both parties.
@@ -123,12 +118,12 @@ import (
 
 // NewMessage contain all the fields to create a whisper message
 type NewMessage struct {
-	SymKeyID   string
-	PublicKey  []byte
-	TTL        uint32
-	Topic      Topic
-	Pow        float64
-	Payload    []byte
+	SymKeyID  string
+	PublicKey []byte
+	TTL       uint32
+	Topic     Topic
+	Pow       float64
+	Payload   []byte
 }
 
 //type newMessageOverride struct {
@@ -213,7 +208,7 @@ func (whisper *Whisper) NewWhisperMessage(message NewMessage) ([]byte, error) {
 	return result, err
 }
 
-// Criteria holds various filter options for inbound messages.
+// Criteria holds various filter options for messages
 type Criteria struct {
 	SymKeyID     string
 	PrivateKeyID string
@@ -227,101 +222,101 @@ type Criteria struct {
 
 // Messages set up a subscription that fires events when messages arrive that match
 // the given set of criteria.
-func (whisper *Whisper) Messages(crit Criteria) (*rpc.Subscription, error) {
-	var (
-		symKeyGiven = len(crit.SymKeyID) > 0
-		pubKeyGiven = len(crit.PrivateKeyID) > 0
-		err         error
-	)
-
-	// ensure that the RPC connection supports subscriptions
-	notifier, supported := rpc.NotifierFromContext(ctx)
-	if !supported {
-		return nil, rpc.ErrNotificationsUnsupported
-	}
-
-	// user must specify either a symmetric or an asymmetric key
-	if (symKeyGiven && pubKeyGiven) || (!symKeyGiven && !pubKeyGiven) {
-		return nil, ErrSymAsym
-	}
-
-	filter := Filter{
-		PoW:      crit.GetMinPow,
-		Messages: make(map[[32]byte]*ReceivedMessage),
-		AllowP2P: crit.AllowP2P,
-	}
-
-	if len(crit.Sig) > 0 {
-		if filter.Src, err = crypto.UnmarshalPubkey(crit.Sig); err != nil {
-			return nil, ErrInvalidSigningPubKey
-		}
-	}
-
-	for i, bt := range crit.Topics {
-		if len(bt) == 0 || len(bt) > 4 {
-			return nil, fmt.Errorf("subscribe: topic %d has wrong size: %d", i, len(bt))
-		}
-		filter.Topics = append(filter.Topics, bt[:])
-	}
-
-	// listen for message that are encrypted with the given symmetric key
-	if symKeyGiven {
-		if len(filter.Topics) == 0 {
-			return nil, ErrNoTopics
-		}
-		key, err := whisper.GetSymKeyFromID(crit.SymKeyID)
-		if err != nil {
-			return nil, err
-		}
-		if !validateDataIntegrity(key, aesKeyLength) {
-			return nil, ErrInvalidSymmetricKey
-		}
-		filter.KeySym = key
-		filter.SymKeyHash = crypto.sha3.Sum256(filter.KeySym)
-	}
-
-	// listen for messages that are encrypted with the given public key
-	if pubKeyGiven {
-		filter.KeyAsym, err = whisper.GetPrivateKey(crit.PrivateKeyID)
-		if err != nil || filter.KeyAsym == nil {
-			return nil, ErrInvalidPublicKey
-		}
-	}
-
-	id, err := whisper.Subscribe(&filter)
-	if err != nil {
-		return nil, err
-	}
-
-	// create subscription and start waiting for message events
-	rpcSub := notifier.CreateSubscription()
-	go func() {
-		// for now poll internally, refactor whisper internal for channel support
-		ticker := time.NewTicker(250 * time.Millisecond)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				if filter := whisper.GetFilter(id); filter != nil {
-					for _, rpcMessage := range toMessage(filter.Retrieve()) {
-						if err := notifier.Notify(rpcSub.ID, rpcMessage); err != nil {
-							fmt.Println("Failed to send notification", "err", err)
-						}
-					}
-				}
-			case <-rpcSub.Err():
-				whisper.Unsubscribe(id)
-				return
-			case <-notifier.Closed():
-				whisper.Unsubscribe(id)
-				return
-			}
-		}
-	}()
-
-	return rpcSub, nil
-}
+//func (whisper *Whisper) Messages(crit Criteria) (*rpc.Subscription, error) {
+//	var (
+//		symKeyGiven = len(crit.SymKeyID) > 0
+//		pubKeyGiven = len(crit.PrivateKeyID) > 0
+//		err         error
+//	)
+//
+//	// ensure that the RPC connection supports subscriptions
+//	notifier, supported := rpc.NotifierFromContext(ctx)
+//	if !supported {
+//		return nil, rpc.ErrNotificationsUnsupported
+//	}
+//
+//	// user must specify either a symmetric or an asymmetric key
+//	if (symKeyGiven && pubKeyGiven) || (!symKeyGiven && !pubKeyGiven) {
+//		return nil, ErrSymAsym
+//	}
+//
+//	filter := Filter{
+//		PoW:      crit.GetMinPow,
+//		Messages: make(map[[32]byte]*ReceivedMessage),
+//		AllowP2P: crit.AllowP2P,
+//	}
+//
+//	if len(crit.Sig) > 0 {
+//		if filter.Src, err = crypto.UnmarshalPubkey(crit.Sig); err != nil {
+//			return nil, ErrInvalidSigningPubKey
+//		}
+//	}
+//
+//	for i, bt := range crit.Topics {
+//		if len(bt) == 0 || len(bt) > 4 {
+//			return nil, fmt.Errorf("subscribe: topic %d has wrong size: %d", i, len(bt))
+//		}
+//		filter.Topics = append(filter.Topics, bt[:])
+//	}
+//
+//	// listen for message that are encrypted with the given symmetric key
+//	if symKeyGiven {
+//		if len(filter.Topics) == 0 {
+//			return nil, ErrNoTopics
+//		}
+//		key, err := whisper.GetSymKeyFromID(crit.SymKeyID)
+//		if err != nil {
+//			return nil, err
+//		}
+//		if !validateDataIntegrity(key, aesKeyLength) {
+//			return nil, ErrInvalidSymmetricKey
+//		}
+//		filter.KeySym = key
+//		filter.SymKeyHash = crypto.sha3.Sum256(filter.KeySym)
+//	}
+//
+//	// listen for messages that are encrypted with the given public key
+//	if pubKeyGiven {
+//		filter.KeyAsym, err = whisper.GetPrivateKey(crit.PrivateKeyID)
+//		if err != nil || filter.KeyAsym == nil {
+//			return nil, ErrInvalidPublicKey
+//		}
+//	}
+//
+//	id, err := whisper.Subscribe(&filter)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	// create subscription and start waiting for message events
+//	rpcSub := notifier.CreateSubscription()
+//	go func() {
+//		// for now poll internally, refactor whisper internal for channel support
+//		ticker := time.NewTicker(250 * time.Millisecond)
+//		defer ticker.Stop()
+//
+//		for {
+//			select {
+//			case <-ticker.C:
+//				if filter := whisper.GetFilter(id); filter != nil {
+//					for _, rpcMessage := range toMessage(filter.GetReceivedMessagesFromFilter()) {
+//						if err := notifier.Notify(rpcSub.ID, rpcMessage); err != nil {
+//							fmt.Println("Failed to send notification", "err", err)
+//						}
+//					}
+//				}
+//			case <-rpcSub.Err():
+//				whisper.Unsubscribe(id)
+//				return
+//			case <-notifier.Closed():
+//				whisper.Unsubscribe(id)
+//				return
+//			}
+//		}
+//	}()
+//
+//	return rpcSub, nil
+//}
 
 // ReceivedMessage is the RPC representation of a whisper message.
 //type ReceivedMessage struct {
@@ -376,15 +371,14 @@ func (whisper *Whisper) Messages(crit Criteria) (*rpc.Subscription, error) {
 //	return msgs
 //}
 
-// GetFilterMessages returns the messages that match the filter criteria and
-// are received between the last poll and now.
+// GetFilterMessages returns the messages that match the filter criteria
 func (whisper *Whisper) GetFilterMessages(id string) ([]*ReceivedMessage, error) {
 	f := whisper.GetFilter(id)
 	if f == nil {
 		return nil, fmt.Errorf("filter not found")
 	}
 
-	receivedMessages := f.Retrieve()
+	receivedMessages := f.GetReceivedMessagesFromFilter()
 	messages := make([]*ReceivedMessage, 0, len(receivedMessages))
 	for _, msg := range receivedMessages {
 		messages = append(messages, msg)
@@ -393,26 +387,24 @@ func (whisper *Whisper) GetFilterMessages(id string) ([]*ReceivedMessage, error)
 	return messages, nil
 }
 
-// NewMessageFilter creates a new filter that can be used to poll for
-// (new) messages that satisfy the given criteria.
+// NewMessageFilter creates a new filter
 func (whisper *Whisper) NewMessageFilter(req Criteria) (string, error) {
-	//var (
-	//	//src     *ecies.PublicKey
-	//	//keySym  []byte
-	//	//keyAsym *ecies.PrivateKey
-	//	//topics  [][]byte
-	//	err error
-	//)
+	var (
+		src     *ecies.PublicKey
+		keySym  []byte
+		keyAsym *ecies.PrivateKey
+		topics  [][]byte
+		err     error
+	)
 
 	filter := &Filter{}
 
 	isSymKey := len(req.SymKeyID) > 0
 	isPrivKey := len(req.PrivateKeyID) > 0
 
-
-	// user must specify either a symmetric or an asymmetric key
+	// either symmetric or asymmetric key
 	if (isSymKey && isPrivKey) || (!isSymKey && !isPrivKey) {
-		return "", fmt.Errorf("specifiy either private or symmetric key")
+		return "", fmt.Errorf("either private or symmetric key")
 	}
 
 	if isSymKey {

@@ -39,10 +39,10 @@ func main() {
 
 	w := whisper.NewWhisper(g)
 
-	for _, peer := range g.PeersData.Peers {
-		whisper.PeerChannels[peer.String()] = make(chan *gossiper.WhisperPacket, 100)
-		go w.HandlePeer(peer)
-	}
+	//for _, peer := range g.PeersData.Peers {
+	//	whisper.PeerChannels[peer.String()] = make(chan *gossiper.WhisperPacket, 100)
+	//	go w.HandlePeer(peer)
+	//}
 
 	// if gui port specified, create and run the webserver (if not, avoid waste of resources for performance reasons)
 	if *guiPort != "" {
@@ -54,6 +54,7 @@ func main() {
 	g.Run()
 
 	w.Start()
+	//w.S
 
 	// wait forever
 	select {}

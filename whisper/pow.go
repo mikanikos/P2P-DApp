@@ -3,9 +3,9 @@ package whisper
 import (
 	"encoding/binary"
 	"github.com/dedis/protobuf"
+	"golang.org/x/crypto/sha3"
 	gmath "math"
 	"math/big"
-	"golang.org/x/crypto/sha3"
 )
 
 //PoW computes (if necessary) and returns the proof of work target
@@ -17,7 +17,7 @@ import (
 //	return e.pow
 //}
 
-func (e *Envelope) computePow() float64 {
+func (e *Envelope) computePow(diff uint32) {
 	encodedEnvWithoutNonce, _ := protobuf.Encode([]interface{}{e.Expiry, e.TTL, e.Topic, e.Data})
 	buf := make([]byte, len(encodedEnvWithoutNonce)+8)
 	copy(buf, encodedEnvWithoutNonce)
@@ -26,8 +26,7 @@ func (e *Envelope) computePow() float64 {
 	d.Write(buf)
 	powHash := new(big.Int).SetBytes(d.Sum(nil))
 	leadingZeroes := 256 - powHash.BitLen()
-	pow := gmath.Pow(2, float64(leadingZeroes)) / (float64(e.size()) * float64(e.TTL))
-	return pow
+	e.pow = gmath.Pow(2, float64(leadingZeroes)) / (float64(e.size()) * float64(e.TTL+diff))
 }
 
 //func (e *Envelope) calculatePoW(diff uint32) {

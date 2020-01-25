@@ -210,7 +210,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.Name, RelayPeerAddr: gossiper.ConnectionHandler.gossiperData.Address.String()}
 			packet.Packet = &GossipPacket{Simple: simplePacket}
 
-			go gossiper.ConnectionHandler.broadcastToPeers(packet, gossiper.GetPeers())
+			go gossiper.ConnectionHandler.BroadcastToPeers(packet, gossiper.GetPeers())
 
 		case "private":
 			if hw2 {
@@ -278,7 +278,7 @@ func (gossiper *Gossiper) processSimpleMessages() {
 		// set relay address and broadcast
 		extPacket.Packet.Simple.RelayPeerAddr = gossiper.ConnectionHandler.gossiperData.Address.String()
 
-		go gossiper.ConnectionHandler.broadcastToPeers(extPacket, gossiper.GetPeers())
+		go gossiper.ConnectionHandler.BroadcastToPeers(extPacket, gossiper.GetPeers())
 	}
 }
 

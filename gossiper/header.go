@@ -1,9 +1,6 @@
 package gossiper
 
 import (
-	"fmt"
-	"github.com/dedis/protobuf"
-	"net"
 	"sync/atomic"
 	"time"
 )
@@ -20,7 +17,7 @@ var hw3ex3Mode = false
 var hw3ex4Mode = false
 var ackAllMode = false
 
-var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck", "clientBlock", "tlcCausal", "whisperPacket"}
+var modeTypes = []string{"simple", "rumor", "status", "private", "dataRequest", "dataReply", "searchRequest", "searchReply", "tlcMes", "tlcAck", "clientBlock", "tlcCausal", "whisperPacket", "whisperStatus"}
 
 // channels used throughout the app to exchange messages
 var PacketChannels map[string]chan *ExtendedGossipPacket
@@ -28,7 +25,7 @@ var PacketChannels map[string]chan *ExtendedGossipPacket
 // constants
 
 var maxBufferSize = 60000
-var maxChannelSize = 100
+var maxChannelSize = 1024
 
 // timeouts in seconds if not specified
 var rumorTimeout = 1
@@ -71,6 +68,7 @@ type GossipPacket struct {
 	TLCMessage    *TLCMessage
 	Ack           *TLCAck
 	WhisperPacket *WhisperPacket
+	WhisperStatus *WhisperStatus
 }
 
 // RumorMessage struct
@@ -168,11 +166,18 @@ type TLCAck PrivateMessage
 
 // WhisperPacket struct
 type WhisperPacket struct {
-	Origin string
-	ID 	uint32
-	Code  	uint32
-	Size 	uint32
+	Code    uint32
+	Size    uint32
 	Payload []byte
+}
+
+// WhisperStatus struct
+type WhisperStatus struct {
+	Origin string
+	ID     uint32
+	Code   uint32
+	Bloom  []byte
+	Pow    float64
 }
 
 //func (wp *WhisperPacket) DecodePacket(envelope *whisper.Envelope) error {
@@ -220,37 +225,36 @@ type WhisperPacket struct {
 //	return err
 //}
 
-func (wp *WhisperPacket) DecodePacket(int interface{}) error {
+//func (wp *WhisperPacket) DecodePacket(int interface{}) error {
+//
+//	// decode message
+//	err := protobuf.Decode(wp.Payload, int)
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//
+//	return err
+//}
 
-	// decode message
-	err := protobuf.Decode(wp.Payload, int)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	return err
-}
-
-func (gossiper *Gossiper) SendWhisperPacket(code uint32, payload []byte, address *net.UDPAddr) error {
-	//
-	//packetToSend, err := protobuf.Encode(envelope)
-	//if err != nil {
-	//	return err
-	//}
+func (gossiper *Gossiper) SendWhisperStatus(status *WhisperStatus) {
 
 	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 
-	wPacket := &WhisperPacket{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: gossiper.Name, ID: id,}
-	packet := &GossipPacket{WhisperPacket: wPacket}
+	status.Origin = gossiper.Name
+	status.ID = id
+
+	packet := &GossipPacket{WhisperStatus: status}
 
 	// store message
 	gossiper.gossipHandler.storeMessage(packet, gossiper.Name, id)
 
-	// send directly
-	gossiper.ConnectionHandler.SendPacket(packet, address)
-	
-	//go gossiper.startRumorMongering(extPacket, gossiper.name, id)
-
-	return nil
+	go gossiper.startRumorMongering(&ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.gossiperData.Address, Packet: packet}, gossiper.Name, id)
 }
+
+//
+//func (gossiper *Gossiper) CreateWhisperPacket(code uint32, data interface{}) *WhisperStatus {
+//
+//	wPacket := &WhisperStatus{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: gossiper.Name, ID: 0,}
+//	return &ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.gossiperData.Address, Packet: &GossipPacket{WhisperPacket: wPacket}}
+//}

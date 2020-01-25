@@ -33,7 +33,7 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 		extPacket := gossiper.createRumorMessage("")
 
 		// broadcast it initially in order to start well
-		go gossiper.ConnectionHandler.broadcastToPeers(extPacket, gossiper.GetPeers())
+		go gossiper.ConnectionHandler.BroadcastToPeers(extPacket, gossiper.GetPeers())
 
 		// start timer
 		timer := time.NewTicker(time.Duration(routeRumorTimeout) * time.Second)

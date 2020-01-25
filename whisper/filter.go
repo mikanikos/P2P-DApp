@@ -6,47 +6,47 @@ import (
 	"sync"
 )
 
-// Filter represents a Whisper message filter
+// Filter is a message filter
 type Filter struct {
-	Src     *ecies.PublicKey  // Sender of the message
-	KeyAsym *ecies.PrivateKey // Private Key of recipient
-	KeySym  []byte            // Key associated with the Topic
-	Topics  [][]byte          // Topics to filter messages with
-	id      string            // unique identifier
+	Src     *ecies.PublicKey
+	KeyAsym *ecies.PrivateKey
+	KeySym  []byte
+
+	Topics [][]byte
 
 	Messages map[[32]byte]*ReceivedMessage
-	mutex    sync.RWMutex
+	Mutex    sync.RWMutex
 }
 
-// Filters represents a collection of filters
-type Filters struct {
+// FilterStorage has all the filters
+type FilterStorage struct {
 	subscribers map[string]*Filter
 
-	topicMatcher     map[Topic]map[*Filter]struct{} // map a topic to the filters that are interested in being notified when a message matches that topic
-	allTopicsMatcher map[*Filter]struct{}           // list all the filters that will be notified of a new message, no matter what its topic is
+	topicToFilters map[Topic]map[*Filter]struct{}
+	//allTopicsMatcher map[*Filter]struct{}
 
-	whisper *Whisper
-	mutex   sync.RWMutex
+	//whisper *Whisper
+	mutex sync.RWMutex
 }
 
-// NewFilters returns a newly created filter collection
-func NewFilters(w *Whisper) *Filters {
-	return &Filters{
-		subscribers:         make(map[string]*Filter),
-		topicMatcher:     make(map[Topic]map[*Filter]struct{}),
-		allTopicsMatcher: make(map[*Filter]struct{}),
-		whisper:          w,
+// NewFilterStorage returns a newly created filter collection
+func NewFilterStorage() *FilterStorage {
+	return &FilterStorage{
+		subscribers:    make(map[string]*Filter),
+		topicToFilters: make(map[Topic]map[*Filter]struct{}),
+		//allTopicsMatcher: make(map[*Filter]struct{}),
+		//whisper:          w,
 	}
 }
 
-// AddFilter will add a new filter to the filter collection
-func (fs *Filters) AddFilter(subscriber *Filter) (string, error) {
-	if subscriber.KeySym != nil && subscriber.KeyAsym != nil {
+// AddFilter will handleEnvelope a new filter to the filter collection
+func (fs *FilterStorage) AddFilter(filter *Filter) (string, error) {
+	if filter.KeySym != nil && filter.KeyAsym != nil {
 		return "", fmt.Errorf("filters must choose between symmetric and asymmetric keys")
 	}
 
-	if subscriber.Messages == nil {
-		subscriber.Messages = make(map[[32]byte]*ReceivedMessage)
+	if filter.Messages == nil {
+		filter.Messages = make(map[[32]byte]*ReceivedMessage)
 	}
 
 	id, err := GenerateRandomID()
@@ -55,99 +55,94 @@ func (fs *Filters) AddFilter(subscriber *Filter) (string, error) {
 	}
 
 	fs.mutex.Lock()
-	defer fs.mutex.Unlock()
 
-	if fs.subscribers[id] != nil {
+	_, loaded := fs.subscribers[id]
+	if loaded {
 		return "", fmt.Errorf("failed to generate unique ID")
 	}
 
-	subscriber.id = id
-	fs.subscribers[id] = subscriber
-	fs.addTopicMatcher(subscriber)
+	fs.subscribers[id] = filter
+	for _, t := range filter.Topics {
+		topic := ConvertBytesToTopic(t)
+		if fs.topicToFilters[topic] == nil {
+			fs.topicToFilters[topic] = make(map[*Filter]struct{})
+		}
+		fs.topicToFilters[topic][filter] = struct{}{}
+	}
+
+	fs.mutex.Unlock()
+
 	return id, err
 }
 
-// RemoveFilter will remove a filter whose id has been specified from
-// the filter collection
-func (fs *Filters) RemoveFilter(id string) bool {
+// RemoveFilter will remove a filter from id given
+func (fs *FilterStorage) RemoveFilter(id string) bool {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
-	if fs.subscribers[id] != nil {
-		fs.removeFromTopicMatchers(fs.subscribers[id])
+	sub, loaded := fs.subscribers[id]
+	if loaded {
 		delete(fs.subscribers, id)
+		//delete(fs.allTopicsMatcher, sub)
+		for _, topic := range sub.Topics {
+			delete(fs.topicToFilters[ConvertBytesToTopic(topic)], sub)
+		}
 		return true
 	}
 	return false
 }
 
-// addTopicMatcher adds a filter to the topic matchers.
-// If the filter's Topics array is empty, it will be tried on every topic.
-// Otherwise, it will be tried on the topics specified.
-func (fs *Filters) addTopicMatcher(subscriber *Filter) {
-	if len(subscriber.Topics) == 0 {
-		fs.allTopicsMatcher[subscriber] = struct{}{}
-	} else {
-		for _, t := range subscriber.Topics {
-			topic := ConvertBytesToTopic(t)
-			if fs.topicMatcher[topic] == nil {
-				fs.topicMatcher[topic] = make(map[*Filter]struct{})
-			}
-			fs.topicMatcher[topic][subscriber] = struct{}{}
-		}
-	}
-}
+//// addTopicMatcher adds a filter to the topic matchers.
+//// If the filter's Topics array is empty, it will be tried on every topic.
+//// Otherwise, it will be tried on the topics specified.
+//func (fs *FilterStorage) addTopicMatcher(subscriber *Filter) {
+//	if len(subscriber.Topics) == 0 {
+//		fs.allTopicsMatcher[subscriber] = struct{}{}
+//	} else {
+//
+//	}
+//}
 
-// removeFromTopicMatchers removes a filter from the topic matchers
-func (fs *Filters) removeFromTopicMatchers(subscriber *Filter) {
-	delete(fs.allTopicsMatcher, subscriber)
-	for _, topic := range subscriber.Topics {
-		delete(fs.topicMatcher[ConvertBytesToTopic(topic)], subscriber)
-	}
-}
-
-// getsubscribersByTopic returns a slice containing the filters that
-// match a specific topic
-func (fs *Filters) getsubscribersByTopic(topic Topic) []*Filter {
-	res := make([]*Filter, 0, len(fs.allTopicsMatcher))
-	for subscriber := range fs.allTopicsMatcher {
-		res = append(res, subscriber)
-	}
-	for subscriber := range fs.topicMatcher[topic] {
+// getSubscribersByTopic returns all filters given a topic
+func (fs *FilterStorage) getSubscribersByTopic(topic Topic) []*Filter {
+	res := make([]*Filter, 0, len(fs.topicToFilters[topic]))
+	for subscriber := range fs.topicToFilters[topic] {
 		res = append(res, subscriber)
 	}
 	return res
 }
 
-// GetFilter returns a filter from the collection with a specific ID
-func (fs *Filters) GetFilter(id string) *Filter {
+// GetFilterFromID returns a filter from the collection with a specific ID
+func (fs *FilterStorage) GetFilterFromID(id string) *Filter {
 	fs.mutex.RLock()
 	defer fs.mutex.RUnlock()
 	return fs.subscribers[id]
 }
 
-// NotifySubscribers notifies any filter that has declared interest
-// for the envelope's topic.
-func (fs *Filters) NotifySubscribers(env *Envelope) {
+// NotifySubscribers notifies filters of matching envelope topic
+func (fs *FilterStorage) NotifySubscribers(env *Envelope) {
 	var msg *ReceivedMessage
 
 	fs.mutex.RLock()
 	defer fs.mutex.RUnlock()
 
-	candidates := fs.getsubscribersByTopic(env.Topic)
-	for _, subscriber := range candidates {
-		msg = env.GetMessageFromEnvelope(subscriber)
+	candidates := fs.getSubscribersByTopic(env.Topic)
+	for _, sub := range candidates {
+		msg = env.GetMessageFromEnvelope(sub)
 		if msg == nil {
-			fmt.Println("processing message: failed to open", "message", env.Hash(), "filter", subscriber.id)
+			fmt.Println("failed to open message")
 		} else {
-			fmt.Println("processing message: decrypted", "hash", env.Hash())
-			if subscriber.Src == nil || msg.Src.Equals(subscriber.Src) {
-				subscriber.Trigger(msg)
+			if sub.Src == nil || msg.Src.Equals(sub.Src) {
+				sub.Mutex.Lock()
+				if _, exist := sub.Messages[msg.EnvelopeHash]; !exist {
+					sub.Messages[msg.EnvelopeHash] = msg
+				}
+				sub.Mutex.Unlock()
 			}
 		}
 	}
 }
 
-func (f *Filter) isAsymmetricEncription() bool {
+func (f *Filter) isAsymmetricEncryption() bool {
 	return f.KeyAsym != nil
 }
 
@@ -155,30 +150,18 @@ func (f *Filter) isSymmetricEncryption() bool {
 	return f.KeySym != nil
 }
 
-// Trigger adds a yet-unknown message to the filter's list of
-// received messages.
-func (f *Filter) Trigger(msg *ReceivedMessage) {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
+// GetReceivedMessagesFromFilter returns received messages given for a filter
+func (f *Filter) GetReceivedMessagesFromFilter() (messages []*ReceivedMessage) {
+	f.Mutex.Lock()
+	defer f.Mutex.Unlock()
 
-	if _, exist := f.Messages[msg.EnvelopeHash]; !exist {
-		f.Messages[msg.EnvelopeHash] = msg
-	}
-}
-
-// Retrieve will return the list of all received messages associated
-// to a filter.
-func (f *Filter) Retrieve() (all []*ReceivedMessage) {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
-
-	all = make([]*ReceivedMessage, 0, len(f.Messages))
+	messages = make([]*ReceivedMessage, 0, len(f.Messages))
 	for _, msg := range f.Messages {
-		all = append(all, msg)
+		messages = append(messages, msg)
 	}
 
-	f.Messages = make(map[[32]byte]*ReceivedMessage) // delete old messages
-	return all
+	f.Messages = make(map[[32]byte]*ReceivedMessage)
+	return messages
 }
 
 // MatchMessage checks if the filter matches an already decrypted
@@ -190,7 +173,7 @@ func (f *Filter) Retrieve() (all []*ReceivedMessage) {
 //		return false
 //	}
 //
-//	if f.isAsymmetricEncription() && msg.isAsymmetricEncryption() {
+//	if f.isAsymmetricEncryption() && msg.isAsymmetricEncryption() {
 //		return IsPubKeyEqual(&f.KeyAsym.PublicKey, msg.Dst)
 //	} else if f.isSymmetricEncryption() && msg.isSymmetricEncryption() {
 //		return f.SymKeyHash == msg.SymKeyHash
