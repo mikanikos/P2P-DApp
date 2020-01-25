@@ -103,3 +103,19 @@ func (gossipHandler *GossipHandler) storeMessage(packet *GossipPacket, origin st
 
 	return loaded
 }
+
+func (gossiper *Gossiper) SendWhisperStatus(status *WhisperStatus) {
+
+	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
+	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
+
+	status.Origin = gossiper.Name
+	status.ID = id
+
+	packet := &GossipPacket{WhisperStatus: status}
+
+	// store message
+	gossiper.gossipHandler.storeMessage(packet, gossiper.Name, id)
+
+	go gossiper.startRumorMongering(&ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.gossiperData.Address, Packet: packet}, gossiper.Name, id)
+}

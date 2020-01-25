@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Status is the struct that contains the main parameters of whisper
 type Status struct {
 	Pow   float64
 	Bloom []byte
@@ -65,13 +66,13 @@ func NewRoutingHandler() *RoutingHandler {
 //	}
 //}
 
-// update routing table based on packet data
+// updateEnvelopes routing table based on packet data
 func (routingHandler *RoutingHandler) updateRoutingTable(whisperStatus *gossiper.WhisperStatus, address *net.UDPAddr) {
 
 	routingHandler.mutex.Lock()
 	defer routingHandler.mutex.Unlock()
 
-	// if new packet with higher id, update table
+	// if new packet with higher id, updateEnvelopes table
 	if routingHandler.updateLastOriginID(whisperStatus.Origin, whisperStatus.ID) {
 
 		status, loaded := routingHandler.peerStatus[address.String()]
@@ -107,7 +108,7 @@ func (routingHandler *RoutingHandler) updateRoutingTable(whisperStatus *gossiper
 //	routingHandler.mutex.Lock()
 //	defer routingHandler.mutex.Unlock()
 //
-//	// if new packet with higher id, update table
+//	// if new packet with higher id, updateEnvelopes table
 //	if routingHandler.updateLastOriginID(origin, idPacket) {
 //
 //		powPeer, loaded := routingHandler.peerMinPow[address.String()]

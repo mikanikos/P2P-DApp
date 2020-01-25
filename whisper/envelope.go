@@ -36,7 +36,7 @@ func (e *Envelope) size() int {
 	return len(encodedEnvelope)
 }
 
-// compute pow if not already done
+// GetPow compute pow if not already done
 func (e *Envelope) GetPow() float64 {
 	if e.pow == 0 {
 		e.computePow(0)
@@ -44,7 +44,7 @@ func (e *Envelope) GetPow() float64 {
 	return e.pow
 }
 
-// compute bloom if not already done
+// GetBloom compute bloom if not already done
 func (e *Envelope) GetBloom() []byte {
 	if e.bloom == nil {
 		e.bloom = ConvertTopicToBloom(e.Topic)

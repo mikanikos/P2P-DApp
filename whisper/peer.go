@@ -130,7 +130,7 @@ package whisper
 //// doPeriodicUpdate executes periodic operations on the address, including message transmission
 //// and expiration.
 //func (peer *Peer) doPeriodicUpdate() {
-//	// Start the tickers for the updates
+//	// Run the tickers for the updates
 //	expire := time.NewTicker(expirationTimer)
 //	defer expire.Stop()
 //	transmit := time.NewTicker(broadcastTimer)

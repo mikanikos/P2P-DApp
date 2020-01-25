@@ -1,5 +1,6 @@
 package whisper
 
+// CheckFilterMatch check if the given bloom matches the filter
 func CheckFilterMatch(filter, given []byte) bool {
 	if filter == nil {
 		return true
@@ -16,6 +17,7 @@ func CheckFilterMatch(filter, given []byte) bool {
 	return true
 }
 
+// AggregateBloom computes the "sum" of two bloom filters
 func AggregateBloom(a, b []byte) []byte {
 	c := make([]byte, BloomFilterSize)
 	for i := 0; i < BloomFilterSize; i++ {
@@ -24,6 +26,7 @@ func AggregateBloom(a, b []byte) []byte {
 	return c
 }
 
+// HasAnyFilter checks if the bloom is set or empty
 func HasAnyFilter(bloom []byte) bool {
 	if bloom == nil {
 		return false
@@ -36,10 +39,11 @@ func HasAnyFilter(bloom []byte) bool {
 	return false
 }
 
+// GetEmptyBloomFilter returns an empty bloom filter
 func GetEmptyBloomFilter() []byte {
 	bloom := make([]byte, BloomFilterSize)
 	for i := 0; i < BloomFilterSize; i++ {
-		bloom[i] = 0xFF
+		bloom[i] = 0
 	}
 	return bloom
 }

@@ -73,7 +73,7 @@ func (whisper *Whisper) GenerateSymKey() (string, error) {
 	return id, nil
 }
 
-// AddSymKeyDirect stores a symmetric key returns its id
+// AddSymKey stores a symmetric key returns its id
 func (whisper *Whisper) AddSymKey(k string) (string, error) {
 	key, _ := hex.DecodeString(k)
 	if len(key) != aesKeyLength {
@@ -115,7 +115,7 @@ func (whisper *Whisper) GetPublicKeyFromID(id string) ([]byte, error) {
 	return key.PublicKey.Bytes(false), nil
 }
 
-// GetPrivateKey returns the private key given an id
+// GetPrivateKeyFromID returns the private key given an id
 func (whisper *Whisper) GetPrivateKeyFromID(id string) ([]byte, error) {
 	key, err := whisper.GetPrivateKey(id)
 	if err != nil {

@@ -53,7 +53,7 @@ func main() {
 	// run gossiper
 	g.Run()
 
-	w.Start()
+	w.Run()
 	//w.S
 
 	// wait forever

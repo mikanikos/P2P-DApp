@@ -1,12 +1,11 @@
 package gossiper
 
 import (
-	"sync/atomic"
 	"time"
 )
 
 // flags
-var hw1 = false
+var hw1 = true
 var hw2 = false
 var hw3 = false
 var debug = false
@@ -179,82 +178,3 @@ type WhisperStatus struct {
 	Bloom  []byte
 	Pow    float64
 }
-
-//func (wp *WhisperPacket) DecodePacket(envelope *whisper.Envelope) error {
-//
-//	// decode message
-//	err := protobuf.Decode(wp.Payload, envelope)
-//	if err != nil {
-//		fmt.Println(err)
-//	}
-//
-//	return err
-//}
-//
-//func (wp *WhisperPacket) DecodePacket(pow *uint64) error {
-//
-//	// decode message
-//	err := protobuf.Decode(wp.Payload, pow)
-//	if err != nil {
-//		fmt.Println(err)
-//	}
-//
-//	return err
-//}
-//
-//func (wp *WhisperPacket) DecodePacket(bloom *[]byte) error {
-//
-//	// decode message
-//	err := protobuf.Decode(wp.Payload, bloom)
-//	if err != nil {
-//		fmt.Println(err)
-//	}
-//
-//	return err
-//}
-//
-//func (wp *WhisperPacket) DecodePacket(status *whisper.WhisperStatus) error {
-//
-//	//packetBytes := make([]byte, maxBufferSize)
-//	// decode message
-//	err := protobuf.Decode(wp.Payload, status)
-//	if err != nil {
-//		fmt.Println(err)
-//	}
-//
-//	return err
-//}
-
-//func (wp *WhisperPacket) DecodePacket(int interface{}) error {
-//
-//	// decode message
-//	err := protobuf.Decode(wp.Payload, int)
-//	if err != nil {
-//		fmt.Println(err)
-//	}
-//
-//	return err
-//}
-
-func (gossiper *Gossiper) SendWhisperStatus(status *WhisperStatus) {
-
-	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
-	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
-
-	status.Origin = gossiper.Name
-	status.ID = id
-
-	packet := &GossipPacket{WhisperStatus: status}
-
-	// store message
-	gossiper.gossipHandler.storeMessage(packet, gossiper.Name, id)
-
-	go gossiper.startRumorMongering(&ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.gossiperData.Address, Packet: packet}, gossiper.Name, id)
-}
-
-//
-//func (gossiper *Gossiper) CreateWhisperPacket(code uint32, data interface{}) *WhisperStatus {
-//
-//	wPacket := &WhisperStatus{Code: code, Payload: payload, Size: uint32(len(payload)), Origin: gossiper.Name, ID: 0,}
-//	return &ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.gossiperData.Address, Packet: &GossipPacket{WhisperPacket: wPacket}}
-//}

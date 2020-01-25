@@ -20,7 +20,7 @@ func (gossiper *Gossiper) tlcRound(extPacket *ExtendedGossipPacket) {
 func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket, waitConfirmations bool) {
 
 	if debug {
-		fmt.Println("Start gossip with confirmation")
+		fmt.Println("Run gossip with confirmation")
 	}
 
 	if hw3ex2Mode {

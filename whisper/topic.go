@@ -1,5 +1,6 @@
 package whisper
 
+// Topic categorize messages
 type Topic [TopicLength]byte
 
 // ConvertBytesToTopic converts from the byte array representation of a topic

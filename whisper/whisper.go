@@ -9,11 +9,13 @@ import (
 	"time"
 )
 
+// SafeEnvelopes stores envelopes and handle them concurrently safe
 type SafeEnvelopes struct {
 	Envelopes map[[32]byte]*Envelope
 	Mutex     sync.RWMutex
 }
 
+// Whisper is the main part of the whisper protocol
 type Whisper struct {
 	// gossiper as underlying protocol
 	gossiper *gossiper.Gossiper
@@ -27,6 +29,8 @@ type Whisper struct {
 	envelopes *SafeEnvelopes
 	// routing envelopes according to received bloom filters
 	routingHandler *RoutingHandler
+	// blacklist of peers
+	blacklist map[string]struct{}
 
 	messageQueue chan *Envelope // ReceivedMessage queue for normal whisper messages
 	quit         chan struct{}  // Channel used for graceful exit
@@ -44,6 +48,7 @@ func NewWhisper(g *gossiper.Gossiper) *Whisper {
 		routingHandler: NewRoutingHandler(),
 		messageQueue:   make(chan *Envelope, messageQueueLimit),
 		quit:           make(chan struct{}),
+		blacklist:      make(map[string]struct{}),
 	}
 
 	whisper.parameters.Store(minPowIdx, DefaultMinimumPoW)
@@ -53,11 +58,45 @@ func NewWhisper(g *gossiper.Gossiper) *Whisper {
 	return whisper
 }
 
+// Send injects a message into the whisper send queue, to be distributed in the
+// network in the coming cycles.
+func (whisper *Whisper) Send(envelope *Envelope) error {
+	err := whisper.handleEnvelope(envelope)
+	if err != nil {
+		return fmt.Errorf("failed to handle Envelope envelope")
+	}
+	return err
+}
+
+// Run the whisper protocol
+func (whisper *Whisper) Run() error {
+	go whisper.processWhisperPacket()
+	go whisper.processWhisperStatus()
+	go whisper.updateEnvelopes()
+	go whisper.sendStatusPeriodically()
+
+	numCPU := runtime.NumCPU()
+	for i := 0; i < numCPU; i++ {
+		go whisper.processQueue()
+	}
+
+	return nil
+}
+
+// Stop protocol with the channe;
+func (whisper *Whisper) Stop() error {
+	close(whisper.quit)
+	fmt.Println("whisper stopped")
+	return nil
+}
+
 // process tlc message
 func (whisper *Whisper) processWhisperStatus() {
 	for extPacket := range gossiper.PacketChannels["whisperStatus"] {
-		go whisper.gossiper.HandleGossipMessage(extPacket, extPacket.Packet.WhisperStatus.Origin, extPacket.Packet.WhisperStatus.ID)
-		whisper.routingHandler.updateRoutingTable(extPacket.Packet.WhisperStatus, extPacket.SenderAddr)
+		if _, loaded := whisper.blacklist[extPacket.SenderAddr.String()]; !loaded {
+			go whisper.gossiper.HandleGossipMessage(extPacket, extPacket.Packet.WhisperStatus.Origin, extPacket.Packet.WhisperStatus.ID)
+			whisper.routingHandler.updateRoutingTable(extPacket.Packet.WhisperStatus, extPacket.SenderAddr)
+		}
 	}
 }
 
@@ -65,24 +104,27 @@ func (whisper *Whisper) processWhisperStatus() {
 func (whisper *Whisper) processWhisperPacket() {
 	for extPacket := range gossiper.PacketChannels["whisperPacket"] {
 
-		packet := extPacket.Packet.WhisperPacket
+		if _, loaded := whisper.blacklist[extPacket.SenderAddr.String()]; !loaded {
 
-		if packet.Code == messagesCode {
-			// decode the contained envelope
+			packet := extPacket.Packet.WhisperPacket
 
-			fmt.Println("Got envelope")
+			if packet.Code == messagesCode {
+				// decode the contained envelope
 
-			envelope := &Envelope{}
+				fmt.Println("Got envelope")
 
-			err := protobuf.Decode(packet.Payload, envelope)
-			if err != nil {
-				fmt.Println(err)
-			}
+				envelope := &Envelope{}
 
-			whisper.handleEnvelope(envelope)
-			if err != nil {
-				fmt.Println("bad envelope received, address will be disconnected")
-				//disconnectPeer
+				err := protobuf.Decode(packet.Payload, envelope)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				err = whisper.handleEnvelope(envelope)
+				if err != nil {
+					fmt.Println("bad envelope received, address will be disconnected")
+					whisper.blacklist[extPacket.SenderAddr.String()] = struct{}{}
+				}
 			}
 		}
 	}
@@ -104,6 +146,7 @@ func (whisper *Whisper) GetMinPow() float64 {
 	return val.(float64)
 }
 
+// GetMinPowTolerated returns the pow tolerated for a limited time
 func (whisper *Whisper) GetMinPowTolerated() float64 {
 	val, exist := whisper.parameters.Load(minPowToleranceIdx)
 	if !exist || val == nil {
@@ -130,21 +173,6 @@ func (whisper *Whisper) GetBloomFilterTolerated() []byte {
 	return val.([]byte)
 }
 
-// MaxMessageSize returns the maximum accepted message size.
-//func (whisper *Whisper) MaxMessageSize() uint32 {
-//	val, _ := whisper.settings.Load(maxMsgSizeIdx)
-//	return val.(uint32)
-//}
-
-// SetMaxMessageSize sets the maximal message size allowed by this node
-//func (whisper *Whisper) SetMaxMessageSize(size uint32) error {
-//	if size > MaxMessageSize {
-//		return fmt.Errorf("message size too large [%d>%d]", size, MaxMessageSize)
-//	}
-//	whisper.settings.Store(maxMsgSizeIdx, size)
-//	return nil
-//}
-
 // SetBloomFilter sets the new bloom filter
 func (whisper *Whisper) SetBloomFilter(bloom []byte) error {
 	if len(bloom) != BloomFilterSize {
@@ -153,7 +181,7 @@ func (whisper *Whisper) SetBloomFilter(bloom []byte) error {
 
 	whisper.parameters.Store(bloomFilterIdx, bloom)
 
-	// broadcast the update
+	// broadcast the updateEnvelopes
 	wPacket := &gossiper.WhisperStatus{Code: bloomFilterExCode, Bloom: bloom}
 	whisper.gossiper.SendWhisperStatus(wPacket)
 
@@ -174,7 +202,7 @@ func (whisper *Whisper) SetMinPoW(pow float64) error {
 
 	whisper.parameters.Store(minPowIdx, pow)
 
-	// broadcast the update
+	// broadcast the updateEnvelopes
 	wPacket := &gossiper.WhisperStatus{Code: powRequirementCode, Pow: pow}
 	whisper.gossiper.SendWhisperStatus(wPacket)
 
@@ -187,29 +215,15 @@ func (whisper *Whisper) SetMinPoW(pow float64) error {
 	return nil
 }
 
-//func (whisper *Whisper) notifyPeersAboutBloomFilterChange(bloom []byte) {
-//	arr := whisper.getPeers()
-//	for _, p := range arr {
-//		err := p.notifyAboutBloomFilterChange(bloom)
-//		if err != nil {
-//			// allow one retry
-//			err = p.notifyAboutBloomFilterChange(bloom)
-//		}
-//		if err != nil {
-//			fmt.Println("failed to notify address about new bloom filter", "address", p.address.String(), "error", err)
-//		}
-//	}
-//}
-
 // Subscribe installs a new message handler used for filtering, decrypting
 // and subsequent storing of incoming messages.
-func (whisper *Whisper) Subscribe(f *Filter) (string, error) {
-	s, err := whisper.filters.AddFilter(f)
-	if err == nil {
-		whisper.updateBloomFilter(f)
-	}
-	return s, err
-}
+// func (whisper *Whisper) Subscribe(f *Filter) (string, error) {
+// 	s, err := whisper.filters.AddFilter(f)
+// 	if err == nil {
+// 		whisper.updateBloomFilter(f)
+// 	}
+// 	return s, err
+// }
 
 // updateBloomFilter recomputes bloom filter,
 func (whisper *Whisper) updateBloomFilter(f *Filter) {
@@ -226,239 +240,7 @@ func (whisper *Whisper) updateBloomFilter(f *Filter) {
 	}
 }
 
-// GetFilterFromID returns the filter by id.
-func (whisper *Whisper) GetFilter(id string) *Filter {
-	return whisper.filters.GetFilterFromID(id)
-}
-
-// Unsubscribe removes an installed message handler.
-//func (whisper *Whisper) Unsubscribe(id string) error {
-//	ok := whisper.filters.RemoveFilter(id)
-//	if !ok {
-//		return fmt.Errorf("Unsubscribe: Invalid ID")
-//	}
-//	return nil
-//}
-
-// Send injects a message into the whisper send queue, to be distributed in the
-// network in the coming cycles.
-func (whisper *Whisper) Send(envelope *Envelope) error {
-	err := whisper.handleEnvelope(envelope)
-	if err != nil {
-		return fmt.Errorf("failed to handle Envelope envelope")
-	}
-	return err
-}
-
-// Start implements node.Service, starting the background data propagation thread
-// of the Whisper protocol.
-func (whisper *Whisper) Start() error {
-	go whisper.processWhisperPacket()
-	go whisper.processWhisperStatus()
-	go whisper.update()
-	go whisper.sendStatusPeriodically()
-
-	numCPU := runtime.NumCPU()
-	for i := 0; i < numCPU; i++ {
-		go whisper.processQueue()
-	}
-
-	return nil
-}
-
-// Stop implements node.Service, stopping the background data propagation thread
-// of the Whisper protocol.
-func (whisper *Whisper) Stop() error {
-	close(whisper.quit)
-	fmt.Println("whisper stopped")
-	return nil
-}
-
-//func (whisper *Whisper) BroadcastStatusPacket() {
-//	pow := whisper.GetMinPow()
-//	bloom := whisper.GetBloomFilter()
-//
-//	statusStruct := &Status{Bloom: bloom, Pow: pow}
-//	packetToSend, err := protobuf.Encode(statusStruct)
-//	if err != nil {
-//		helpers.ErrorCheck(err, false)
-//	}
-//
-//	wPacket := &gossiper.WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: peer.whisper.gossiper.Name, ID: 0,}
-//	gossipPacket := &gossiper.GossipPacket{WhisperPacket: wPacket}
-//
-//	fmt.Println("Sent to " + peer.address.String())
-//	peer.whisper.gossiper.ConnectionHandler.SendPacket(gossipPacket, peer.address)
-//}
-
-//func (whisper *Whisper) SendStatusPacket(peer *Peer) {
-//	pow := whisper.GetMinPow()
-//	bloom := whisper.GetBloomFilter()
-//
-//	statusStruct := &Status{Bloom: bloom, Pow: pow}
-//	packetToSend, err := protobuf.Encode(statusStruct)
-//	if err != nil {
-//		helpers.ErrorCheck(err, false)
-//	}
-//
-//	wPacket := &gossiper.WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: whisper.gossiper.Name, ID: 0,}
-//	gossipPacket := &gossiper.GossipPacket{WhisperPacket: wPacket}
-//
-//	whisper.gossiper.ConnectionHandler.sendPacket(gossipPacket, peer.address)
-//}
-
-////HandlePeer is called by the underlying P2P layer when the whisper sub-protocol
-////connection is negotiated.
-//func (whisper *Whisper) HandlePeer(peer *net.UDPAddr) error {
-//
-//	fmt.Println("Handle " + peer.String())
-//
-//	whisperPeer, err := whisper.getPeer(peer.String())
-//	if err != nil {
-//		fmt.Println("No such address")
-//		return err
-//	}
-//
-//	defer func() {
-//		whisper.peerMu.Lock()
-//		delete(whisper.peers, whisperPeer)
-//		whisper.peerMu.Unlock()
-//	}()
-//
-//	// Run the address handshake and state updates
-//	if err := whisperPeer.handshake(); err != nil {
-//		fmt.Println("Handshake failed")
-//		return err
-//	} else {
-//		fmt.Println("Handshake ok")
-//	}
-//	whisperPeer.start()
-//	defer whisperPeer.stop()
-//
-//	loop := whisper.runMessageLoop(whisperPeer)
-//
-//	fmt.Println("Error")
-//
-//	fmt.Println(loop)
-//
-//	return loop
-//}
-//
-//// runMessageLoop reads and processes inbound messages directly to merge into client-global state.
-//func (whisper *Whisper) runMessageLoop(p *Peer) error {
-//	for packet := range PeerChannels[p.address.String()] {
-//
-//		//// fetch the next packet
-//		//packet, err := rw.ReadMsg()
-//		//if err != nil {
-//		//	fmt.Println("message loop", "address", p.address.ID(), "err", err)
-//		//	return err
-//		//}
-//		if packet.Size > DefaultMaxMessageSize {
-//			//fmt.Println("oversized message received", "address", p.address.String())
-//			return fmt.Errorf("oversized message received")
-//		}
-//
-//		switch packet.Code {
-//		case statusCode:
-//			pow := p.whisper.GetMinPow()
-//			bloom := p.whisper.GetBloomFilter()
-//
-//			status := &Status{Bloom: bloom, Pow: pow}
-//			if err := p.sendWhisperPacket(statusCode, status); err != nil {
-//				fmt.Println("Failed sending status to address")
-//			}
-//			//packetToSend, err := protobuf.Encode(statusStruct)
-//			//helpers.ErrorCheck(err, false)
-//			//
-//			//wPacket := &gossiper.WhisperPacket{Code: statusCode, Payload: packetToSend, Size: uint32(len(packetToSend)), Origin: whisper.gossiper.Name, ID: 0,}
-//			//gossipPacket := &gossiper.GossipPacket{WhisperPacket: wPacket}
-//			//
-//			//fmt.Println("Sent to " + p.address.String())
-//			//whisper.gossiper.ConnectionHandler.sendPacket(gossipPacket, p.address)
-//
-//		case messagesCode:
-//			// decode the contained envelope
-//
-//			fmt.Println("Got envelope")
-//
-//			envelope := &Envelope{}
-//			if err := packet.DecodePacket(envelope); err != nil {
-//				fmt.Println("failed to decode envelopes, address will be disconnected", "address", p.address.String(), "err", err)
-//				return fmt.Errorf("invalid envelopes")
-//			}
-//
-//			trouble := false
-//			cached, err := whisper.add(envelope)
-//			if err != nil {
-//				trouble = true
-//				fmt.Println("bad envelope received, address will be disconnected", "address", p.address.String(), "err", err)
-//			}
-//			if cached {
-//				p.setKnown(envelope)
-//			}
-//
-//			if trouble {
-//				return fmt.Errorf("invalid envelope")
-//			}
-//
-//			//trouble := false
-//			//for _, env := range envelopes {
-//			//	cached, err := whisper.handleEnvelope(env, whisper.LightClientMode())
-//			//	if err != nil {
-//			//		trouble = true
-//			//		fmt.Println("bad envelope received, address will be disconnected", "address", p.address.ID(), "err", err)
-//			//	}
-//			//	if cached {
-//			//		p.setKnown(env)
-//			//	}
-//			//}
-//
-//			//if trouble {
-//			//	return fmt.Errorf("invalid envelope")
-//			//}
-//		case powRequirementCode:
-//			var i uint64
-//			err := packet.DecodePacket(&i)
-//			if err != nil {
-//				fmt.Println("failed to decode powRequirementCode message, address will be disconnected", "address", p.address.String(), "err", err)
-//				return fmt.Errorf("invalid powRequirementCode message")
-//			}
-//			f := math.Float64frombits(i)
-//			if math.IsInf(f, 0) || math.IsNaN(f) || f < 0.0 {
-//				fmt.Println("invalid value in powRequirementCode message, address will be disconnected", "address", p.address.String(), "err", err)
-//				return fmt.Errorf("invalid value in powRequirementCode message")
-//			}
-//			p.parameters.Store(minPowIdx, f)
-//
-//		case bloomFilterExCode:
-//			var bloom []byte
-//			err := packet.DecodePacket(&bloom)
-//			if err == nil && len(bloom) != BloomFilterSize {
-//				err = fmt.Errorf("wrong bloom filter size %d", len(bloom))
-//			}
-//
-//			if err != nil {
-//				fmt.Println("failed to decode bloom filter exchange message, address will be disconnected", "address", p.address.String(), "err", err)
-//				return fmt.Errorf("invalid bloom filter exchange message")
-//			}
-//			p.setBloomFilter(bloom)
-//		default:
-//			// NewWhisper message types might be implemented in the future versions of Whisper.
-//			// For forward compatibility, just ignore.
-//		}
-//
-//		//packet.Discard()
-//	}
-//
-//	fmt.Println("aoooooooooooooo")
-//
-//	return nil
-//}
-
-// handleEnvelope inserts a new envelope into the message pool to be distributed within the
-// whisper network. It also inserts the envelope into the expiration pool at the
-// appropriate time-stamp. In case of error, connection should be dropped.
+// handleEnvelope handles a new envelope (from peer or from me)
 func (whisper *Whisper) handleEnvelope(envelope *Envelope) error {
 	now := uint32(time.Now().Unix())
 
@@ -466,7 +248,7 @@ func (whisper *Whisper) handleEnvelope(envelope *Envelope) error {
 
 	if sent > now {
 		if sent-DefaultSyncAllowance > now {
-			return fmt.Errorf("envelope created in the future [%x]", envelope.Hash())
+			return fmt.Errorf("envelope created in the future")
 		}
 		envelope.computePow(sent - now + 1)
 	}
@@ -517,30 +299,6 @@ func (whisper *Whisper) handleEnvelope(envelope *Envelope) error {
 	return nil
 }
 
-// postEvent queues the message for further processing.
-//func (whisper *Whisper) postEvent(envelope *Envelope) {
-//	//whisper.checkOverflow()
-//	whisper.messageQueue <- envelope
-//
-//}
-
-// checkOverflow checks if message queue overflow occurs and reports it if necessary.
-//func (whisper *Whisper) checkOverflow() {
-//	queueSize := len(whisper.messageQueue)
-//
-//	if queueSize == messageQueueLimit {
-//		if !whisper.Overflow() {
-//			whisper.settings.Store(overflowIdx, true)
-//			fmt.Println("message queue overflow")
-//		}
-//	} else if queueSize <= messageQueueLimit/2 {
-//		if whisper.Overflow() {
-//			whisper.settings.Store(overflowIdx, false)
-//			fmt.Println("message queue overflow fixed (back to normal)")
-//		}
-//	}
-//}
-
 // processQueue delivers the messages to the subscribers during the lifetime of the whisper node.
 func (whisper *Whisper) processQueue() {
 	var e *Envelope
@@ -550,23 +308,25 @@ func (whisper *Whisper) processQueue() {
 			return
 
 		case e = <-whisper.messageQueue:
-			whisper.forwardEnvelope(e)
 			whisper.filters.NotifySubscribers(e)
 		}
 	}
 }
 
-// doPeriodicUpdate loops until the lifetime of the whisper node, updating its internal
-// state by expiring stale messages from the pool.
-func (whisper *Whisper) update() {
-	// Start a ticker to check for expirations
+// updateEnvelopes periodically broadcast and flush envelopes
+func (whisper *Whisper) updateEnvelopes() {
 	expire := time.NewTicker(expirationTimer)
+	defer expire.Stop()
+	transmit := time.NewTicker(broadcastTimer)
+	defer transmit.Stop()
 
-	// Repeat updates until termination is requested
 	for {
 		select {
 		case <-expire.C:
-			whisper.expire()
+			whisper.removeExpiredEnvelopes()
+
+		case <-transmit.C:
+			whisper.broadcastMessages()
 
 		case <-whisper.quit:
 			return
@@ -574,9 +334,16 @@ func (whisper *Whisper) update() {
 	}
 }
 
-// expire iterates over all the expiration timestamps, removing all stale
-// messages from the pools.
-func (whisper *Whisper) expire() {
+func (whisper *Whisper) broadcastMessages() {
+	envelopes := whisper.Envelopes()
+	for _, env := range envelopes {
+		whisper.forwardEnvelope(env)
+	}
+
+}
+
+// removeExpiredEnvelopes removes expired envelopes
+func (whisper *Whisper) removeExpiredEnvelopes() {
 	whisper.envelopes.Mutex.Lock()
 	defer whisper.envelopes.Mutex.Unlock()
 
@@ -599,12 +366,3 @@ func (whisper *Whisper) Envelopes() []*Envelope {
 	}
 	return array
 }
-
-//// isEnvelopePresent checks if envelope with specific hash has already been cached
-//func (whisper *Whisper) isEnvelopePresent(hash [32]byte) bool {
-//	whisper.envelopes.Mutex.Lock()
-//	defer whisper.envelopes.Mutex.Unlock()
-//
-//	_, exist := whisper.envelopes.Envelopes[hash]
-//	return exist
-//}

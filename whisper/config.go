@@ -26,8 +26,8 @@ const (
 	padSizeLimit      = 256
 	messageQueueLimit = 1024
 
-	expirationTimer = time.Second
-	broadcastTimer  = 5 * time.Second
+	expirationTimer = 3 * time.Second
+	broadcastTimer  = time.Second
 	statusTimer     = 5 * time.Second
 )
 
