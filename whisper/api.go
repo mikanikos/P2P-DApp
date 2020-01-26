@@ -256,12 +256,6 @@ func (whisper *Whisper) GetFilterMessages(id string) ([]*ReceivedMessage, error)
 
 // NewMessageFilter creates a new filter
 func (whisper *Whisper) NewMessageFilter(req Criteria) (string, error) {
-	var (
-		src     *ecies.PublicKey
-		keySym  []byte
-		keyAsym *ecies.PrivateKey
-	)
-
 	filter := &Filter{}
 
 	isSymKey := len(req.SymKeyID) > 0
@@ -300,9 +294,8 @@ func (whisper *Whisper) NewMessageFilter(req Criteria) (string, error) {
 	}
 
 	f := &Filter{
-		Src:      src,
-		KeySym:   keySym,
-		KeyAsym:  keyAsym,
+		KeySym:   filter.KeySym,
+		KeyAsym:  filter.KeyAsym,
 		Topics:   topics,
 		Pow: 	req.MinPow,
 		Messages: make(map[[32]byte]*ReceivedMessage),

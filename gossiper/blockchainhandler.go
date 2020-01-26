@@ -212,7 +212,7 @@ func (gossiper *Gossiper) createTLCMessage(block BlockPublish, confirmedFlag int
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 
 	tlcPacket := &TLCMessage{Origin: gossiper.Name, ID: id, TxBlock: block, VectorClock: gossiper.gossipHandler.myStatus.createMyStatusPacket(), Confirmed: confirmedFlag, Fitness: fitness}
-	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.ConnectionHandler.gossiperData.Address}
+	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.ConnectionHandler.GossiperData.Address}
 
 	// store message
 	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.Name, id)

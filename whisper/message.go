@@ -163,6 +163,7 @@ func (params *MessageParams) GetEnvelopeFromMessage() (envelope *Envelope, err e
 	}
 
 	var encrypted []byte
+
 	if params.Dst != nil {
 		encrypted, err = encryptWithPublicKey(params.Payload, params.Dst)
 		if err != nil {
@@ -181,6 +182,10 @@ func (params *MessageParams) GetEnvelopeFromMessage() (envelope *Envelope, err e
 	}
 
 	envelope = NewEnvelope(params.TTL, params.Topic, encrypted)
+	//
+	//fmt.Println("CAZZOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+	//fmt.Println(string(params.Payload))
+	//fmt.Println("MAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 
 	// add nonce for requiring enough pow
 	envelope.addNonceForPow(params)

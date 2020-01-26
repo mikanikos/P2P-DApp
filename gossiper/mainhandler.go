@@ -196,7 +196,7 @@ func (gossiper *Gossiper) processPrivateMessages() {
 func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Message) {
 	for message := range clientChannel {
 
-		packet := &ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.gossiperData.Address}
+		packet := &ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.GossiperData.Address}
 
 		// get type of the message
 		switch typeMessage := getTypeFromMessage(message); typeMessage {
@@ -207,7 +207,7 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			}
 
 			// create simple packet and broadcast
-			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.Name, RelayPeerAddr: gossiper.ConnectionHandler.gossiperData.Address.String()}
+			simplePacket := &SimpleMessage{Contents: message.Text, OriginalName: gossiper.Name, RelayPeerAddr: gossiper.ConnectionHandler.GossiperData.Address.String()}
 			packet.Packet = &GossipPacket{Simple: simplePacket}
 
 			go gossiper.ConnectionHandler.BroadcastToPeers(packet, gossiper.GetPeers())
@@ -276,7 +276,7 @@ func (gossiper *Gossiper) processSimpleMessages() {
 		}
 
 		// set relay address and broadcast
-		extPacket.Packet.Simple.RelayPeerAddr = gossiper.ConnectionHandler.gossiperData.Address.String()
+		extPacket.Packet.Simple.RelayPeerAddr = gossiper.ConnectionHandler.GossiperData.Address.String()
 
 		go gossiper.ConnectionHandler.BroadcastToPeers(extPacket, gossiper.GetPeers())
 	}

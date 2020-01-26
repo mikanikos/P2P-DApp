@@ -2,7 +2,6 @@ package whisper
 
 import (
 	"github.com/dedis/protobuf"
-	ecies "github.com/ecies/go"
 	"golang.org/x/crypto/sha3"
 	"time"
 )
@@ -58,23 +57,23 @@ func (e *Envelope) Hash() [32]byte {
 	return sha3.Sum256(encoded)
 }
 
-// OpenWithPrivateKey decrypts an envelope with an asymmetric key
-func (e *Envelope) OpenWithPrivateKey(key *ecies.PrivateKey) (*ReceivedMessage, error) {
-	decrypted, err := decryptWithPrivateKey(e.Data, key)
-	if err != nil {
-		return nil, err
-	}
-	return &ReceivedMessage{Payload: decrypted}, nil
-}
-
-// OpenWithSymmetricKey decrypts an envelope with a symmetric key
-func (e *Envelope) OpenWithSymmetricKey(key []byte) (*ReceivedMessage, error) {
-	decrypted, err := decryptWithSymmetricKey(e.Data, key)
-	if err != nil {
-		return nil, err
-	}
-	return &ReceivedMessage{Payload: decrypted}, nil
-}
+//// OpenWithPrivateKey decrypts an envelope with an asymmetric key
+//func (e *Envelope) OpenWithPrivateKey(key *ecies.PrivateKey) (*ReceivedMessage, error) {
+//	decrypted, err := decryptWithPrivateKey(e.Data, key)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return &ReceivedMessage{Payload: decrypted}, nil
+//}
+//
+//// OpenWithSymmetricKey decrypts an envelope with a symmetric key
+//func (e *Envelope) OpenWithSymmetricKey(key []byte) (*ReceivedMessage, error) {
+//	decrypted, err := decryptWithSymmetricKey(e.Data, key)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return &ReceivedMessage{Payload: decrypted}, nil
+//}
 
 // GetMessageFromEnvelope decrypts the message payload of the envelope
 func (e *Envelope) GetMessageFromEnvelope(subscriber *Filter) *ReceivedMessage {
@@ -82,29 +81,32 @@ func (e *Envelope) GetMessageFromEnvelope(subscriber *Filter) *ReceivedMessage {
 		return nil
 	}
 
+	msg := &ReceivedMessage{}
+
 	if subscriber.isAsymmetricEncryption() {
-		msg, err := e.OpenWithPrivateKey(subscriber.KeyAsym)
+		decrypted, err := decryptWithPrivateKey(e.Data, subscriber.KeyAsym)
+		msg.Payload = decrypted
 		if err != nil {
 			return nil
 		}
-		if msg != nil {
+		if decrypted != nil {
 			msg.Dst = subscriber.KeyAsym.PublicKey
 		}
 	} else if subscriber.isSymmetricEncryption() {
-		msg, err := e.OpenWithSymmetricKey(subscriber.KeySym)
+		decrypted, err := decryptWithSymmetricKey(e.Data, subscriber.KeySym)
+		msg.Payload = decrypted
 		if err != nil {
 			return nil
 		}
-
-		if msg != nil {
+		if decrypted != nil {
 			msg.SymKeyHash = sha3.Sum256(subscriber.KeySym)
 		}
 	}
 
-	return &ReceivedMessage{
-		Topic:        e.Topic,
-		TTL:          e.TTL,
-		Sent:         e.Expiry - e.TTL,
-		EnvelopeHash: e.Hash(),
-	}
+	msg.Topic = e.Topic
+	msg.TTL = e.TTL
+	msg.Sent = e.Expiry - e.TTL
+	msg.EnvelopeHash = e.Hash()
+
+	return msg
 }

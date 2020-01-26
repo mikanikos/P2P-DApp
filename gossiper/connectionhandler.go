@@ -11,7 +11,7 @@ import (
 // ConnectionHandler struct
 type ConnectionHandler struct {
 	clientData   *ConnectionData
-	gossiperData *ConnectionData
+	GossiperData *ConnectionData
 }
 
 // NewConnectionHandler creates new connection handler
@@ -24,7 +24,7 @@ func NewConnectionHandler(gossiperAddress, clientAddress string) *ConnectionHand
 
 	return &ConnectionHandler{
 		clientData:   clientData,
-		gossiperData: gossiperData,
+		GossiperData: gossiperData,
 	}
 }
 
@@ -80,7 +80,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, addr, err := gossiper.ConnectionHandler.gossiperData.Connection.ReadFromUDP(packetBytes)
+		n, addr, err := gossiper.ConnectionHandler.GossiperData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err, false)
 
 		if n > maxBufferSize {
@@ -119,7 +119,7 @@ func (connectionHandler *ConnectionHandler) SendPacket(packet *GossipPacket, add
 	helpers.ErrorCheck(err, false)
 
 	// send message
-	_, err = connectionHandler.gossiperData.Connection.WriteToUDP(packetToSend, address)
+	_, err = connectionHandler.GossiperData.Connection.WriteToUDP(packetToSend, address)
 	helpers.ErrorCheck(err, false)
 }
 

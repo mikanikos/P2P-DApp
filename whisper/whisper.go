@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/mikanikos/Peerster/gossiper"
+	"net"
 	"runtime"
 	"sync"
 	"time"
@@ -11,8 +12,14 @@ import (
 
 // SafeEnvelopes stores envelopes and handle them concurrently safe
 type SafeEnvelopes struct {
-	Envelopes map[[32]byte]*Envelope
+	Envelopes map[[32]byte]*EnvelopeOrigin
 	Mutex     sync.RWMutex
+}
+
+// SafeEnvelopes stores envelopes and handle them concurrently safe
+type EnvelopeOrigin struct {
+	Envelope *Envelope
+	Origin   *net.UDPAddr
 }
 
 // Whisper is the main part of the whisper protocol
@@ -43,7 +50,7 @@ func NewWhisper(g *gossiper.Gossiper) *Whisper {
 		gossiper:       g,
 		parameters:     sync.Map{},
 		cryptoKeys:     sync.Map{},
-		envelopes:      &SafeEnvelopes{Envelopes: make(map[[32]byte]*Envelope)},
+		envelopes:      &SafeEnvelopes{Envelopes: make(map[[32]byte]*EnvelopeOrigin)},
 		filters:        NewFilterStorage(),
 		routingHandler: NewRoutingHandler(),
 		messageQueue:   make(chan *Envelope, messageQueueLimit),
@@ -61,7 +68,7 @@ func NewWhisper(g *gossiper.Gossiper) *Whisper {
 // Send injects a message into the whisper send queue, to be distributed in the
 // network in the coming cycles.
 func (whisper *Whisper) Send(envelope *Envelope) error {
-	err := whisper.handleEnvelope(envelope)
+	err := whisper.handleEnvelope(&EnvelopeOrigin{Envelope: envelope, Origin: whisper.gossiper.ConnectionHandler.GossiperData.Address})
 	if err != nil {
 		fmt.Println(err)
 		return fmt.Errorf("failed to handle Envelope envelope")
@@ -120,7 +127,8 @@ func (whisper *Whisper) processWhisperPacket() {
 					fmt.Println(err)
 				}
 
-				err = whisper.handleEnvelope(envelope)
+
+				err = whisper.handleEnvelope(&EnvelopeOrigin{Envelope:envelope, Origin: extPacket.SenderAddr})
 				if err != nil {
 					fmt.Println("bad envelope received, address will be disconnected")
 					whisper.blacklist[extPacket.SenderAddr.String()] = struct{}{}
@@ -131,7 +139,7 @@ func (whisper *Whisper) processWhisperPacket() {
 }
 
 // GetEnvelope retrieves an envelope from its hash
-func (whisper *Whisper) GetEnvelope(hash [32]byte) *Envelope {
+func (whisper *Whisper) GetEnvelope(hash [32]byte) *EnvelopeOrigin {
 	whisper.envelopes.Mutex.RLock()
 	defer whisper.envelopes.Mutex.RUnlock()
 	return whisper.envelopes.Envelopes[hash]
@@ -247,8 +255,10 @@ func (whisper *Whisper) updateBloomFilter(f *Filter) {
 }
 
 // handleEnvelope handles a new envelope (from peer or from me)
-func (whisper *Whisper) handleEnvelope(envelope *Envelope) error {
+func (whisper *Whisper) handleEnvelope(envelopeOrigin *EnvelopeOrigin) error {
 	now := uint32(time.Now().Unix())
+
+	envelope := envelopeOrigin.Envelope
 
 	sent := envelope.Expiry - envelope.TTL
 
@@ -289,7 +299,7 @@ func (whisper *Whisper) handleEnvelope(envelope *Envelope) error {
 
 	_, loaded := whisper.envelopes.Envelopes[hash]
 	if !loaded {
-		whisper.envelopes.Envelopes[hash] = envelope
+		whisper.envelopes.Envelopes[hash] = envelopeOrigin
 		go func(e *Envelope) {
 			for len(whisper.messageQueue) >= messageQueueLimit {
 				time.Sleep(time.Second)
@@ -358,18 +368,18 @@ func (whisper *Whisper) removeExpiredEnvelopes() {
 
 	now := uint32(time.Now().Unix())
 	for hash, env := range whisper.envelopes.Envelopes {
-		if env.Expiry < now {
+		if env.Envelope.Expiry < now {
 			delete(whisper.envelopes.Envelopes, hash)
 		}
 	}
 }
 
 // Envelopes retrieves all the envelopes
-func (whisper *Whisper) Envelopes() []*Envelope {
+func (whisper *Whisper) Envelopes() []*EnvelopeOrigin {
 	whisper.envelopes.Mutex.RLock()
 	defer whisper.envelopes.Mutex.RUnlock()
 
-	array := make([]*Envelope, 0, len(whisper.envelopes.Envelopes))
+	array := make([]*EnvelopeOrigin, 0, len(whisper.envelopes.Envelopes))
 	for _, envelope := range whisper.envelopes.Envelopes {
 		array = append(array, envelope)
 	}

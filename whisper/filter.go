@@ -8,11 +8,10 @@ import (
 
 // Filter is a message filter
 type Filter struct {
-	Src     *ecies.PublicKey
 	KeyAsym *ecies.PrivateKey
 	KeySym  []byte
-	Pow 	float64
-	Topics [][]byte
+	Pow     float64
+	Topics  [][]byte
 
 	Messages map[[32]byte]*ReceivedMessage
 	Mutex    sync.RWMutex
@@ -132,13 +131,12 @@ func (fs *FilterStorage) NotifySubscribers(env *Envelope) {
 			if msg == nil {
 				fmt.Println("failed to open message")
 			} else {
-				if sub.Src == nil || msg.Src.Equals(sub.Src) {
-					sub.Mutex.Lock()
-					if _, exist := sub.Messages[msg.EnvelopeHash]; !exist {
-						sub.Messages[msg.EnvelopeHash] = msg
-					}
-					sub.Mutex.Unlock()
+
+				sub.Mutex.Lock()
+				if _, exist := sub.Messages[msg.EnvelopeHash]; !exist {
+					sub.Messages[msg.EnvelopeHash] = msg
 				}
+				sub.Mutex.Unlock()
 			}
 		}
 	}
@@ -149,6 +147,9 @@ func (f *Filter) isAsymmetricEncryption() bool {
 }
 
 func (f *Filter) isSymmetricEncryption() bool {
+	fmt.Println("CAZZOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+	fmt.Println(f.KeySym != nil)
+	fmt.Println("CAZZOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
 	return f.KeySym != nil
 }
 
