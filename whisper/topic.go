@@ -5,7 +5,7 @@ import "encoding/hex"
 // Topic categorize messages
 type Topic [TopicLength]byte
 
-// ConvertBytesToTopic converts from the byte array to Topic
+// ConvertBytesToTopic converts from byte array to Topic
 func ConvertBytesToTopic(b []byte) (t Topic) {
 	sz := TopicLength
 	if x := len(b); x < TopicLength {
@@ -17,7 +17,7 @@ func ConvertBytesToTopic(b []byte) (t Topic) {
 	return t
 }
 
-// String converts a topic byte array to a string representation.
+// String converts a topic byte array to a string
 func (t *Topic) String() string {
 	return hex.EncodeToString(t[:])
 }
@@ -40,18 +40,3 @@ func ConvertTopicToBloom(topic Topic) []byte {
 	}
 	return b
 }
-
-//// String converts a topic byte array to a string representation.
-//func (t *Topic) String() string {
-//	return hexutil.Encode(t[:])
-//}
-
-//// MarshalText returns the hex representation of t.
-//func (t Topic) MarshalText() ([]byte, error) {
-//	return []byte(t[:]).MarshalText()
-//}
-//
-//// UnmarshalText parses a hex representation to a topic.
-//func (t *Topic) UnmarshalText(input []byte) error {
-//	return hexutil.UnmarshalFixedText("Topic", input, t[:])
-//}

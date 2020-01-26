@@ -17,7 +17,7 @@ const (
 	keyIDSize       = 32
 	BloomFilterSize = 64
 
-	MaxMessageSize        = uint32(10 * 1024 * 1024) // maximum accepted size of a message.
+	MaxMessageSize        = uint32(10 * 1024 * 1024) // maximum accepted GetSize of a message.
 	DefaultMaxMessageSize = uint32(1024 * 1024)
 	DefaultMinimumPoW     = 0.2
 	DefaultTTL            = 50 // in seconds
@@ -32,9 +32,9 @@ const (
 )
 
 const (
-	maxMsgSizeIdx           = iota // Maximal message length allowed by the whisper node
-	minPowIdx                      // Minimal PoW required by the whisper node
-	minPowToleranceIdx             // Minimal PoW tolerated by the whisper node for a limited time
-	bloomFilterIdx                 // Bloom filter for topics of interest for this node
-	bloomFilterToleranceIdx        // Bloom filter tolerated by the whisper node for a limited time
+	maxMsgSizeIdx           = iota
+	minPowIdx
+	minPowToleranceIdx
+	bloomFilterIdx
+	bloomFilterToleranceIdx
 )

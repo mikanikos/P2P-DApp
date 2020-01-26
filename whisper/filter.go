@@ -17,14 +17,10 @@ type Filter struct {
 	Mutex    sync.RWMutex
 }
 
-// FilterStorage has all the filters
+// FilterStorage stores all the filters created
 type FilterStorage struct {
 	subscribers map[string]*Filter
-
 	topicToFilters map[Topic]map[*Filter]struct{}
-	//allTopicsMatcher map[*Filter]struct{}
-
-	//whisper *Whisper
 	mutex sync.RWMutex
 }
 
@@ -81,7 +77,6 @@ func (fs *FilterStorage) RemoveFilter(id string) bool {
 	sub, loaded := fs.subscribers[id]
 	if loaded {
 		delete(fs.subscribers, id)
-		//delete(fs.allTopicsMatcher, sub)
 		for _, topic := range sub.Topics {
 			delete(fs.topicToFilters[ConvertBytesToTopic(topic)], sub)
 		}
@@ -89,17 +84,6 @@ func (fs *FilterStorage) RemoveFilter(id string) bool {
 	}
 	return false
 }
-
-//// addTopicMatcher adds a filter to the topic matchers.
-//// If the filter's Topics array is empty, it will be tried on every topic.
-//// Otherwise, it will be tried on the topics specified.
-//func (fs *FilterStorage) addTopicMatcher(subscriber *Filter) {
-//	if len(subscriber.Topics) == 0 {
-//		fs.allTopicsMatcher[subscriber] = struct{}{}
-//	} else {
-//
-//	}
-//}
 
 // getSubscribersByTopic returns all filters given a topic
 func (fs *FilterStorage) getSubscribersByTopic(topic Topic) []*Filter {
@@ -147,9 +131,6 @@ func (f *Filter) isAsymmetricEncryption() bool {
 }
 
 func (f *Filter) isSymmetricEncryption() bool {
-	fmt.Println("CAZZOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
-	fmt.Println(f.KeySym != nil)
-	fmt.Println("CAZZOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
 	return f.KeySym != nil
 }
 
@@ -166,28 +147,3 @@ func (f *Filter) GetReceivedMessagesFromFilter() (messages []*ReceivedMessage) {
 	f.Messages = make(map[[32]byte]*ReceivedMessage)
 	return messages
 }
-
-// MatchMessage checks if the filter matches an already decrypted
-// message (i.e. a ReceivedMessage that has already been handled by
-// MatchEnvelope when checked by a previous filter).
-// Topics are not checked here, since this is done by topic matchers.
-//func (f *Filter) MatchMessage(msg *ReceivedMessage) bool {
-//	if f.PoW > 0 && msg.PoW < f.PoW {
-//		return false
-//	}
-//
-//	if f.isAsymmetricEncryption() && msg.isAsymmetricEncryption() {
-//		return IsPubKeyEqual(&f.KeyAsym.PublicKey, msg.Dst)
-//	} else if f.isSymmetricEncryption() && msg.isSymmetricEncryption() {
-//		return f.SymKeyHash == msg.SymKeyHash
-//	}
-//	return false
-//}
-
-// MatchEnvelope checks if it's worth decrypting the message. If
-// it returns `true`, client code is expected to attempt decrypting
-// the message and subsequently call MatchMessage.
-// Topics are not checked here, since this is done by topic matchers.
-//func (f *Filter) MatchEnvelope(envelope *Envelope) bool {
-//	return f.PoW <= 0 || envelope.pow >= f.PoW
-//}

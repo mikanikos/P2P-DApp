@@ -36,6 +36,11 @@ func createPeersData(peers string, size uint64) *PeersData {
 
 // AddPeer to peers list if not present
 func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
+
+	if peer.String() == gossiper.ConnectionHandler.GossiperData.Address.String() {
+		return
+	}
+
 	gossiper.PeersData.Mutex.Lock()
 	defer gossiper.PeersData.Mutex.Unlock()
 	contains := false

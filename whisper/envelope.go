@@ -29,8 +29,8 @@ func NewEnvelope(ttl uint32, topic Topic, data []byte) *Envelope {
 	}
 }
 
-//size returns the size of envelope
-func (e *Envelope) size() int {
+//GetSize returns the GetSize of envelope
+func (e *Envelope) GetSize() int {
 	encodedEnvelope, _ := protobuf.Encode(e)
 	return len(encodedEnvelope)
 }
@@ -51,29 +51,11 @@ func (e *Envelope) GetBloom() []byte {
 	return e.bloom
 }
 
-// Hash returns the SHA3 hash of the envelope, calculating it if not yet done.
-func (e *Envelope) Hash() [32]byte {
+// GetHash returns the SHA3 hash of the envelope, calculating it if not yet done.
+func (e *Envelope) GetHash() [32]byte {
 	encoded, _ := protobuf.Encode(e)
 	return sha3.Sum256(encoded)
 }
-
-//// OpenWithPrivateKey decrypts an envelope with an asymmetric key
-//func (e *Envelope) OpenWithPrivateKey(key *ecies.PrivateKey) (*ReceivedMessage, error) {
-//	decrypted, err := decryptWithPrivateKey(e.Data, key)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return &ReceivedMessage{Payload: decrypted}, nil
-//}
-//
-//// OpenWithSymmetricKey decrypts an envelope with a symmetric key
-//func (e *Envelope) OpenWithSymmetricKey(key []byte) (*ReceivedMessage, error) {
-//	decrypted, err := decryptWithSymmetricKey(e.Data, key)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return &ReceivedMessage{Payload: decrypted}, nil
-//}
 
 // GetMessageFromEnvelope decrypts the message payload of the envelope
 func (e *Envelope) GetMessageFromEnvelope(subscriber *Filter) *ReceivedMessage {
@@ -106,7 +88,7 @@ func (e *Envelope) GetMessageFromEnvelope(subscriber *Filter) *ReceivedMessage {
 	msg.Topic = e.Topic
 	msg.TTL = e.TTL
 	msg.Sent = e.Expiry - e.TTL
-	msg.EnvelopeHash = e.Hash()
+	msg.EnvelopeHash = e.GetHash()
 
 	return msg
 }

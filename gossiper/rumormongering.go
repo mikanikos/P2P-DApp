@@ -29,7 +29,7 @@ func (gossiper *Gossiper) startAntiEntropy() {
 }
 
 // rumor monger message
-func (gossiper *Gossiper) startRumorMongering(extPacket *ExtendedGossipPacket, origin string, id uint32) {
+func (gossiper *Gossiper) StartRumorMongering(extPacket *ExtendedGossipPacket, origin string, id uint32) {
 	peersWithRumor := []*net.UDPAddr{extPacket.SenderAddr}
 	peers := gossiper.GetPeers()
 	availablePeers := helpers.DifferenceString(peers, peersWithRumor)

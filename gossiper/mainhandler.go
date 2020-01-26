@@ -231,10 +231,10 @@ func (gossiper *Gossiper) processClientMessages(clientChannel chan *helpers.Mess
 			printClientMessage(message, gossiper.GetPeers())
 
 			// create rumor
-			extPacket := gossiper.createRumorMessage(message.Text)
+			extPacket := gossiper.CreateRumorMessage(message.Text)
 
 			// rumor monger it
-			go gossiper.startRumorMongering(extPacket, gossiper.Name, extPacket.Packet.Rumor.ID)
+			go gossiper.StartRumorMongering(extPacket, gossiper.Name, extPacket.Packet.Rumor.ID)
 
 		case "file":
 			gossiper.indexFile(message.File)

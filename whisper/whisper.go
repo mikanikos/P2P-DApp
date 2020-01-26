@@ -39,8 +39,8 @@ type Whisper struct {
 	// blacklist of peers
 	blacklist map[string]struct{}
 
-	messageQueue chan *Envelope // ReceivedMessage queue for normal whisper messages
-	quit         chan struct{}  // Channel used for graceful exit
+	messageQueue chan *Envelope
+	quit         chan struct{}  // channel used for graceful exit
 }
 
 // NewWhisper creates new Whisper instance
@@ -65,9 +65,8 @@ func NewWhisper(g *gossiper.Gossiper) *Whisper {
 	return whisper
 }
 
-// Send injects a message into the whisper send queue, to be distributed in the
-// network in the coming cycles.
-func (whisper *Whisper) Send(envelope *Envelope) error {
+// SendEnvelope send the envelope to the peers
+func (whisper *Whisper) SendEnvelope(envelope *Envelope) error {
 	err := whisper.handleEnvelope(&EnvelopeOrigin{Envelope: envelope, Origin: whisper.gossiper.ConnectionHandler.GossiperData.Address})
 	if err != nil {
 		fmt.Println(err)
@@ -89,17 +88,17 @@ func (whisper *Whisper) Run() {
 	}
 }
 
-// Stop protocol with the channe;
+// Stop protocol with the quit channel
 func (whisper *Whisper) Stop() error {
 	close(whisper.quit)
 	fmt.Println("whisper stopped")
 	return nil
 }
 
-// process tlc message
+// process incoming whisper status
 func (whisper *Whisper) processWhisperStatus() {
 	for extPacket := range gossiper.PacketChannels["whisperStatus"] {
-		fmt.Println("Gooooooooooooooooooooooooooot whisperStatussssssss from " + extPacket.SenderAddr.String())
+		fmt.Println("Got whisperStatus from " + extPacket.SenderAddr.String())
 		if _, loaded := whisper.blacklist[extPacket.SenderAddr.String()]; !loaded {
 			whisper.routingHandler.updateRoutingTable(extPacket.Packet.WhisperStatus, extPacket.SenderAddr)
 			whisper.gossiper.HandleGossipMessage(extPacket, extPacket.Packet.WhisperStatus.Origin, extPacket.Packet.WhisperStatus.ID)
@@ -107,10 +106,10 @@ func (whisper *Whisper) processWhisperStatus() {
 	}
 }
 
-// process tlc message
+// process incoming whisper envelopes
 func (whisper *Whisper) processWhisperPacket() {
 	for extPacket := range gossiper.PacketChannels["whisperPacket"] {
-		fmt.Println("Gooooooooooooooooooooooooooot whisperPacketttttttt  from " + extPacket.SenderAddr.String())
+		fmt.Println("Got whisperPacket from " + extPacket.SenderAddr.String())
 		if _, loaded := whisper.blacklist[extPacket.SenderAddr.String()]; !loaded {
 
 			packet := extPacket.Packet.WhisperPacket
@@ -184,20 +183,17 @@ func (whisper *Whisper) GetBloomFilterTolerated() []byte {
 // SetBloomFilter sets the new bloom filter
 func (whisper *Whisper) SetBloomFilter(bloom []byte) error {
 
-	fmt.Println("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
-
 	if len(bloom) != BloomFilterSize {
-		return fmt.Errorf("invalid bloom filter size")
+		return fmt.Errorf("invalid bloom filter GetSize")
 	}
 
 	whisper.parameters.Store(bloomFilterIdx, bloom)
 
-	// broadcast the updateEnvelopes
 	wPacket := &gossiper.WhisperStatus{Code: bloomFilterExCode, Bloom: bloom}
 	whisper.gossiper.SendWhisperStatus(wPacket)
 
 	go func() {
-		// allow some time before all the peers have processed the notification
+		// let peers receive notification
 		time.Sleep(time.Duration(DefaultSyncAllowance) * time.Second)
 		whisper.parameters.Store(bloomFilterToleranceIdx, bloom)
 	}()
@@ -213,12 +209,11 @@ func (whisper *Whisper) SetMinPoW(pow float64) error {
 
 	whisper.parameters.Store(minPowIdx, pow)
 
-	// broadcast the updateEnvelopes
 	wPacket := &gossiper.WhisperStatus{Code: powRequirementCode, Pow: pow}
 	whisper.gossiper.SendWhisperStatus(wPacket)
 
 	go func() {
-		// allow some time before all the peers have processed the notification
+		// let peers receive notification
 		time.Sleep(time.Duration(DefaultSyncAllowance) * time.Second)
 		whisper.parameters.Store(minPowToleranceIdx, pow)
 	}()
@@ -226,17 +221,7 @@ func (whisper *Whisper) SetMinPoW(pow float64) error {
 	return nil
 }
 
-// Subscribe installs a new message handler used for filtering, decrypting
-// and subsequent storing of incoming messages.
-// func (whisper *Whisper) Subscribe(f *Filter) (string, error) {
-// 	s, err := whisper.filters.AddFilter(f)
-// 	if err == nil {
-// 		whisper.updateBloomFilter(f)
-// 	}
-// 	return s, err
-// }
-
-// updateBloomFilter recomputes bloom filter,
+// updateBloomFilter recomputes bloom filter
 func (whisper *Whisper) updateBloomFilter(f *Filter) {
 	aggregate := make([]byte, BloomFilterSize)
 	for _, t := range f.Topics {
@@ -277,7 +262,7 @@ func (whisper *Whisper) handleEnvelope(envelopeOrigin *EnvelopeOrigin) error {
 		return nil
 	}
 
-	if uint32(envelope.size()) > MaxMessageSize {
+	if uint32(envelope.GetSize()) > MaxMessageSize {
 		return fmt.Errorf("huge messages are not allowed")
 	}
 
@@ -293,7 +278,7 @@ func (whisper *Whisper) handleEnvelope(envelopeOrigin *EnvelopeOrigin) error {
 		}
 	}
 
-	hash := envelope.Hash()
+	hash := envelope.GetHash()
 
 	whisper.envelopes.Mutex.Lock()
 
@@ -315,7 +300,7 @@ func (whisper *Whisper) handleEnvelope(envelopeOrigin *EnvelopeOrigin) error {
 	return nil
 }
 
-// processQueue delivers the messages to the subscribers during the lifetime of the whisper node.
+// processQueue process all incoming accepted messages
 func (whisper *Whisper) processQueue() {
 	var e *Envelope
 	for {
@@ -358,7 +343,6 @@ func (whisper *Whisper) broadcastMessages() {
 	for _, env := range envelopes {
 		whisper.forwardEnvelope(env)
 	}
-
 }
 
 // removeExpiredEnvelopes removes expired envelopes

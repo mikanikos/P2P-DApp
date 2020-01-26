@@ -80,7 +80,7 @@ func (whisper *Whisper) GenerateSymKey() (string, error) {
 func (whisper *Whisper) AddSymKey(k string) (string, error) {
 	key, _ := hex.DecodeString(k)
 	if len(key) != aesKeyLength {
-		return "", fmt.Errorf("wrong key size")
+		return "", fmt.Errorf("wrong key GetSize")
 	}
 
 	id, err := GenerateRandomID()

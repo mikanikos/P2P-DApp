@@ -141,7 +141,7 @@ func main() {
 	//			topics := make([]whisper.Topic, 0)
 	//			topics = append(topics, whisper.ConvertBytesToTopic(topic1))
 	//			topics = append(topics, whisper.ConvertBytesToTopic(topic2))
-	//			crit := whisper.Criteria{
+	//			crit := whisper.FilterOptions{
 	//				SymKeyID: newKeyID,
 	//				MinPow: 	0.2,
 	//				Topics:   topics,

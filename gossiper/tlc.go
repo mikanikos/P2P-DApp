@@ -30,7 +30,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 	tlc := extPacket.Packet.TLCMessage
 
 	// start rumor mongering the message
-	go gossiper.startRumorMongering(extPacket, gossiper.Name, tlc.ID)
+	go gossiper.StartRumorMongering(extPacket, gossiper.Name, tlc.ID)
 
 	// if already got a majority of confirmations, I increment my round, send confirmation and return
 	if waitConfirmations && gossiper.checkForConfirmationsMajority(tlc, false) {
@@ -91,7 +91,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 				if hw3ex2Mode {
 					gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 				}
-				go gossiper.startRumorMongering(extPacket, gossiper.Name, tlc.ID)
+				go gossiper.StartRumorMongering(extPacket, gossiper.Name, tlc.ID)
 			}
 		}
 	}
@@ -105,7 +105,7 @@ func (gossiper *Gossiper) sendGossipWithConfirmation(extPacket *ExtendedGossipPa
 	}
 
 	// rumor momger it
-	go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
+	go gossiper.StartRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
 	// send it to gui
 	if !hw3ex4Mode {

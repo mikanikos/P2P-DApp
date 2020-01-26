@@ -69,12 +69,12 @@ func (gossiper *Gossiper) HandleGossipMessage(extPacket *ExtendedGossipPacket, o
 		}
 
 		// start rumor monger
-		go gossiper.startRumorMongering(extPacket, origin, id)
+		go gossiper.StartRumorMongering(extPacket, origin, id)
 	}
 }
 
 // create new rumor message
-func (gossiper *Gossiper) createRumorMessage(text string) *ExtendedGossipPacket {
+func (gossiper *Gossiper) CreateRumorMessage(text string) *ExtendedGossipPacket {
 	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 	rumorPacket := &RumorMessage{Origin: gossiper.Name, ID: id, Text: text}
@@ -117,5 +117,5 @@ func (gossiper *Gossiper) SendWhisperStatus(status *WhisperStatus) {
 	// store message
 	gossiper.gossipHandler.storeMessage(packet, gossiper.Name, id)
 
-	go gossiper.startRumorMongering(&ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.GossiperData.Address, Packet: packet}, gossiper.Name, id)
+	go gossiper.StartRumorMongering(&ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.GossiperData.Address, Packet: packet}, gossiper.Name, id)
 }

@@ -20,7 +20,7 @@ type Status struct {
 type RoutingHandler struct {
 	// peer -> aggregated bloom from that peer
 	peerStatus map[string]*Status
-	// track current last id (just an optimization in order to not iterate on the message storage every time)
+	// track current last id to use the last updated information from peers
 	originLastID *gossiper.VectorClock
 	mutex        sync.RWMutex
 }
@@ -33,7 +33,7 @@ func NewRoutingHandler() *RoutingHandler {
 	}
 }
 
-// updateEnvelopes routing table based on packet data
+// updateRoutingTable according to status messages
 func (routingHandler *RoutingHandler) updateRoutingTable(whisperStatus *gossiper.WhisperStatus, address *net.UDPAddr) {
 
 	routingHandler.mutex.Lock()
@@ -90,7 +90,7 @@ func (routingHandler *RoutingHandler) updateLastOriginID(origin string, id uint3
 	return isNew
 }
 
-// forward private message
+// forward envelope according to routing table and only to peers that might be interested
 func (whisper *Whisper) forwardEnvelope(envOr *EnvelopeOrigin) {
 
 	fmt.Println("Forwarding packetttttttttttttttttttttttttttt")
@@ -120,10 +120,9 @@ func (whisper *Whisper) forwardEnvelope(envOr *EnvelopeOrigin) {
 	}
 }
 
-// StartRouteRumormongering with the specified timer
+// sendStatusPeriodically with the specified timer
 func (whisper *Whisper) sendStatusPeriodically() {
 
-	fmt.Println("Ok here")
 	if statusTimer > 0 {
 
 		wPacket := &gossiper.WhisperStatus{Code: statusCode, Pow: whisper.GetMinPow(), Bloom: whisper.GetBloomFilter()}
@@ -144,17 +143,3 @@ func (whisper *Whisper) sendStatusPeriodically() {
 		}
 	}
 }
-
-//// GetOrigins in concurrent environment
-//func (gossiper *Gossiper) GetOrigins() []string {
-//	gossiper.routingHandler.mutex.RLock()
-//	defer gossiper.routingHandler.mutex.RUnlock()
-//
-//	origins := make([]string, len(gossiper.routingHandler.originLastID.Entries))
-//	i := 0
-//	for k := range gossiper.routingHandler.originLastID.Entries {
-//		origins[i] = k
-//		i++
-//	}
-//	return origins
-//}
