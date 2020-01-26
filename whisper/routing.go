@@ -55,6 +55,8 @@ func (routingHandler *RoutingHandler) updateRoutingTable(whisperStatus *gossiper
 				} else {
 					status.Bloom = whisperStatus.Bloom
 				}
+
+				fmt.Println(status.Bloom)
 			}
 		}
 
@@ -91,6 +93,8 @@ func (routingHandler *RoutingHandler) updateLastOriginID(origin string, id uint3
 // forward private message
 func (whisper *Whisper) forwardEnvelope(envelope *Envelope) {
 
+	fmt.Println("Forwarding packetttttttttttttttttttttttttttt")
+
 	packetToSend, _ := protobuf.Encode(envelope)
 	packet := &gossiper.GossipPacket{WhisperPacket: &gossiper.WhisperPacket{Code: messagesCode, Payload: packetToSend, Size: uint32(len(packetToSend))}}
 
@@ -98,9 +102,15 @@ func (whisper *Whisper) forwardEnvelope(envelope *Envelope) {
 	defer whisper.routingHandler.mutex.RUnlock()
 
 	for peer, status := range whisper.routingHandler.peerStatus {
+		fmt.Println(status.Bloom)
+		fmt.Println(envelope.GetBloom())
+		fmt.Println(CheckFilterMatch(status.Bloom, envelope.GetBloom()))
+		fmt.Println(fmt.Sprint(envelope.GetPow()) + " | " + fmt.Sprint(status.Pow))
 		if CheckFilterMatch(status.Bloom, envelope.GetBloom()) && envelope.GetPow() >= status.Pow {
+			fmt.Println("Passed check")
 			address := whisper.gossiper.GetPeerFromString(peer)
 			if address != nil {
+				fmt.Println("Sent packetttttttttttttttttttttttttttt")
 				whisper.gossiper.ConnectionHandler.SendPacket(packet, address)
 			}
 		}

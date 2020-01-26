@@ -63,6 +63,7 @@ func NewWhisper(g *gossiper.Gossiper) *Whisper {
 func (whisper *Whisper) Send(envelope *Envelope) error {
 	err := whisper.handleEnvelope(envelope)
 	if err != nil {
+		fmt.Println(err)
 		return fmt.Errorf("failed to handle Envelope envelope")
 	}
 	return err
@@ -174,6 +175,9 @@ func (whisper *Whisper) GetBloomFilterTolerated() []byte {
 
 // SetBloomFilter sets the new bloom filter
 func (whisper *Whisper) SetBloomFilter(bloom []byte) error {
+
+	fmt.Println("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+
 	if len(bloom) != BloomFilterSize {
 		return fmt.Errorf("invalid bloom filter size")
 	}
@@ -266,7 +270,7 @@ func (whisper *Whisper) handleEnvelope(envelope *Envelope) error {
 
 	if envelope.GetPow() < whisper.GetMinPow() {
 		if envelope.GetPow() < whisper.GetMinPowTolerated() {
-			return fmt.Errorf("envelope with low pow received")
+			return fmt.Errorf("envelope with low pow received: " + fmt.Sprint(envelope.GetPow()))
 		}
 	}
 

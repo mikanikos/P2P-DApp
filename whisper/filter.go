@@ -11,7 +11,7 @@ type Filter struct {
 	Src     *ecies.PublicKey
 	KeyAsym *ecies.PrivateKey
 	KeySym  []byte
-
+	Pow 	float64
 	Topics [][]byte
 
 	Messages map[[32]byte]*ReceivedMessage
@@ -127,16 +127,18 @@ func (fs *FilterStorage) NotifySubscribers(env *Envelope) {
 
 	candidates := fs.getSubscribersByTopic(env.Topic)
 	for _, sub := range candidates {
-		msg = env.GetMessageFromEnvelope(sub)
-		if msg == nil {
-			fmt.Println("failed to open message")
-		} else {
-			if sub.Src == nil || msg.Src.Equals(sub.Src) {
-				sub.Mutex.Lock()
-				if _, exist := sub.Messages[msg.EnvelopeHash]; !exist {
-					sub.Messages[msg.EnvelopeHash] = msg
+		if sub.Pow <= 0 || env.pow >= sub.Pow {
+			msg = env.GetMessageFromEnvelope(sub)
+			if msg == nil {
+				fmt.Println("failed to open message")
+			} else {
+				if sub.Src == nil || msg.Src.Equals(sub.Src) {
+					sub.Mutex.Lock()
+					if _, exist := sub.Messages[msg.EnvelopeHash]; !exist {
+						sub.Messages[msg.EnvelopeHash] = msg
+					}
+					sub.Mutex.Unlock()
 				}
-				sub.Mutex.Unlock()
 			}
 		}
 	}

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"github.com/mikanikos/Peerster/whisper"
+	"os"
+	"time"
 
 	"github.com/mikanikos/Peerster/gossiper"
 	"github.com/mikanikos/Peerster/helpers"
@@ -47,8 +51,8 @@ func main() {
 
 	// if gui port specified, create and run the webserver (if not, avoid waste of resources for performance reasons)
 	if *guiPort != "" {
-		webserver := webserver.NewWebserver(*uiPort, g)
-		go webserver.Run(*guiPort)
+		ws := webserver.NewWebserver(*uiPort, g)
+		go ws.Run(*guiPort)
 	}
 
 	// run gossiper
@@ -59,36 +63,34 @@ func main() {
 	fmt.Println("Whisper running")
 	//w.S
 
-
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-	   fmt.Print(">  ")
-	   scanner.Scan()
-	   text := scanner.Text()
-	   //fmt.Println(text)
-	   if len(text) != 0 {
-	       if text == "new key" {
+		fmt.Print(">  ")
+		scanner.Scan()
+		text := scanner.Text()
+		//fmt.Println(text)
+		if len(text) != 0 {
+			if text == "new key" {
 				fmt.Println("Okkkkk")
-				key, err := w.NewSymKey()
+				key, err := w.GenerateSymKey()
 				if err == nil {
 					fmt.Println("New key: " + key)
 				} else {
 					fmt.Println(err)
 				}
 				//scanner.Scan()
-				time.Sleep(time.Duration(3) * time.Second)
+				time.Sleep(time.Duration(10) * time.Second)
 				newKeyID := key
 				//topic := []byte("maaaaaaaaaaaaa")
-				topicType := whisper.BytesToTopic([]byte("maaaaaaaaaaaaa"))
+				topicType := whisper.ConvertBytesToTopic([]byte("maaaaaaaaaaaaa"))
 				fmt.Println(topicType)
 				text, _ := hex.DecodeString("ciao andrea")
 				newMessage := whisper.NewMessage{
-					SymKeyID:   newKeyID,
-					TTL:        10,
-					Topic:      topicType,
-					Payload:    text,
-					PowTime:    2,
-					Pow:  2.01,
+					SymKeyID: newKeyID,
+					TTL:      10,
+					Topic:    topicType,
+					Payload:  text,
+					PowTime:  2,
 				}
 				hash, err := w.NewWhisperMessage(newMessage)
 				if err != nil {
@@ -113,12 +115,11 @@ func main() {
 				topic, _ := hex.DecodeString("ciao")
 				text, _ := hex.DecodeString("ciao andrea")
 				newMessage := whisper.NewMessage{
-					SymKeyID:  newKeyID,
-					TTL:       30,
-					Topic:     whisper.BytesToTopic(topic),
-					Payload:   text,
-					PowTime:   2,
-					Pow: 2.01,
+					SymKeyID: newKeyID,
+					TTL:      30,
+					Topic:    whisper.ConvertBytesToTopic(topic),
+					Payload:  text,
+					PowTime:  2,
 				}
 				hash, err := w.NewWhisperMessage(newMessage)
 				if err != nil {
@@ -127,9 +128,30 @@ func main() {
 					fmt.Println(hash)
 				}
 			}
-	   } else {
-	       break
-	   }
+			if text == "new sub" {
+				scanner.Scan()
+				newKeyID := scanner.Text()
+				topic1, _ := hex.DecodeString("ciao")
+				topic2, _ := hex.DecodeString("miao")
+				topics := make([]whisper.Topic, 0)
+				topics = append(topics, whisper.ConvertBytesToTopic(topic1))
+				topics = append(topics, whisper.ConvertBytesToTopic(topic2))
+				crit := whisper.Criteria{
+					SymKeyID: newKeyID,
+					MinPow: 0.2,
+					Topics:   topics,
+				}
+				hash, err := w.NewMessageFilter(crit)
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					fmt.Println(hash)
+				}
+			}
+
+		} else {
+			break
+		}
 	}
 
 	// wait forever

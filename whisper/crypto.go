@@ -67,6 +67,8 @@ func (whisper *Whisper) GenerateSymKey() (string, error) {
 		return "", err
 	}
 
+
+	fmt.Println(hex.EncodeToString(key))
 	if _, loaded := whisper.cryptoKeys.LoadOrStore(id, key); loaded {
 		return "", fmt.Errorf("failed to generate unique ID")
 	}

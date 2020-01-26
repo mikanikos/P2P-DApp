@@ -4,10 +4,14 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	crand "crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"github.com/dedis/protobuf"
 	ecies "github.com/ecies/go"
+	"golang.org/x/crypto/sha3"
 	"io"
+	"math/big"
+	"time"
 )
 
 // MessageParams specifies all the parameters needed to prepare an envelope
@@ -16,7 +20,7 @@ type MessageParams struct {
 	Dst     *ecies.PublicKey
 	KeySym  []byte
 	Topic   Topic
-	PoW     float64
+	PowTime uint32
 	TTL     uint32
 	Payload []byte
 	Padding []byte
@@ -158,10 +162,6 @@ func (params *MessageParams) GetEnvelopeFromMessage() (envelope *Envelope, err e
 		params.TTL = DefaultTTL
 	}
 
-	if params.PoW == 0 {
-		params.PoW = DefaultMinimumPoW
-	}
-
 	var encrypted []byte
 	if params.Dst != nil {
 		encrypted, err = encryptWithPublicKey(params.Payload, params.Dst)
@@ -182,10 +182,38 @@ func (params *MessageParams) GetEnvelopeFromMessage() (envelope *Envelope, err e
 
 	envelope = NewEnvelope(params.TTL, params.Topic, encrypted)
 
-	// compute pow
-	envelope.computePow(0)
+	// add nonce for requiring enough pow
+	envelope.addNonceForPow(params)
 
 	return envelope, nil
+}
+
+func (e *Envelope) addNonceForPow(options *MessageParams) {
+
+	e.Expiry += options.PowTime
+
+	bestLeadingZeros := 0
+
+	encodedEnvWithoutNonce, _ := protobuf.Encode([]interface{}{e.Expiry, e.TTL, e.Topic, e.Data})
+	buf := make([]byte, len(encodedEnvWithoutNonce)+8)
+	copy(buf, encodedEnvWithoutNonce)
+
+	finish := time.Now().Add(time.Duration(options.PowTime) * time.Second).UnixNano()
+	for nonce := uint64(0); time.Now().UnixNano() < finish; {
+		for i := 0; i < 1024; i++ {
+			binary.BigEndian.PutUint64(buf[len(encodedEnvWithoutNonce):], nonce)
+			d := sha3.New256()
+			d.Write(buf)
+			powHash := new(big.Int).SetBytes(d.Sum(nil))
+			leadingZeros := 256 - powHash.BitLen()
+			if leadingZeros > bestLeadingZeros {
+				e.Nonce, bestLeadingZeros = nonce, leadingZeros
+			}
+			nonce++
+		}
+	}
+
+	e.computePow(0)
 }
 
 // decryptWithSymmetricKey decrypts a message with symmetric key

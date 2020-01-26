@@ -1,10 +1,11 @@
 package whisper
 
+import "encoding/hex"
+
 // Topic categorize messages
 type Topic [TopicLength]byte
 
-// ConvertBytesToTopic converts from the byte array representation of a topic
-// into the Topic type.
+// ConvertBytesToTopic converts from the byte array to Topic
 func ConvertBytesToTopic(b []byte) (t Topic) {
 	sz := TopicLength
 	if x := len(b); x < TopicLength {
@@ -14,6 +15,11 @@ func ConvertBytesToTopic(b []byte) (t Topic) {
 		t[i] = b[i]
 	}
 	return t
+}
+
+// String converts a topic byte array to a string representation.
+func (t *Topic) String() string {
+	return hex.EncodeToString(t[:])
 }
 
 // ConvertTopicToBloom converts the topic (4 bytes) to the bloom filter (64 bytes)

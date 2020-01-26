@@ -11,7 +11,7 @@ type NewMessage struct {
 	PublicKey []byte
 	TTL       uint32
 	Topic     Topic
-	Pow       float64
+	PowTime   uint32
 	Payload   []byte
 }
 
@@ -28,14 +28,14 @@ func (whisper *Whisper) NewWhisperMessage(message NewMessage) ([]byte, error) {
 	}
 
 	// check pow
-	if message.Pow < whisper.GetMinPow() {
-		return nil, fmt.Errorf("low pow")
-	}
+	//if message.Pow < whisper.GetMinPow() {
+	//	return nil, fmt.Errorf("low pow")
+	//}
 
 	params := &MessageParams{
 		TTL:     message.TTL,
 		Payload: message.Payload,
-		PoW:     message.Pow,
+		PowTime: message.PowTime,
 		Topic:   message.Topic,
 	}
 
@@ -306,6 +306,7 @@ func (whisper *Whisper) NewMessageFilter(req Criteria) (string, error) {
 		KeySym:   keySym,
 		KeyAsym:  keyAsym,
 		Topics:   topics,
+		Pow: 	req.MinPow,
 		Messages: make(map[[32]byte]*ReceivedMessage),
 	}
 
