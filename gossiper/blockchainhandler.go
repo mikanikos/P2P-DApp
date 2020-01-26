@@ -126,7 +126,7 @@ func (gossiper *Gossiper) handleTLCMessage() {
 					}
 
 					// send ack for tlc
-					privatePacket := &TLCAck{Origin: gossiper.name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
+					privatePacket := &TLCAck{Origin: gossiper.Name, ID: extPacket.Packet.TLCMessage.ID, Destination: extPacket.Packet.TLCMessage.Origin, HopLimit: uint32(hopLimit)}
 					if hw3ex2Mode || hw3ex3Mode {
 						fmt.Println("SENDING ACK origin " + extPacket.Packet.TLCMessage.Origin + " ID " + fmt.Sprint(extPacket.Packet.TLCMessage.ID))
 					}
@@ -211,11 +211,11 @@ func (gossiper *Gossiper) createTLCMessage(block BlockPublish, confirmedFlag int
 	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
 
-	tlcPacket := &TLCMessage{Origin: gossiper.name, ID: id, TxBlock: block, VectorClock: gossiper.gossipHandler.myStatus.createMyStatusPacket(), Confirmed: confirmedFlag, Fitness: fitness}
-	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.connectionHandler.gossiperData.Address}
+	tlcPacket := &TLCMessage{Origin: gossiper.Name, ID: id, TxBlock: block, VectorClock: gossiper.gossipHandler.myStatus.createMyStatusPacket(), Confirmed: confirmedFlag, Fitness: fitness}
+	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{TLCMessage: tlcPacket}, SenderAddr: gossiper.ConnectionHandler.GossiperData.Address}
 
 	// store message
-	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.name, id)
+	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.Name, id)
 
 	if debug {
 		fmt.Print("Creating id " + fmt.Sprint(id) + ": ")
@@ -279,7 +279,7 @@ func (gossiper *Gossiper) checkForCausalProperty(origin string, receivedVC *Stat
 
 		// send status in order to get missing packets (should already be done by gossipHandler but this should be faster and does not cost a lot)
 		statusToSend := gossiper.gossipHandler.myStatus.createMyStatusPacket()
-		gossiper.connectionHandler.sendPacket(&GossipPacket{Status: statusToSend}, address)
+		gossiper.ConnectionHandler.SendPacket(&GossipPacket{Status: statusToSend}, address)
 	}
 
 	return false

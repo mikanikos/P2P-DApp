@@ -14,7 +14,7 @@ func (gossiper *Gossiper) downloadDataFromPeer(fileName, peer string, hash []byt
 	replyChan := value.(chan *DataReply)
 
 	// prepare data request
-	packet := &GossipPacket{DataRequest: &DataRequest{Origin: gossiper.name, Destination: peer, HashValue: hash, HopLimit: uint32(hopLimit)}}
+	packet := &GossipPacket{DataRequest: &DataRequest{Origin: gossiper.Name, Destination: peer, HashValue: hash, HopLimit: uint32(hopLimit)}}
 
 	if hw2 {
 		printDownloadMessage(fileName, peer, hash, seqNum)

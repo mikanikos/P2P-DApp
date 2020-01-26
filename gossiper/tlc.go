@@ -20,7 +20,7 @@ func (gossiper *Gossiper) tlcRound(extPacket *ExtendedGossipPacket) {
 func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket, waitConfirmations bool) {
 
 	if debug {
-		fmt.Println("Start gossip with confirmation")
+		fmt.Println("Run gossip with confirmation")
 	}
 
 	if hw3ex2Mode {
@@ -30,7 +30,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 	tlc := extPacket.Packet.TLCMessage
 
 	// start rumor mongering the message
-	go gossiper.startRumorMongering(extPacket, gossiper.name, tlc.ID)
+	go gossiper.StartRumorMongering(extPacket, gossiper.Name, tlc.ID)
 
 	// if already got a majority of confirmations, I increment my round, send confirmation and return
 	if waitConfirmations && gossiper.checkForConfirmationsMajority(tlc, false) {
@@ -40,7 +40,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 	if stubbornTimeout > 0 {
 		// initialize variables, witnesses (acks) used as a set
 		witnesses := make(map[string]uint32)
-		witnesses[gossiper.name] = 0
+		witnesses[gossiper.Name] = 0
 		delivered := false
 		gossiper.blockchainHandler.tlcAckChan = make(chan *TLCAck, maxChannelSize)
 
@@ -57,7 +57,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 					witnesses[tlcAck.Origin] = 0
 
 					// check if received a majority of acks
-					if len(witnesses) > int(gossiper.peersData.Size/2) {
+					if len(witnesses) > int(gossiper.PeersData.Size/2) {
 
 						// create tlc confirmed message
 						confirmedPacket := gossiper.createTLCMessage(tlc.TxBlock, int(tlc.ID), tlc.Fitness)
@@ -91,7 +91,7 @@ func (gossiper *Gossiper) gossipWithConfirmation(extPacket *ExtendedGossipPacket
 				if hw3ex2Mode {
 					gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 				}
-				go gossiper.startRumorMongering(extPacket, gossiper.name, tlc.ID)
+				go gossiper.StartRumorMongering(extPacket, gossiper.Name, tlc.ID)
 			}
 		}
 	}
@@ -105,7 +105,7 @@ func (gossiper *Gossiper) sendGossipWithConfirmation(extPacket *ExtendedGossipPa
 	}
 
 	// rumor momger it
-	go gossiper.startRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
+	go gossiper.StartRumorMongering(extPacket, extPacket.Packet.TLCMessage.Origin, extPacket.Packet.TLCMessage.ID)
 
 	// send it to gui
 	if !hw3ex4Mode {
@@ -137,7 +137,7 @@ func (gossiper *Gossiper) checkForConfirmationsMajority(tlc *TLCMessage, deliver
 		}
 
 		// check if got majority of confirmations and increment round in that case
-		if len(confirmations) > int(gossiper.peersData.Size/2) {
+		if len(confirmations) > int(gossiper.PeersData.Size/2) {
 
 			atomic.AddUint32(&gossiper.blockchainHandler.myTime, uint32(1))
 			gossiper.printRoundMessage(gossiper.blockchainHandler.myTime, confirmations)

@@ -25,7 +25,7 @@ func ErrorCheck(err error, doPanic bool) {
 		if doPanic {
 			panic(err)
 		} else {
-			fmt.Println(err)
+			fmt.Println("Error ", err)
 		}
 	}
 }
