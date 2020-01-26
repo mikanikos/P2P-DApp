@@ -30,7 +30,7 @@ func NewEnvelope(ttl uint32, topic Topic, data []byte) *Envelope {
 	}
 }
 
-//size returns the size of envelope as it is sent (i.e. public fields only)
+//size returns the size of envelope
 func (e *Envelope) size() int {
 	encodedEnvelope, _ := protobuf.Encode(e)
 	return len(encodedEnvelope)

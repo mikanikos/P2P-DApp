@@ -14,6 +14,8 @@ func (whisper *Whisper) NewKeyPair() (string, error) {
 		return "", err
 	}
 
+	fmt.Println(hex.EncodeToString(key.Bytes()))
+
 	if _, loaded := whisper.cryptoKeys.LoadOrStore(id, key); loaded {
 		return "", fmt.Errorf("failed to generate unique ID")
 	}
@@ -54,8 +56,7 @@ func (whisper *Whisper) GetPrivateKey(id string) (*ecies.PrivateKey, error) {
 	return nil, fmt.Errorf("no private key for id given")
 }
 
-// GenerateSymKey generates a random symmetric key and stores it under id,
-// which is then returned. Will be used in the future for session key exchange.
+// GenerateSymKey generates a random symmetric key and stores it under id
 func (whisper *Whisper) GenerateSymKey() (string, error) {
 	key, err := generateRandomBytes(aesKeyLength)
 	if err != nil {

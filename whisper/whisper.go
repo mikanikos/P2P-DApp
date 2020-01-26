@@ -237,6 +237,9 @@ func (whisper *Whisper) updateBloomFilter(f *Filter) {
 		aggregate = AggregateBloom(aggregate, b)
 	}
 
+	fmt.Println(whisper.GetBloomFilter())
+	fmt.Println(aggregate)
+
 	if !CheckFilterMatch(whisper.GetBloomFilter(), aggregate) {
 		aggregate = AggregateBloom(whisper.GetBloomFilter(), aggregate)
 		whisper.SetBloomFilter(aggregate)

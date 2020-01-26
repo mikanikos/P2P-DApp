@@ -260,8 +260,6 @@ func (whisper *Whisper) NewMessageFilter(req Criteria) (string, error) {
 		src     *ecies.PublicKey
 		keySym  []byte
 		keyAsym *ecies.PrivateKey
-		topics  [][]byte
-		err     error
 	)
 
 	filter := &Filter{}
@@ -277,7 +275,7 @@ func (whisper *Whisper) NewMessageFilter(req Criteria) (string, error) {
 	if isSymKey {
 		key, err := whisper.GetSymKeyFromID(req.SymKeyID)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("no symmetric key found")
 		}
 		filter.KeySym = key
 		if len(key) != aesKeyLength {
@@ -288,13 +286,13 @@ func (whisper *Whisper) NewMessageFilter(req Criteria) (string, error) {
 	if isPrivKey {
 		key, err := whisper.GetPrivateKey(req.PrivateKeyID)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("no private key")
 		}
 		filter.KeyAsym = key
 	}
 
+	topics := make([][]byte, len(req.Topics))
 	if len(req.Topics) > 0 {
-		topics := make([][]byte, len(req.Topics))
 		for i, topic := range req.Topics {
 			topics[i] = make([]byte, TopicLength)
 			copy(topics[i], topic[:])

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"github.com/mikanikos/Peerster/whisper"
@@ -70,8 +69,7 @@ func main() {
 		text := scanner.Text()
 		//fmt.Println(text)
 		if len(text) != 0 {
-			if text == "new key" {
-				fmt.Println("Okkkkk")
+			if text == "new keyMes" {
 				key, err := w.GenerateSymKey()
 				if err == nil {
 					fmt.Println("New key: " + key)
@@ -84,10 +82,10 @@ func main() {
 				//topic := []byte("maaaaaaaaaaaaa")
 				topicType := whisper.ConvertBytesToTopic([]byte("maaaaaaaaaaaaa"))
 				fmt.Println(topicType)
-				text, _ := hex.DecodeString("ciao andrea")
+				text :=  []byte("ciao andrea")
 				newMessage := whisper.NewMessage{
 					SymKeyID: newKeyID,
-					TTL:      10,
+					TTL:      60,
 					Topic:    topicType,
 					Payload:  text,
 					PowTime:  2,
@@ -99,12 +97,29 @@ func main() {
 					fmt.Println(hash)
 				}
 			}
+			if text == "new key" {
+				key, err := w.GenerateSymKey()
+				if err == nil {
+					fmt.Println("NEW KEY: " + key)
+				} else {
+					fmt.Println(err)
+				}
+			}
 			if text == "add key" {
 				scanner.Scan()
 				newKey := scanner.Text()
 				id, err := w.AddSymKey(newKey)
 				if err == nil {
-					fmt.Println("Key ID: " + id)
+					fmt.Println("ADDED KEY ID: " + id)
+				} else {
+					fmt.Println(err)
+				}
+			}
+			if text == "new pair" {
+				scanner.Scan()
+				id, err := w.NewKeyPair()
+				if err == nil {
+					fmt.Println("NEW KEY PAIR: " + id)
 				} else {
 					fmt.Println(err)
 				}
@@ -112,11 +127,11 @@ func main() {
 			if text == "new mess" {
 				scanner.Scan()
 				newKeyID := scanner.Text()
-				topic, _ := hex.DecodeString("ciao")
-				text, _ := hex.DecodeString("ciao andrea")
+				topic :=  []byte("ciao")
+				text :=  []byte("ciao andrea")
 				newMessage := whisper.NewMessage{
 					SymKeyID: newKeyID,
-					TTL:      30,
+					TTL:      60,
 					Topic:    whisper.ConvertBytesToTopic(topic),
 					Payload:  text,
 					PowTime:  2,
@@ -131,14 +146,14 @@ func main() {
 			if text == "new sub" {
 				scanner.Scan()
 				newKeyID := scanner.Text()
-				topic1, _ := hex.DecodeString("ciao")
-				topic2, _ := hex.DecodeString("miao")
+				topic1 := []byte("ciao")
+				topic2 := []byte("isoidsodisodiosdiosdiosdi")
 				topics := make([]whisper.Topic, 0)
 				topics = append(topics, whisper.ConvertBytesToTopic(topic1))
 				topics = append(topics, whisper.ConvertBytesToTopic(topic2))
 				crit := whisper.Criteria{
 					SymKeyID: newKeyID,
-					MinPow: 0.2,
+					MinPow: 	0.2,
 					Topics:   topics,
 				}
 				hash, err := w.NewMessageFilter(crit)
@@ -146,6 +161,18 @@ func main() {
 					fmt.Println(err)
 				} else {
 					fmt.Println(hash)
+				}
+			}
+			if text == "get mess" {
+				scanner.Scan()
+				id := scanner.Text()
+				mess, err := w.GetFilterMessages(id)
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					for _, m := range mess {
+						fmt.Println(string(m.Payload))
+					}
 				}
 			}
 
