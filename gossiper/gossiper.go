@@ -19,12 +19,12 @@ type ConnectionData struct {
 // Gossiper struct
 type Gossiper struct {
 	// name of the gossiper
-	Name string
+	name string
 	// save peers data (neighbours and total number of peers in the network)
-	PeersData *PeersData
+	peersData *PeersData
 
 	// handle connection with peers and client
-	ConnectionHandler *ConnectionHandler
+	connectionHandler *ConnectionHandler
 	// handle gossip messages and status messages
 	gossipHandler *GossipHandler
 	// handle routing table and forwarding
@@ -33,6 +33,8 @@ type Gossiper struct {
 	fileHandler *FileHandler
 	// handle abstractions for the blockchain (gossip with confirmation, tlc and qsc)
 	blockchainHandler *BlockchainHandler
+
+	whisper *Whisper
 }
 
 // NewGossiper constructor
@@ -42,15 +44,18 @@ func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum ui
 	Init()
 
 	gossiper := &Gossiper{
-		Name:      name,
-		PeersData: createPeersData(peers, peersNum),
+		name:      name,
+		peersData: createPeersData(peers, peersNum),
 
-		ConnectionHandler: NewConnectionHandler(gossiperAddress, clientAddress),
+		connectionHandler: NewConnectionHandler(gossiperAddress, clientAddress),
 		gossipHandler:     NewGossipHandler(),
 		routingHandler:    NewRoutingHandler(),
 		fileHandler:       NewFileHandler(),
 		blockchainHandler: NewBlockchainHandler(),
+		whisper:           NewWhisper(),
 	}
+
+	go gossiper.whisper.update()
 
 	return gossiper
 
@@ -143,6 +148,8 @@ func (gossiper *Gossiper) Run() {
 
 	go gossiper.processClientBlocks()
 
+	go gossiper.processWhisperPacket()
+
 	// listen for incoming packets
 	go gossiper.receivePacketsFromClient(clientChannel)
 	go gossiper.receivePacketsFromPeers()
@@ -156,7 +163,7 @@ func (gossiper *Gossiper) Run() {
 
 // GetName of the gossiper
 func (gossiper *Gossiper) GetName() string {
-	return gossiper.Name
+	return gossiper.name
 }
 
 // GetRound of the gossiper

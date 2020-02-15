@@ -2,11 +2,10 @@ package main
 
 import (
 	"flag"
-	"fmt"
+
 	"github.com/mikanikos/Peerster/gossiper"
 	"github.com/mikanikos/Peerster/helpers"
 	"github.com/mikanikos/Peerster/webserver"
-	"github.com/mikanikos/Peerster/whisper"
 )
 
 // main entry point of the peerster app
@@ -35,141 +34,16 @@ func main() {
 	gossiper.SetAppConstants(*simple, *hw3ex2, *hw3ex3, *hw3ex4, *ackAll, *hopLimit, *stubbornTimeout, *rtimer, *antiEntropy)
 
 	// create new gossiper instance
-	g := gossiper.NewGossiper(*gossipName, *gossipAddr, helpers.BaseAddress+":"+*uiPort, *peers, *peersNumber)
-
-	w := whisper.NewWhisper(g)
+	gossiper := gossiper.NewGossiper(*gossipName, *gossipAddr, helpers.BaseAddress+":"+*uiPort, *peers, *peersNumber)
 
 	// if gui port specified, create and run the webserver (if not, avoid waste of resources for performance reasons)
 	if *guiPort != "" {
-		ws := webserver.NewWebserver(*uiPort, g)
-		go ws.Run(*guiPort)
+		webserver := webserver.NewWebserver(*uiPort, gossiper)
+		go webserver.Run(*guiPort)
 	}
 
 	// run gossiper
-	g.Run()
-	fmt.Println("Gossiper running")
-
-	w.Run()
-	fmt.Println("Whisper running")
-
-	//scanner := bufio.NewScanner(os.Stdin)
-	//for {
-	//	fmt.Print(">  ")
-	//	scanner.Scan()
-	//	text := scanner.Text()
-	//	//fmt.Println(text)
-	//	if len(text) != 0 {
-	//		if text == "new keyMes" {
-	//			key, err := w.GenerateSymKey()
-	//			if err == nil {
-	//				fmt.Println("New key: " + key)
-	//			} else {
-	//				fmt.Println(err)
-	//			}
-	//			//scanner.Scan()
-	//			time.Sleep(time.Duration(10) * time.Second)
-	//			newKeyID := key
-	//			//topic := []byte("maaaaaaaaaaaaa")
-	//			topicType := whisper.ConvertBytesToTopic([]byte("maaaaaaaaaaaaa"))
-	//			fmt.Println(topicType)
-	//			text :=  []byte("ciao andrea")
-	//			newMessage := whisper.NewMessage{
-	//				SymKeyID: newKeyID,
-	//				TTL:      60,
-	//				Topic:    topicType,
-	//				Payload:  text,
-	//				PowTime:  2,
-	//			}
-	//			hash, err := w.NewWhisperMessage(newMessage)
-	//			if err != nil {
-	//				fmt.Println(err)
-	//			} else {
-	//				fmt.Println(hash)
-	//			}
-	//		}
-	//		if text == "new key" {
-	//			key, err := w.GenerateSymKey()
-	//			if err == nil {
-	//				fmt.Println("NEW KEY: " + key)
-	//			} else {
-	//				fmt.Println(err)
-	//			}
-	//		}
-	//		if text == "add key" {
-	//			scanner.Scan()
-	//			newKey := scanner.Text()
-	//			id, err := w.AddSymKey(newKey)
-	//			if err == nil {
-	//				fmt.Println("ADDED KEY ID: " + id)
-	//			} else {
-	//				fmt.Println(err)
-	//			}
-	//		}
-	//		if text == "new pair" {
-	//			scanner.Scan()
-	//			id, err := w.NewKeyPair()
-	//			if err == nil {
-	//				fmt.Println("NEW KEY PAIR: " + id)
-	//			} else {
-	//				fmt.Println(err)
-	//			}
-	//		}
-	//		if text == "new mess" {
-	//			scanner.Scan()
-	//			newKeyID := scanner.Text()
-	//			topic :=  []byte("ciao")
-	//			text :=  []byte("ciao andrea")
-	//			newMessage := whisper.NewMessage{
-	//				SymKeyID: newKeyID,
-	//				TTL:      60,
-	//				Topic:    whisper.ConvertBytesToTopic(topic),
-	//				Payload:  text,
-	//				PowTime:  2,
-	//			}
-	//			hash, err := w.NewWhisperMessage(newMessage)
-	//			if err != nil {
-	//				fmt.Println(err)
-	//			} else {
-	//				fmt.Println(hash)
-	//			}
-	//		}
-	//		if text == "new sub" {
-	//			scanner.Scan()
-	//			newKeyID := scanner.Text()
-	//			topic1 := []byte("ciao")
-	//			topic2 := []byte("isoidsodisodiosdiosdiosdi")
-	//			topics := make([]whisper.Topic, 0)
-	//			topics = append(topics, whisper.ConvertBytesToTopic(topic1))
-	//			topics = append(topics, whisper.ConvertBytesToTopic(topic2))
-	//			crit := whisper.FilterOptions{
-	//				SymKeyID: newKeyID,
-	//				MinPow: 	0.2,
-	//				Topics:   topics,
-	//			}
-	//			hash, err := w.NewMessageFilter(crit)
-	//			if err != nil {
-	//				fmt.Println(err)
-	//			} else {
-	//				fmt.Println(hash)
-	//			}
-	//		}
-	//		if text == "get mess" {
-	//			scanner.Scan()
-	//			id := scanner.Text()
-	//			mess, err := w.GetFilterMessages(id)
-	//			if err != nil {
-	//				fmt.Println(err)
-	//			} else {
-	//				for _, m := range mess {
-	//					fmt.Println(string(m.Payload))
-	//				}
-	//			}
-	//		}
-	//
-	//	} else {
-	//		break
-	//	}
-	//}
+	gossiper.Run()
 
 	// wait forever
 	select {}

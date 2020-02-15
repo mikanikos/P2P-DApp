@@ -9,7 +9,7 @@ import (
 // main entry point for client
 func main() {
 
-	// parse arguments
+	// parse arguments 
 	uiPort := flag.String("UIPort", "8080", "port for the UI client")
 	dest := flag.String("dest", "", "destination for the private message; ​can be omitted")
 	msg := flag.String("msg", "", "message to be sent; if the -dest flag is present, this is a private message, otherwise it’s a rumor message")

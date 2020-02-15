@@ -44,8 +44,6 @@ func getTypeFromGossip(packet *GossipPacket) string {
 		return "tlcAck"
 	} else if packet.WhisperPacket != nil {
 		return "whisperPacket"
-	} else if packet.WhisperStatus != nil {
-		return "whisperStatus"
 	}
 
 	return "unknown"
@@ -192,7 +190,7 @@ func getTLCWithHighestFitness(confirmations map[string]*TLCMessage) *TLCMessage 
 	return maxBlock
 }
 
-// GetHash function of BlockPublish
+// Hash function of BlockPublish
 func (b *BlockPublish) Hash() (out [32]byte) {
 	h := sha256.New()
 	h.Write(b.PrevHash[:])
@@ -202,7 +200,7 @@ func (b *BlockPublish) Hash() (out [32]byte) {
 	return
 }
 
-// GetHash function of TXPublish
+// Hash function of TXPublish
 func (t *TxPublish) Hash() (out [32]byte) {
 	h := sha256.New()
 	binary.Write(h, binary.LittleEndian,

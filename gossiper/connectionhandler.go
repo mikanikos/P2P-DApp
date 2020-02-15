@@ -11,7 +11,7 @@ import (
 // ConnectionHandler struct
 type ConnectionHandler struct {
 	clientData   *ConnectionData
-	GossiperData *ConnectionData
+	gossiperData *ConnectionData
 }
 
 // NewConnectionHandler creates new connection handler
@@ -24,7 +24,7 @@ func NewConnectionHandler(gossiperAddress, clientAddress string) *ConnectionHand
 
 	return &ConnectionHandler{
 		clientData:   clientData,
-		GossiperData: gossiperData,
+		gossiperData: gossiperData,
 	}
 }
 
@@ -54,7 +54,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, _, err := gossiper.ConnectionHandler.clientData.Connection.ReadFromUDP(packetBytes)
+		n, _, err := gossiper.connectionHandler.clientData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err, false)
 
 		if n > maxBufferSize {
@@ -63,7 +63,7 @@ func (gossiper *Gossiper) receivePacketsFromClient(clientChannel chan *helpers.M
 		}
 
 		// decode message
-		err = protobuf.Decode(packetBytes[:n], messageFromClient)
+		protobuf.Decode(packetBytes[:n], messageFromClient)
 		helpers.ErrorCheck(err, false)
 
 		// send it to channel
@@ -80,7 +80,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		packetBytes := make([]byte, maxBufferSize)
 
 		// read from socket
-		n, addr, err := gossiper.ConnectionHandler.GossiperData.Connection.ReadFromUDP(packetBytes)
+		n, addr, err := gossiper.connectionHandler.gossiperData.Connection.ReadFromUDP(packetBytes)
 		helpers.ErrorCheck(err, false)
 
 		if n > maxBufferSize {
@@ -101,9 +101,9 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 		if modeType != "unknwon" {
 			if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
 				packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
-				go func(p *ExtendedGossipPacket, m string) {
-					PacketChannels[m] <- p
-				}(packet, modeType)
+				go func(p *ExtendedGossipPacket) {
+					PacketChannels[modeType] <- p
+				}(packet)
 			} else {
 				fmt.Println("ERROR: message can't be accepted in this operation mode")
 			}
@@ -112,23 +112,22 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 }
 
 // send given packet to the address specified
-func (connectionHandler *ConnectionHandler) SendPacket(packet *GossipPacket, address *net.UDPAddr) {
-
+func (connectionHandler *ConnectionHandler) sendPacket(packet *GossipPacket, address *net.UDPAddr) {
 	// encode message
 	packetToSend, err := protobuf.Encode(packet)
 	helpers.ErrorCheck(err, false)
 
 	// send message
-	_, err = connectionHandler.GossiperData.Connection.WriteToUDP(packetToSend, address)
+	_, err = connectionHandler.gossiperData.Connection.WriteToUDP(packetToSend, address)
 	helpers.ErrorCheck(err, false)
 }
 
 // broadcast message to all the known peers
-func (connectionHandler *ConnectionHandler) BroadcastToPeers(packet *ExtendedGossipPacket, peers []*net.UDPAddr) {
+func (connectionHandler *ConnectionHandler) broadcastToPeers(packet *ExtendedGossipPacket, peers []*net.UDPAddr) {
 	//peers := gossiper.GetPeersAtomic()
 	for _, peer := range peers {
 		if peer.String() != packet.SenderAddr.String() {
-			connectionHandler.SendPacket(packet.Packet, peer)
+			connectionHandler.sendPacket(packet.Packet, peer)
 		}
 	}
 }

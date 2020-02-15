@@ -30,10 +30,10 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 	if routeRumorTimeout > 0 {
 
 		// create new rumor message
-		extPacket := gossiper.CreateRumorMessage("")
+		extPacket := gossiper.createRumorMessage("")
 
 		// broadcast it initially in order to start well
-		go gossiper.ConnectionHandler.BroadcastToPeers(extPacket, gossiper.GetPeers())
+		go gossiper.connectionHandler.broadcastToPeers(extPacket, gossiper.GetPeers())
 
 		// start timer
 		timer := time.NewTicker(time.Duration(routeRumorTimeout) * time.Second)
@@ -42,10 +42,10 @@ func (gossiper *Gossiper) startRouteRumormongering() {
 			// rumor monger rumor at each timeout
 			case <-timer.C:
 				// create new rumor message
-				extPacket := gossiper.CreateRumorMessage("")
+				extPacket := gossiper.createRumorMessage("")
 
 				// start rumormongering the message
-				go gossiper.StartRumorMongering(extPacket, gossiper.Name, extPacket.Packet.Rumor.ID)
+				go gossiper.startRumorMongering(extPacket, gossiper.name, extPacket.Packet.Rumor.ID)
 			}
 		}
 	}
@@ -107,7 +107,7 @@ func (gossiper *Gossiper) forwardPrivateMessage(packet *GossipPacket, hopLimit *
 
 		// send packet if address is present
 		if isPresent {
-			gossiper.ConnectionHandler.SendPacket(packet, addressInTable)
+			gossiper.connectionHandler.sendPacket(packet, addressInTable)
 		}
 	}
 }

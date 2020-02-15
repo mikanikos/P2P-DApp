@@ -96,7 +96,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		gossiper.blockchainHandler.previousBlockHash = gossiper.blockchainHandler.topBlockchainHash
 
 		// if mine, notify gui
-		if messageConsensus.Origin == gossiper.Name {
+		if messageConsensus.Origin == gossiper.name {
 			go func(b *BlockPublish) {
 				gossiper.fileHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
 			}(&chosenBlock)
@@ -110,7 +110,7 @@ func (gossiper *Gossiper) qscRound(extPacket *ExtendedGossipPacket) {
 		gossiper.blockchainHandler.previousBlockHash = chosenBlock.Hash()
 
 		// if mine, notify gui
-		if highestTLCRoundS1.Origin == gossiper.Name {
+		if highestTLCRoundS1.Origin == gossiper.name {
 			go func(b *BlockPublish) {
 				gossiper.fileHandler.filesIndexed <- &FileGUI{Name: b.Transaction.Name, MetaHash: hex.EncodeToString(b.Transaction.MetafileHash), Size: b.Transaction.Size}
 			}(&chosenBlock)

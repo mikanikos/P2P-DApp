@@ -33,7 +33,7 @@ func NewGossipHandler() *GossipHandler {
 	}
 }
 
-func (gossiper *Gossiper) HandleGossipMessage(extPacket *ExtendedGossipPacket, origin string, id uint32) {
+func (gossiper *Gossiper) handleGossipMessage(extPacket *ExtendedGossipPacket, origin string, id uint32) {
 
 	gossiper.printPeerMessage(extPacket, gossiper.GetPeers())
 
@@ -41,7 +41,7 @@ func (gossiper *Gossiper) HandleGossipMessage(extPacket *ExtendedGossipPacket, o
 
 	isMessageKnown := true
 
-	if origin != gossiper.Name {
+	if origin != gossiper.name {
 
 		// update routing table
 		textMessage := ""
@@ -56,7 +56,7 @@ func (gossiper *Gossiper) HandleGossipMessage(extPacket *ExtendedGossipPacket, o
 
 	// send status
 	statusToSend := gossiper.gossipHandler.myStatus.createMyStatusPacket()
-	gossiper.ConnectionHandler.SendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
+	gossiper.connectionHandler.sendPacket(&GossipPacket{Status: statusToSend}, extPacket.SenderAddr)
 
 	if !isMessageKnown {
 
@@ -69,17 +69,17 @@ func (gossiper *Gossiper) HandleGossipMessage(extPacket *ExtendedGossipPacket, o
 		}
 
 		// start rumor monger
-		go gossiper.StartRumorMongering(extPacket, origin, id)
+		go gossiper.startRumorMongering(extPacket, origin, id)
 	}
 }
 
 // create new rumor message
-func (gossiper *Gossiper) CreateRumorMessage(text string) *ExtendedGossipPacket {
+func (gossiper *Gossiper) createRumorMessage(text string) *ExtendedGossipPacket {
 	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
 	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
-	rumorPacket := &RumorMessage{Origin: gossiper.Name, ID: id, Text: text}
-	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.ConnectionHandler.GossiperData.Address}
-	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.Name, id)
+	rumorPacket := &RumorMessage{Origin: gossiper.name, ID: id, Text: text}
+	extPacket := &ExtendedGossipPacket{Packet: &GossipPacket{Rumor: rumorPacket}, SenderAddr: gossiper.connectionHandler.gossiperData.Address}
+	gossiper.gossipHandler.storeMessage(extPacket.Packet, gossiper.name, id)
 
 	if text != "" {
 		go func(r *RumorMessage) {
@@ -102,20 +102,4 @@ func (gossipHandler *GossipHandler) storeMessage(packet *GossipPacket, origin st
 	gossipHandler.updateStatus(origin, id, mapValue)
 
 	return loaded
-}
-
-func (gossiper *Gossiper) SendWhisperStatus(status *WhisperStatus) {
-
-	id := atomic.LoadUint32(&gossiper.gossipHandler.seqID)
-	atomic.AddUint32(&gossiper.gossipHandler.seqID, uint32(1))
-
-	status.Origin = gossiper.Name
-	status.ID = id
-
-	packet := &GossipPacket{WhisperStatus: status}
-
-	// store message
-	gossiper.gossipHandler.storeMessage(packet, gossiper.Name, id)
-
-	go gossiper.StartRumorMongering(&ExtendedGossipPacket{SenderAddr: gossiper.ConnectionHandler.GossiperData.Address, Packet: packet}, gossiper.Name, id)
 }

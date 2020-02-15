@@ -210,7 +210,7 @@ func (gossiper *Gossiper) forwardSearchRequestWithBudget(extPacket *ExtendedGoss
 			}
 
 			// send packet and remove current peer
-			gossiper.ConnectionHandler.SendPacket(extPacket.Packet, randomPeer)
+			gossiper.connectionHandler.sendPacket(extPacket.Packet, randomPeer)
 			peersChosen = append(peersChosen, randomPeer)
 			availablePeers = helpers.DifferenceString(gossiper.GetPeers(), peersChosen)
 		}
