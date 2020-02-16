@@ -102,7 +102,7 @@ func (gossiper *Gossiper) receivePacketsFromPeers() {
 			if (modeType == "simple" && simpleMode) || (modeType != "simple" && !simpleMode) {
 				packet := &ExtendedGossipPacket{Packet: packetFromPeer, SenderAddr: addr}
 				go func(p *ExtendedGossipPacket) {
-					PacketChannels[modeType] <- p
+					packetChannels[modeType] <- p
 				}(packet)
 			} else {
 				fmt.Println("ERROR: message can't be accepted in this operation mode")

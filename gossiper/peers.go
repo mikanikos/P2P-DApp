@@ -47,7 +47,6 @@ func (gossiper *Gossiper) AddPeer(peer *net.UDPAddr) {
 	}
 	if !contains {
 		gossiper.peersData.Peers = append(gossiper.peersData.Peers, peer)
-		gossiper.whisper.HandlePeer(peer)
 	}
 }
 

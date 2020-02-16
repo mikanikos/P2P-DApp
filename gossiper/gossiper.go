@@ -33,8 +33,6 @@ type Gossiper struct {
 	fileHandler *FileHandler
 	// handle abstractions for the blockchain (gossip with confirmation, tlc and qsc)
 	blockchainHandler *BlockchainHandler
-
-	whisper *Whisper
 }
 
 // NewGossiper constructor
@@ -43,7 +41,7 @@ func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum ui
 	// init app
 	Init()
 
-	gossiper := &Gossiper{
+	return &Gossiper{
 		name:      name,
 		peersData: createPeersData(peers, peersNum),
 
@@ -52,13 +50,7 @@ func NewGossiper(name, gossiperAddress, clientAddress, peers string, peersNum ui
 		routingHandler:    NewRoutingHandler(),
 		fileHandler:       NewFileHandler(),
 		blockchainHandler: NewBlockchainHandler(),
-		whisper:           NewWhisper(),
 	}
-
-	go gossiper.whisper.update()
-
-	return gossiper
-
 }
 
 // SetAppConstants based on parameters
@@ -97,10 +89,10 @@ func Init() {
 // initPacketChannels that are used in the app
 func initPacketChannels() {
 	// initialize channels used in the application
-	PacketChannels = make(map[string]chan *ExtendedGossipPacket)
+	packetChannels = make(map[string]chan *ExtendedGossipPacket)
 	for _, t := range modeTypes {
 		if (t != "simple" && !simpleMode) || (t == "simple" && simpleMode) {
-			PacketChannels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
+			packetChannels[t] = make(chan *ExtendedGossipPacket, maxChannelSize)
 		}
 	}
 }
@@ -147,8 +139,6 @@ func (gossiper *Gossiper) Run() {
 	go gossiper.handleTLCMessage()
 
 	go gossiper.processClientBlocks()
-
-	go gossiper.processWhisperPacket()
 
 	// listen for incoming packets
 	go gossiper.receivePacketsFromClient(clientChannel)
